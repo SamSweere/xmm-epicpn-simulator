@@ -1,4 +1,4 @@
-# XMM Simulation
+# XMM EPIC-pn Simulator
 The easiest way to run this code is to use the accompanying docker container. All the dependencies and filepaths are already pre-installed and set.
 
 
