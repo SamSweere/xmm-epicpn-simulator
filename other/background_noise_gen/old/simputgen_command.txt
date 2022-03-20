@@ -1,0 +1,1 @@
+simputfile Simput='background.simput' RA=0.0 DEC=0.0 Emin=0.15 Emax=15.0 history=True clobber=True ImageFile='const_background.fits' ASCIIFile='background_spectrum.txt'
