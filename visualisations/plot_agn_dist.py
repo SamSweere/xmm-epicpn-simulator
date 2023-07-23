@@ -1,14 +1,12 @@
 import matplotlib.pyplot as plt
-import numpy as np
 
 # S [erg / cm ** 2 / s]
 # N( > S) [deg ** -2]
-from simput.agn_distribution import get_S_N_from_file
+from src.simput.agn import get_s_n_from_file
 
-S, N = get_S_N_from_file()
+S, N = get_s_n_from_file()
 
 plt.plot(S, N, 'g', label="data")
-
 
 plt.xlabel("S [erg / cm ** 2 / s]")
 plt.ylabel("N( > S) [deg ** -2]")
@@ -17,7 +15,6 @@ plt.yscale('log')
 # plt.legend()
 # plt.savefig("xray_agn_number_count.pdf")
 plt.show()
-
 
 # C = N/np.sum(N) # Chance
 #

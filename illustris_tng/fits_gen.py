@@ -1,36 +1,49 @@
 import os
 from datetime import datetime
-
+from pathlib import Path
 import yt
 
 
-def cutout_to_xray_fits(cutout, cutout_datafolder, output_dir, sub, mode='proj', emin=0.5, emax=2.0, normal='y',
-                        width=1000, resolution=2048, redshift=0.05, overwrite=False,
-                        create_preview=True):
+def cutout_to_xray_fits(
+        cutout: str,
+        cutout_datafolder: Path,
+        output_dir: Path,
+        sub,
+        mode='proj',
+        emin=0.5,
+        emax=2.0,
+        normal='y',
+        width=1000,
+        resolution=2048,
+        redshift=0.05,
+        overwrite=False,
+        create_preview=True
+):
     filename = cutout.replace('.hdf5', '')
 
-    if type(normal) == str:
+    if isinstance(normal, str):
         normal_str = normal
-    else:
+    elif isinstance(normal, list) and len(normal) == 3:
         normal_str = f"{normal[0]}_{normal[1]}_{normal[2]}"
+    else:
+        raise ValueError(f"Unexpected `normal`: {normal}")
 
-    filename = filename + f"_m_{mode}_r_{resolution}_w_{width}_n_{normal_str}"
+    filename = f"{filename}_m_{mode}_r_{resolution}_w_{width}_n_{normal_str}"
 
     fits_filename = filename + '.fits'
-    fits_path = os.path.join(output_dir, fits_filename)
+    fits_path = output_dir / fits_filename
 
-    if os.path.exists(fits_path) and not overwrite:
-        print(f"{fits_path} already exists and overwrite is False, quitting")
-        return
+    if fits_path.exists() and not overwrite:
+        raise FileExistsError(f"{fits_path} already exists and `overwrite` is False")
 
     try:
 
         # simput_file_name_final = filename + ".simput"  # parts of the simput file will be fits files, this will be the final filename
 
-        print(
-            f"Processing cutout: {cutout}. Arguments: mode={mode}; normal={normal}; emin={emin}; emax={emax}; width={width}; resolution={resolution}; "
-            f"redshift={redshift}; overwrite={overwrite}; create_preview={create_preview}, output_dir={output_dir}; cutout_datafolder={cutout_datafolder}")
-        cutout_path = os.path.join(cutout_datafolder, cutout)
+        print(f"Processing cutout: {cutout}. Arguments: mode={mode}; normal={normal}; emin={emin}; emax={emax}; "
+              f"width={width}; resolution={resolution}; redshift={redshift}; overwrite={overwrite}; "
+              f"create_preview={create_preview}, output_dir={output_dir}; cutout_datafolder={cutout_datafolder}")
+        cutout_path = cutout_datafolder / cutout
         ds = yt.load(cutout_path, default_species_fields="ionized")
 
         # See documentation (https://yt-project.org/doc/reference/api/yt.fields.xray_emission_fields.html?highlight=xray_emission_fields#module-yt.fields.xray_emission_fields)

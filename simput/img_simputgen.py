@@ -1,23 +1,29 @@
-from datetime import datetime
-import os
 import time
+from datetime import datetime
+from pathlib import Path
 
+import numpy as np
 from astropy.io import fits
 
-from simput.spectrum import get_spectrumfile
-from simput.utils import copy_to_save_folder
-import numpy as np
-
-from utils.external_run import run_headas_command
+from src.simput.utils import get_spectrumfile
+from src.utils.external_run import run_headas_command
 
 
-def prepare_fits_image(run_dir, img_path, zoom=3, sigma_b=10, offset_x=0, offset_y=0, fov=0.8):
+def prepare_fits_image(
+        run_dir: Path,
+        img_path: Path,
+        zoom=3,
+        sigma_b=10,
+        offset_x=0,
+        offset_y=0,
+        fov=0.8
+):
     # fov is in Degrees
     # offset in range -1, 1. Percentage of possible offset, this scales with the zoom level
 
-    hdu_in = fits.open(img_path)
-
-    res = hdu_in['XRAY_PHOTON_INTENSITY_0.5_2.0_KEV'].header['NAXIS1']
+    with fits.open(img_path) as hdu_in:
+        res = hdu_in['XRAY_PHOTON_INTENSITY_0.5_2.0_KEV'].header['NAXIS1']
+        data = hdu_in['XRAY_PHOTON_INTENSITY_0.5_2.0_KEV'].data
 
     maxq_offset = (res / 3.0) * (1.0 - 1.0 / zoom)  # The maximum pixel offset
     crpix1 = (res / 2.0) + offset_x * max_offset  # Defines the center pixel x
@@ -28,23 +34,22 @@ def prepare_fits_image(run_dir, img_path, zoom=3, sigma_b=10, offset_x=0, offset
     cdelt1 = cdelt
     cdelt2 = cdelt
 
-    header = fits.Header()
+    header = {
+        "CUNIT1": "deg",
+        "CUNIT2": "deg",
+        "CDELT1": -1.0 * cdelt1,
+        "CDELT2": cdelt2,
+        "CRPIX1": crpix1,
+        "CRPIX2": crpix2,
+        "CRVAL1": 0.0,
+        "CRVAL2": 0.0,
+        "CTYPE1": "RA---TAN",
+        "CTYPE2": "DEC--TAN",
+        "MTYPE1": "EQPOS",
+        "MFORM1": "RA,DEC"
+    }
 
-    header['CUNIT1'] = 'deg'
-    header['CUNIT2'] = 'deg'
-    header['CDELT1'] = -1.0 * cdelt1
-    header['CDELT2'] = cdelt2
-    header['CRPIX1'] = crpix1
-    header['CRPIX2'] = crpix2
-    header['CRVAL1'] = 0.0
-    header['CRVAL2'] = 0.0
-
-    header['CTYPE1'] = 'RA---TAN'
-    header['CTYPE2'] = 'DEC--TAN'
-    header['MTYPE1'] = 'EQPOS'
-    header['MFORM1'] = 'RA,DEC'
-
-    data = hdu_in['XRAY_PHOTON_INTENSITY_0.5_2.0_KEV'].data
+    header = fits.Header(header)
 
     box_size_perc = 0.05
     res = data.shape[0]
@@ -104,15 +109,19 @@ def prepare_fits_image(run_dir, img_path, zoom=3, sigma_b=10, offset_x=0, offset
 
     timestamp = str(time.time()).replace(".", "")[-10:-1]
 
-    tmp_output_file = os.path.join(run_dir, f"tmp_altered_{timestamp}.fits")
+    tmp_output_file = run_dir / f"tmp_altered_{timestamp}.fits"
     hdu.writeto(tmp_output_file, overwrite=True)
 
     return tmp_output_file, flux
 
 
-def create_img_simput(run_dir, img_settings, verbose=True):
+def create_img_simput(
+        run_dir: Path,
+        img_settings,
+        verbose=True
+):
     # zoom = 1, sigma_b = 10, offset_x = 0.0, offset_y = 0.0,
-    img_path_in = img_settings['img_path']
+    img_path_in: Path = img_settings['img_path']
     zoom = img_settings['zoom']
     sigma_b = img_settings['sigma_b']
     offset_x = img_settings['offset_x']
@@ -120,7 +129,7 @@ def create_img_simput(run_dir, img_settings, verbose=True):
 
     # open the input fits
 
-    img_name = os.path.split(img_path_in)[-1]
+    img_name = img_path_in.name
     # sigma_b = 10
     # zoom = 1
 
@@ -139,14 +148,12 @@ def create_img_simput(run_dir, img_settings, verbose=True):
 
     # Use the current time as id, such that clashes don't happen
     # id = str(time.time()).replace(".", "")
-    fits_name_path = img_name.replace(".fits", "")
-    name = f"{fits_name_path}_p0_{emin}ev_p1_{emax}ev_sb_{sigma_b}_zoom_{zoom}_offx_{offset_x}_offy_{offset_y}"
+    name = img_name.replace(".fits", "")
+    name = f"{name}_p0_{emin}ev_p1_{emax}ev_sb_{sigma_b}_zoom_{zoom}_offx_{offset_x}_offy_{offset_y}"
     name = name.replace(".", "_")
-    simput_file_name = name + ".simput"
-    # timestamp = str(time.time()).replace(".", "")[-10:-1]
+    simput_file_name = f"{name}.simput"
 
-    # simput_file_name = f"sim_in_img_{timestamp}.simput"
-    output_file_path = os.path.join(run_dir, simput_file_name)
+    output_file = run_dir / simput_file_name
 
     # Get the spectrum file
     spectrum_file = get_spectrumfile(run_dir=run_dir, verbose=verbose)
@@ -166,7 +173,7 @@ def create_img_simput(run_dir, img_settings, verbose=True):
     # ra = location[0]
 
     # Create a tmp simput name such that the simputfile does not crash
-    tmp_simput_path = os.path.join(run_dir, "tmp_img.simput")
+    tmp_simput_path = run_dir / "tmp_img.simput"
 
     # We need the xspec from headas
     simput_command = f"simputfile RA={ra} Dec={dec} XSPECFile={spectrum_file} Emin={emin} Emax={emax} " \
@@ -176,29 +183,23 @@ def create_img_simput(run_dir, img_settings, verbose=True):
     # TODO: rotate simput by a random factor
 
     # Add specifics to the simput file
-    hdu = fits.open(tmp_simput_path)
-    header = hdu['PRIMARY'].header
-    header['INPUT'] = (img_name, "The image file used as input")
-    header['ZOOM'] = (zoom, "The amount the image is enlarged")
-    header['SIMGMA_B'] = (sigma_b, "Brightness based on the std of 50ks background.")
-    header['FLUX'] = (flux, "The flux of the whole image.")
-    header['OFFSET_X'] = (offset_x, "Percentage offset of x")
-    header['OFFSET_Y'] = (offset_y, "Percentage offset of y")
-    header['P0'] = (emin, "Emin")
-    header['P1'] = (emax, "Emax")
+    with fits.open(tmp_simput_path, mode="update") as hdu:
+        header = hdu['PRIMARY'].header
+        header['INPUT'] = (img_name, "The image file used as input")
+        header['ZOOM'] = (zoom, "The amount the image is enlarged")
+        header['SIMGMA_B'] = (sigma_b, "Brightness based on the std of 50ks background.")
+        header['FLUX'] = (flux, "The flux of the whole image.")
+        header['OFFSET_X'] = (offset_x, "Percentage offset of x")
+        header['OFFSET_Y'] = (offset_y, "Percentage offset of y")
+        header['P0'] = (emin, "Emin")
+        header['P1'] = (emax, "Emax")
 
-    header['COMMENT'] = "The image is used as a distribution map for this flux."
-    header['COMMENT'] = "All the calibration is done on 50ks."
-    header['COMMENT'] = f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at " \
-                        f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
-
-    hdu.writeto(tmp_simput_path, overwrite=True)
+        header['COMMENT'] = "The image is used as a distribution map for this flux."
+        header['COMMENT'] = "All the calibration is done on 50ks."
+        header['COMMENT'] = f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at " \
+                            f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
 
     # Move the last merged file to the save folder
-    copy_to_save_folder(simput_file_path=tmp_simput_path, run_dir=run_dir, output_file_path=output_file_path,
-                        verbose=verbose)
+    tmp_simput_path.rename(output_file)
 
-    # Remove the tmp simput
-    # os.remove(tmp_simput_path)
-
-    return simput_file_name
+    return output_file

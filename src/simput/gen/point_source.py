@@ -1,22 +1,23 @@
 # Simulate two point sources with power-law spectra
 import numpy as np
 
-from utils.external_run import run_headas_command
+from src.utils.external_run import run_headas_command
 
 
-def create_point_source(emin, emax, simput_file_path, xspec_file, center_point=(0.0, 0.0), src_flux=1.0e-12,
-                        offset=(0.0, 0.0), verbose=True):
+def generate_point_source(emin, emax, simput_file_path, xspec_file, center_point=(0.0, 0.0), src_flux=1.0e-12,
+                          offset=(0.0, 0.0), verbose=True):
+    rng = np.random.default_rng()
     # If the src_flux of offset is None then the values are randomly generated
-    # TODO: these values are only based on the tutorial values, no thought if they are realistic
+    # TODO these values are only based on the tutorial values, no thought if they are realistic
     if src_flux == 'random':
-        src_flux = np.random.uniform(low=1.0e-13, high=1.0e-10)
+        src_flux = rng.uniform(low=1.0e-13, high=1.0e-10)
 
     # Epic pn has a fov of 30 arcmin = 0.5 degrees.
     pn_fov = 0.5
 
     # Randomly position the point source within the fov
     if offset == 'random':
-        offset = np.random.uniform(low=-1.0 * pn_fov / 2, high=pn_fov / 2, size=2)
+        offset = rng.uniform(low=-1.0 * pn_fov / 2, high=pn_fov / 2, size=2)
 
     location = (center_point[0] + offset[0], center_point[1] + offset[1])
     ra = location[0]

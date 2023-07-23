@@ -1,0 +1,53 @@
+from pathlib import Path
+from typing import Union, List, Dict, Any
+from warnings import warn
+
+import requests
+from tqdm import tqdm
+
+from src.illustris_tng.data_handling import get_saved_file, save_cutout
+
+_cutout_request = {'gas': 'Coordinates,Density,ElectronAbundance,GFM_Metallicity,'
+                          'InternalEnergy,Masses,NeutralHydrogenAbundance,Velocities'}
+
+
+def get(
+        path: str,
+        headers,
+        cutout_datafolder: Path,
+        params=None
+) -> Union[str, requests.Response, dict, List[dict]]:
+    if 'cutout' in path:
+        # If the path is a cutout getter, check if we already have it
+        filename = get_saved_file(path, cutout_datafolder)
+        if filename:
+            # We have the file return the name
+            return filename
+
+    # make HTTP GET request to path
+    r = requests.get(path, params=params, headers=headers)
+
+    # raise exception if response code is not HTTP SUCCESS (200)
+    r.raise_for_status()
+
+    if r.headers['content-type'] == 'application/json':
+        return r.json()  # parse json responses automatically
+
+    if 'cutout' in path and 'content-disposition' in r.headers:
+        filename = save_cutout(cutout_url=path, content=r.content, datafolder=cutout_datafolder)
+        return filename  # return the filename string
+    return r
+
+
+def get_and_save_cutouts(subs, headers, cutout_datafolder) -> List[tuple]:
+    sc = []
+    for sub in tqdm(subs):
+        try:
+            sub = get(sub['url'], headers=headers, cutout_datafolder=cutout_datafolder)
+            cutouts: Dict[str, Any] = get(sub["cutouts"]["subhalo"], headers=headers,
+                                          cutout_datafolder=cutout_datafolder,
+                                          params=_cutout_request)
+            sc.append((sub, cutouts))
+        except Exception as e:
+            warn(f"Failed to load sub {sub['url']} due to error {e}")
+    return sc

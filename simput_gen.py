@@ -4,7 +4,7 @@ import shutil
 import numpy as np
 from tqdm import tqdm
 
-from simput.generation import generate_simput
+from src.simput.gen import generate_simput
 from utils import log
 from utils.multiprocessing import get_multiprocessing_pool
 
@@ -12,7 +12,8 @@ config = {
     'docker': True,
     'debug': False,
     'verbose': False,
-    'home': os.path.join(os.path.expanduser("~"), 'Documents/ESA/data/sim'),  # Change this if not running in docker mode
+    'home': os.path.join(os.path.expanduser("~"), 'Documents/ESA/data/sim'),
+    # Change this if not running in docker mode
     'gb_per_process': 0.1,
     'num_processes': 0,
     'data_dir': None,

@@ -1,56 +1,56 @@
+import os
 import random
 import shutil
 import time
-from tqdm import tqdm
+from pathlib import Path
 
 import numpy as np
+from tqdm import tqdm
 
+from simput.img_simputgen import create_img_simput
+from src.simput.utils import get_spectrumfile
+from src.simput.agn import get_fluxes
+from src.simput.gen import generate_background, generate_exposure_map, generate_point_source
+from src.simput.utils import merge_and_save_simputs
 from utils.file_utils import compress_gzip
 from utils.log import elog, plog
-from simput.agn_distribution import get_fluxes
-from simput.generate_background import generate_background_simput
-from simput.generate_exposuremap import generate_exposure_map_simput
-from simput.img_simputgen import create_img_simput
-from simput.point_source import create_point_source
-from simput.spectrum import get_spectrumfile
-from simput.utils import merge_and_save_simputs
-import os
 
 
 def create_background(run_dir, verbose):
-    spectrum_ds_file = os.path.join(os.path.dirname(__file__), "spectrum/pntffg_spectrum.ds")
+    # TODO Move to /res
+    spectrum_ds_file = os.path.join(os.path.dirname(__file__), "../../../simput/spectrum/pntffg_spectrum.ds")
     # spectrum_ds_file = os.path.join(os.path.dirname(__file__), "spectrum/back_spec.fits")
 
     emin = 0.15
     emax = 15.0
 
-    simput_file_name = generate_background_simput(run_dir=run_dir, spectrum_file=spectrum_ds_file, emin=emin, emax=emax,
-                                                  verbose=verbose)
+    simput_file_name = generate_background(run_dir=run_dir, spectrum_file=spectrum_ds_file, emin=emin, emax=emax,
+                                           verbose=verbose)
 
     return simput_file_name
 
 
 def create_exposure_map(run_dir, verbose):
     # Take the background spectrum as template
-    spectrum_ds_file = os.path.join(os.path.dirname(__file__), "spectrum/pntffg_spectrum.ds")
+    # TODO Move to /res
+    spectrum_ds_file = os.path.join(os.path.dirname(__file__), "../../../simput/spectrum/pntffg_spectrum.ds")
 
     emin = 0.15
     emax = 15.0
 
-    simput_file_name = generate_exposure_map_simput(run_dir=run_dir, spectrum_file=spectrum_ds_file, emin=emin,
-                                                    emax=emax,
-                                                    verbose=verbose)
+    simput_file_name = generate_exposure_map(run_dir=run_dir, spectrum_file=spectrum_ds_file, emin=emin,
+                                             emax=emax,
+                                             verbose=verbose)
 
     return simput_file_name
 
 
-def create_random_sources(run_dir, num_sources=10):
+def create_random_sources(
+        run_dir: Path,
+        num_sources=10
+):
     simput_files = []
     center = (0, 0)
-
-    # output_file_name = f"random_point_sources_{num_sources}.simput"
-    # output_file_name = str(run_id) + ".simput"
-    # output_file_path = os.path.join(simput_dir, output_file_name)
 
     spectrum_file = get_spectrumfile(run_dir=run_dir, norm=0.01)
 
@@ -60,33 +60,32 @@ def create_random_sources(run_dir, num_sources=10):
     emax = 15.0
 
     name = f"random_n_{num_sources}_{emin}eV_p1_{emax}eV"
-    simput_file_name = name + ".simput"
-    output_file_path = os.path.join(run_dir, simput_file_name)
+    output_file = run_dir / f"{name}.simput"
 
     # Create the point sources
     for i in range(num_sources):
         print(f"Generating point source {i}/{num_sources - 1}")
-        simput_file_name = f"ps_{i}.simput"
-        simput_file_path = os.path.join(run_dir, simput_file_name)
-        create_point_source(emin=emin, emax=emax, center_point=center, xspec_file=spectrum_file,
-                            simput_file_path=simput_file_path, src_flux='random', offset='random')
-        simput_files.append(simput_file_path)
+        simput_file = run_dir / f"ps_{i}.simput"
+        generate_point_source(emin=emin, emax=emax, center_point=center, xspec_file=spectrum_file,
+                              simput_file_path=simput_file, src_flux='random', offset='random')
+        simput_files.append(simput_file)
 
-    merge_and_save_simputs(run_dir=run_dir, simput_files=simput_files, output_file_path=output_file_path)
-
-    return simput_file_name
+    return merge_and_save_simputs(run_dir=run_dir, simput_files=simput_files, output_file=output_file)
 
 
-def create_agn_sources(run_dir, verbose=True):
+def create_agn_sources(
+        run_dir: Path,
+        verbose=True
+):
     simput_files = []
     emin = 0.5
     emax = 2.0
 
     # Use the current time as id, such that clashes don't happen
-    id = str(time.time()).replace(".", "").ljust(17, '0')
-    name = f"agn_{id}_p0_{emin}ev_p1_{emax}ev"
-    simput_file_name = name + ".simput"
-    output_file_path = os.path.join(run_dir, simput_file_name)
+    unique_id = str(time.time()).replace(".", "").ljust(17, '0')
+    name = f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev"
+    simput_file_name = f"{name}.simput"
+    output_file_path = run_dir / simput_file_name
 
     # Get the fluxes from the agn distribution
     fluxes = get_fluxes()
@@ -98,16 +97,13 @@ def create_agn_sources(run_dir, verbose=True):
         flux = fluxes[i]
         if verbose:
             print("Creating source with flux:", flux)
-        ps_simput_file_name = f"ps_{i}.simput"
-        simput_file_path = os.path.join(run_dir, ps_simput_file_name)
-        create_point_source(emin=emin, emax=emax, simput_file_path=simput_file_path, src_flux=flux,
-                            xspec_file=spectrum_file, offset='random', verbose=verbose)
+        simput_file_path = run_dir / f"ps_{i}.simput"
+        generate_point_source(emin=emin, emax=emax, simput_file_path=simput_file_path, src_flux=flux,
+                              xspec_file=spectrum_file, offset='random', verbose=verbose)
         simput_files.append(simput_file_path)
 
-    merge_and_save_simputs(run_dir=run_dir, simput_files=simput_files, output_file_path=output_file_path,
-                           verbose=verbose)
-
-    return simput_file_name
+    return merge_and_save_simputs(run_dir=run_dir, simput_files=simput_files, output_file=output_file_path,
+                                  verbose=verbose)
 
 
 # def create_img_simput(run_dir, img_path, output_file_dir, verbose=True):
@@ -167,8 +163,8 @@ def create_agn_sources(run_dir, verbose=True):
 
 def create_test_grid(run_dir, flux=1.0e-13, step_size=10, center_offset=(0.005, 0.015), verbose=True):
     name = f"test_grid_f_{flux}_step_{step_size}"
-    simput_file_name = name + ".simput"
-    output_file_path = os.path.join(run_dir, simput_file_name)
+    simput_file_name = f"{name}.simput"
+    output_file_path = run_dir / simput_file_name
 
     simput_files = []
 
@@ -190,18 +186,17 @@ def create_test_grid(run_dir, flux=1.0e-13, step_size=10, center_offset=(0.005, 
                 print(f"Generating point source {counter}/{step_size ** 2}")
             ps_simput_file_name = f"ps_{counter}.simput"
             simput_file_path = os.path.join(run_dir, ps_simput_file_name)
-            create_point_source(emin=emin, emax=emax, center_point=center_offset, xspec_file=spectrum_file,
-                                simput_file_path=simput_file_path, src_flux=flux, offset=(x, y), verbose=verbose)
+            generate_point_source(emin=emin, emax=emax, center_point=center_offset, xspec_file=spectrum_file,
+                                  simput_file_path=simput_file_path, src_flux=flux, offset=(x, y), verbose=verbose)
             simput_files.append(simput_file_path)
             counter += 1
 
     # Create one point source at (0, 0)
     if verbose:
         print(f"Generating point source at (0, 0)")
-    ps_simput_file_name = f"ps_center.simput"
-    simput_file_path = os.path.join(run_dir, ps_simput_file_name)
-    create_point_source(emin=emin, emax=emax, center_point=(0.0, 0.0), xspec_file=spectrum_file,
-                        simput_file_path=simput_file_path, src_flux=flux, offset=(0.0, 0.0), verbose=verbose)
+    simput_file_path = run_dir / f"ps_center.simput"
+    generate_point_source(emin=emin, emax=emax, center_point=(0.0, 0.0), xspec_file=spectrum_file,
+                          simput_file_path=simput_file_path, src_flux=flux, offset=(0.0, 0.0), verbose=verbose)
     simput_files.append(simput_file_path)
 
     # print(f"Generating point source at (0.125, 0.125) deg")
@@ -211,7 +206,7 @@ def create_test_grid(run_dir, flux=1.0e-13, step_size=10, center_offset=(0.005, 
     #                     simput_file_path=simput_file_path, src_flux=flux, offset=(0.125, 0.125))
     # simput_files.append(simput_file_path)
     #
-    merge_and_save_simputs(run_dir=run_dir, simput_files=simput_files, output_file_path=output_file_path,
+    merge_and_save_simputs(run_dir=run_dir, simput_files=simput_files, output_file=output_file_path,
                            verbose=verbose)
 
     return simput_file_name

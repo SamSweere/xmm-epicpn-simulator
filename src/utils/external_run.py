@@ -1,9 +1,11 @@
 import subprocess
+from pathlib import Path
+from typing import List, Optional
 
 from utils import log
 
 
-def run_command(command, verbose=True, input=None):
+def _run_command(command, verbose=True, input=None):
     if verbose:
         print(command)
     #
@@ -36,10 +38,16 @@ def run_command(command, verbose=True, input=None):
     return retcode, result
 
 
-def run_headas_command(command, input=None, verbose=True):
+def run_headas_command(
+        command: str,
+        run_dir: Optional[Path] = None,
+        input=None,
+        verbose=True
+):
     # Initilialize HEADAS before running the command
-    headas_command = ". $HEADAS/headas-init.sh"
-    environ_settings = "export HEADASNOQUERY= && export HEADASPROMPT=/dev/null"
-
-    final_command = headas_command + " && " + environ_settings + " && " + command
-    run_command(final_command, input=input, verbose=verbose)
+    cmds: List[str] = ["" if run_dir is None else f"cd {run_dir.resolve()}",
+                       ". $HEADAS/headas-init.sh",
+                       "export HEADASNOQUERY= && export HEADASPROMPT=/dev/null",
+                       command]
+    cmd = " && ".join(cmds)
+    _run_command(cmd, input=input, verbose=verbose)

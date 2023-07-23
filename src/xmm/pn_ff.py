@@ -1,5 +1,7 @@
+from pathlib import Path
+
+from src.xmm.pn_ccd import XmmPnCcd
 from utils.log import plog
-from xmm.pn_ccd import XmmPnCcd
 
 
 class XmmPnFf:
@@ -51,9 +53,9 @@ class XmmPnFf:
         DEFAULT_IMG_HEIGHT = 411
 
         self.x_optical_offset = -1.0 * (self.xyrval['04'][0] + (
-                    CCD_DEFAULT_PIXEL_HEIGHT / 2.0 - OPTICS_Y) * CCD_DEFAULT_PIXEL_SIZE)  # 0.0026955
+                CCD_DEFAULT_PIXEL_HEIGHT / 2.0 - OPTICS_Y) * CCD_DEFAULT_PIXEL_SIZE)  # 0.0026955
         self.y_optical_offset = -1.0 * (self.xyrval['04'][1] - (
-                    OPTICS_X - CCD_DEFAULT_PIXEL_WIDTH / 2.0) * CCD_DEFAULT_PIXEL_SIZE)  # 0.003632
+                OPTICS_X - CCD_DEFAULT_PIXEL_WIDTH / 2.0) * CCD_DEFAULT_PIXEL_SIZE)  # 0.003632
 
         # Calculate the ccd pixel width and height and also the pixel size
         if sim_separate_ccds:
@@ -200,9 +202,8 @@ class XmmPnFf:
         self.ccds = [self.ccd01, self.ccd02, self.ccd03, self.ccd04, self.ccd05, self.ccd06, self.ccd07, self.ccd08,
                      self.ccd09, self.ccd10, self.ccd11, self.ccd12]
 
-    def save_xml(self, folder_location):
-        for i in range(len(self.ccds)):
-            ccd = self.ccds[i]
+    def save_xml(self, folder_location: Path):
+        for ccd in self.ccds:
             ccd.save_xml(folder_location)
         plog("All ccd's saved", verbose=self.verbose)
 

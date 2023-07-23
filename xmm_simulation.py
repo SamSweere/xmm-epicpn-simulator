@@ -1,5 +1,6 @@
 import os
 import shutil
+from pathlib import Path
 
 from sixte.simulator import run_simulation_mode
 from utils import log
@@ -81,9 +82,10 @@ if __name__ == '__main__':
         raise AssertionError(m)
 
     # Create tmp run_dir
-    run_dir = config['run_dir']
-    if not os.path.exists(run_dir):
-        os.makedirs(run_dir)
+    run_dir = Path(config['run_dir'])
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    run_simulation_mode(mode_list, amount_list, run_dir, config=config)
 
     for mode, amount in zip(mode_list, amount_list):
         # Process the mode with the settings
@@ -92,4 +94,4 @@ if __name__ == '__main__':
 
     if not config['debug']:
         # Remove the tmp run_dir
-        shutil.rmtree(config['run_dir'])
+        shutil.rmtree(run_dir)
