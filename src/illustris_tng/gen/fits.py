@@ -1,12 +1,12 @@
 import os
 from datetime import datetime
 from pathlib import Path
+
 import yt
 
 
 def cutout_to_xray_fits(
-        cutout: str,
-        cutout_datafolder: Path,
+        cutout: Path,
         output_dir: Path,
         sub,
         mode='proj',
@@ -19,7 +19,7 @@ def cutout_to_xray_fits(
         overwrite=False,
         create_preview=True
 ):
-    filename = cutout.replace('.hdf5', '')
+    filename = cutout.name.replace('.hdf5', '')
 
     if isinstance(normal, str):
         normal_str = normal
@@ -42,9 +42,8 @@ def cutout_to_xray_fits(
 
         print(f"Processing cutout: {cutout}. Arguments: mode={mode}; normal={normal}; emin={emin}; emax={emax}; "
               f"width={width}; resolution={resolution}; redshift={redshift}; overwrite={overwrite}; "
-              f"create_preview={create_preview}, output_dir={output_dir}; cutout_datafolder={cutout_datafolder}")
-        cutout_path = cutout_datafolder / cutout
-        ds = yt.load(cutout_path, default_species_fields="ionized")
+              f"create_preview={create_preview}, output_dir={output_dir}; cutout_datafolder={cutout.parent}")
+        ds = yt.load(cutout, default_species_fields="ionized")
 
         # See documentation (https://yt-project.org/doc/reference/api/yt.fields.xray_emission_fields.html?highlight=xray_emission_fields#module-yt.fields.xray_emission_fields)
         yt.add_xray_emissivity_field(ds, emin, emax, redshift)  # , table_type='apec')
@@ -54,7 +53,9 @@ def cutout_to_xray_fits(
                                                center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
                                                width=(width, "code_length"), image_res=resolution)
         elif mode == "slice":
-            # TODO: there is a bug with FITSOffAxisSlice: yt.utilities.exceptions.YTNonIndexedDataContainer: The data container (<class 'yt.data_objects.index_subobjects.particle_container.ParticleContainer'>) is an unindexed type.  Operations such as ires, icoords, fcoords and fwidth will not work on it.
+            # TODO: there is a bug with FITSOffAxisSlice: yt.utilities.exceptions.YTNonIndexedDataContainer:
+            #  The data container (<class 'yt.data_objects.index_subobjects.particle_container.ParticleContainer'>)
+            #  is an unindexed type.  Operations such as ires, icoords, fcoords and fwidth will not work on it.
 
             # # TODO:  Doing a workaround
             # yt_fits = yt.FITSOffAxisSlice(ds, normal=normal, fields=('gas', 'xray_photon_intensity_0.5_2.0_keV'),
@@ -72,7 +73,7 @@ def cutout_to_xray_fits(
         yt_fits.update_header(field="all", key="EMIN", value=emin)
         yt_fits.update_header(field="all", key="EMAX", value=emax)
 
-        yt_fits.writeto(fits_path, overwrite=overwrite)
+        yt_fits.writeto(str(fits_path.resolve()), overwrite=overwrite)
 
         # if show_results:
         #     slc = yt.ParticlePlot(ds, "particle_position_x", "particle_position_y", "particle_mass",
