@@ -11,12 +11,6 @@ def _run_command(command, verbose=True, input=None):
     #
     # Execute a shell command with the stdout and stderr being redirected to a log file
     #
-    # shell=False suggested Francesco Pierfederici <fra.pierfederici@icloud.com>, but it does not work as expected
-    #
-    # not using the other suggestion check=True as I am not sure it will do what I need. It will raise an exception that I am
-    # catching with try: except: anyway.
-    #
-    retcode = None
     try:
         result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, input=input,
                                 encoding='ascii')
@@ -45,9 +39,9 @@ def run_headas_command(
         verbose=True
 ):
     # Initilialize HEADAS before running the command
-    cmds: List[str] = ["" if run_dir is None else f"cd {run_dir.resolve()}",
-                       ". $HEADAS/headas-init.sh",
-                       "export HEADASNOQUERY= && export HEADASPROMPT=/dev/null",
-                       command]
+    cmds: List[str] = [] if run_dir is None else [f"cd {run_dir.resolve()}"]
+    cmds.extend([". $HEADAS/headas-init.sh",
+                 "export HEADASNOQUERY= && export HEADASPROMPT=/dev/null",
+                 command])
     cmd = " && ".join(cmds)
     _run_command(cmd, input=input, verbose=verbose)
