@@ -1,96 +1,96 @@
 import random
 import shutil
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
 from src.utils.external_run import run_headas_command
 
 
 def get_spectrumfile(run_dir: Path, norm=0.01, verbose=True):
-    # TODO: put this somewhere else
-    # spectrum_file = "/home/sam/Documents/ESA/data/sim/test_spectrum.xcm"
-    command = "xspec"
     spectrum_file = run_dir / "spectrum.xcm"
-    input = f"model phabs*power\n0.04\n2.0\n{str(norm)}\n save model {spectrum_file.resolve()}"
-    run_headas_command(command, input=input, verbose=verbose)
-
+    command = "xspec"
+    xspec_in = f"model phabs*power\n0.04\n2.0\n{norm}\n save model {spectrum_file.resolve()}"
+    run_headas_command(command, cmd_input=xspec_in, verbose=verbose)
     return spectrum_file
 
 
-def merge_and_save_simputs(
-        run_dir: Path,
+def _simput_merge(
+        infiles: List[Path],
+        outfile: Path,
+        verbose: bool = True
+) -> None:
+    str_infiles = [str(infile.resolve()) for infile in infiles]
+    str_infiles = ",".join(str_infiles)
+
+    merge_command = f"simputmerge FetchExtensions=yes Infiles={str_infiles} Outfile={outfile.resolve()}"
+
+    if verbose:
+        print(merge_command)
+    run_headas_command(merge_command, verbose=verbose)
+    # run_sixte_command(merge_command, verbose=verbose)
+
+
+def merge_simputs(
         simput_files: List[Path],
         output_file: Path,
+        keep_files: bool = False,
         verbose=True
-):
+) -> Path:
     # Combine the simput point sources
     if len(simput_files) == 1:
-        shutil.copy(simput_files[0], output_file)
+        file = simput_files[0]
+        if keep_files:
+            shutil.copy2(file, output_file)
+        else:
+            file.rename(output_file)
     else:
-        files = [(simput_files[0], simput_files[1])]
-        files.extend([(simput_file, output_file) for simput_file in simput_files[2:]])
-        for infile1, infile2 in files:
-            # Merge the simput files
-            merge_command = f"simputmerge FetchExtensions=yes Infile1={infile1.resolve()} Infile2={infile2.resolve()}" \
-                            f" Outfile={output_file.resolve()}"
+        _simput_merge(simput_files, output_file, verbose=verbose)
 
-            if verbose:
-                print(infile1)
-                print(infile2)
-                print(f"{output_file.resolve()}")
-                print(merge_command)
-                print("------------------------")
+        if not keep_files:
+            for file in simput_files:
+                file.unlink()
 
-            run_headas_command(merge_command, run_dir=run_dir, verbose=verbose)
     return output_file
+
+
+def _order(iterable: List, order: str) -> List:
+    if order == "normal":
+        pass
+    elif order == "reversed":
+        iterable.reverse()
+    elif order == "random":
+        random.shuffle(iterable)
+    else:
+        raise ValueError(f'Order: {order} not in known options list of "normal", "reversed", "random"')
+
+    return iterable
 
 
 def get_simputs(
         simput_path: Path,
-        mode,
-        amount=-1,
+        mode_amount_dict: Dict[str, int],
         order='normal'
-):
+) -> Dict[str, List[Path]]:
     # Order options: normal (front to back), reversed (back to front), random
-    # Put the mode and amount in a list if they are passed as single values
-    if type(mode) != list:
-        mode = [mode]
 
-    if type(amount) != list:
-        amount = [amount]
-
-    if not len(amount) == len(mode):
-        raise AssertionError(f"the number of modes ({len(mode)}) should be equal "
-                             f"to the number of amounts ({len(amount)})")
-
-    simput_files = []
-    for m, n in zip(mode, amount):
-        if n == 0:
+    simput_files: Dict[str, List[Path]] = {}
+    for mode, amount in mode_amount_dict.items():
+        if amount == 0:
             continue
 
-        mode_path = simput_path / m
+        mode_path = simput_path / mode
         files = mode_path.glob("*.simput.gz")
 
-        if n == -1:
+        if amount == -1:
             # Do all
-            tmp = list(files)
+            simput_files[mode] = _order(list(files), order)
         else:
             tmp = []
             for file_count, file in enumerate(files):
-                if file_count < n:
+                if file_count < amount:
                     tmp.append(file)
                 else:
                     break
-
-        simput_files.append(tmp)
-
-    if order == "normal":
-        simput_files = simput_files
-    elif order == "reversed":
-        simput_files = simput_files.reverse()
-    elif order == "random":
-        random.shuffle(simput_files)
-    else:
-        raise ValueError(f'Order: {order} not in known options list of "normal", "reversed", "random"')
+            simput_files[mode] = _order(tmp, order)
 
     return simput_files

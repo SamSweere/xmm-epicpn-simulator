@@ -1,12 +1,16 @@
 import multiprocessing as mp
-from typing import Iterable
+from datetime import datetime
+from multiprocessing.pool import Pool
+from typing import Dict
 
 from psutil import virtual_memory
 
 
-def get_multiprocessing_pool(num_processes=None, gb_per_process=None):
+def _get_pool(mp_conf: Dict[str, float]):
     # num_processes : the number of processes, if None the calculation is done based on the gb_per_process limit
     # gb_per_process : the expected amount of ram one process needs, if None there is no limit
+    num_processes = mp_conf["num_processes"]
+    gb_per_process = mp_conf["gb_per_process"]
 
     cpu_count = mp.cpu_count()
     print("Number of cpu : ", cpu_count)
@@ -31,36 +35,17 @@ def get_multiprocessing_pool(num_processes=None, gb_per_process=None):
 
     print("Num processes:", num_processes)
 
-    pool = mp.Pool(processes=num_processes)
+    pool = Pool(processes=num_processes)
 
     return pool
 
 
-def run_apply_async_multiprocessing(func, argument_list, num_processes=None, gb_per_process=None):
-    # From: https://leimao.github.io/blog/Python-tqdm-Multiprocessing/
-    #
-    # pool = get_multiprocessing_pool(num_processes=num_processes, gb_per_process=gb_per_process)
-    #
-    # jobs = [pool.apply_async(func=func, args=(*argument,)) if isinstance(argument, tuple)
-    #         else pool.apply_async(func=func, args=(argument,)) for argument in argument_list]
-    #
-    # pool.close()
-    # result_list_tqdm = []
-    # for job in tqdm(jobs):
-    #     result_list_tqdm.append(job.get())
-    #
-    # return result_list_tqdm
-    #
-    results = []
-    with mp.Pool(processes=num_processes) as pool:
-        jobs = [pool.apply_async(func=func, args=(*argument,)) if isinstance(argument, tuple)
-                else pool.apply_async(func=func, args=(argument,)) for argument in argument_list]
-        for job in jobs:
-            res = job.get()
-            if isinstance(res, Iterable):
-                results.extend(res)
-            else:
-                results.append(res)
-        pool.close()
-        pool.join()
-    return results
+def mp_run(func, argument_list, mp_conf: Dict[str, float]) -> None:
+    print(f"Running {func.__qualname__} in {mp_conf} processes. This may take some time...")
+    start = datetime.now()
+    print(f"STARTED AT: {start}")
+    with _get_pool(mp_conf) as pool:
+        pool.starmap(func=func, iterable=argument_list)
+    end = datetime.now()
+    print(f"FINISHED AT: {end}")
+    print(f"DURATION: {start - end}")

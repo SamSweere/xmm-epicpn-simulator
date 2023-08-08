@@ -8,50 +8,57 @@ from src.simput.constants import CDELT, RESOLUTION, PIXEL_SIZE
 from src.simput.gen.utils import ones_like_xmm, generate_ascii_spectrum, generate_simput
 
 
-def get_ascii_spectrum(run_dir: Path, spectrum_file, verbose) -> Path:
+def _get_ascii_spectrum(
+        run_dir: Path,
+        spectrum_file: Path,
+        verbose: bool = True
+) -> Path:
     # Open the background spectrum file (sky + instrument + particle)
-    with fits.open(spectrum_file) as hdu:
-        bin_factor = hdu['SPECTRUM'].header['SPECDELT']
-        channels = hdu['SPECTRUM'].data['CHANNEL']
+    with fits.open(spectrum_file, mode='readonly') as hdu:
+        spectrum = hdu['SPECTRUM']
+        bin_factor = spectrum.header['SPECDELT']
+        channels = spectrum.data['CHANNEL']
         energies = channels * bin_factor / 1000
 
         # Calculate the rate based on the counts
-        counts = hdu['SPECTRUM'].data['COUNTS'].astype(np.float32)
-        rates = counts / float(hdu['SPECTRUM'].header['EXPOSURE'])
+        counts = spectrum.data['COUNTS'].astype(np.float32)
+        rates = counts / float(spectrum.header['EXPOSURE'])
 
     surface = (PIXEL_SIZE * RESOLUTION) ** 2  # cm**2
     cgi_rates = rates / surface  # photon/s/cm**2/keV
 
-    return generate_ascii_spectrum(
-        run_dir,
-        energies,
-        cgi_rates,
-        verbose
-    )
+    ascii_spectrum = generate_ascii_spectrum(run_dir,
+                                             energies,
+                                             cgi_rates,
+                                             verbose)
+
+    return ascii_spectrum
 
 
-def generate_background(
+def background(
         run_dir: Path,
-        spectrum_file,
-        emin,
-        emax,
-        verbose
+        spectrum_file: Path,
+        emin: float,
+        emax: float,
+        verbose: bool = True
 ) -> Path:
-    image_file = ones_like_xmm(resolution=RESOLUTION, cdelt=CDELT, crpix1=int(RESOLUTION / 2) - 44,
-                               crpix2=219, run_dir=run_dir, filename="const_background.fits")
+    image_file = ones_like_xmm(resolution=RESOLUTION,
+                               cdelt=CDELT,
+                               crpix1=int(RESOLUTION / 2) - 44,
+                               crpix2=219,
+                               run_dir=run_dir,
+                               filename="const_background.fits")
 
-    ascii_spectrum_file = get_ascii_spectrum(run_dir, spectrum_file, verbose)
+    ascii_spectrum_file = _get_ascii_spectrum(run_dir, spectrum_file, verbose)
 
-    outfile_path = generate_simput(
-        run_dir=run_dir,
-        filename=f"background.fits",
-        emin=emin,
-        emax=emax,
-        image_file=image_file,
-        ascii_spectrum_file=ascii_spectrum_file
-    )
+    outfile_path = generate_simput(run_dir=run_dir,
+                                   filename=f"background.simput",
+                                   emin=emin,
+                                   emax=emax,
+                                   image_file=image_file,
+                                   ascii_spectrum_file=ascii_spectrum_file)
 
     if verbose:
-        print("Background generation complete")
+        print(f"Background generation complete. Saved to {outfile_path.resolve()}")
 
     return outfile_path

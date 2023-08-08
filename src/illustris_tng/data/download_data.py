@@ -33,10 +33,9 @@ def get(
     if r.headers['content-type'] == 'application/json':
         return r.json()  # parse json responses automatically
 
-    if 'cutout' in path and 'content-disposition' in r.headers:
-        filename = save_cutout(cutout_url=path, content=r.content, datafolder=cutout_datafolder)
-        # return filename  # return the filename string
-        return path, r.content, cutout_datafolder
+    # if 'cutout' in path and 'content-disposition' in r.headers:
+    #     filename = save_cutout(cutout_url=path, content=r.content, datafolder=cutout_datafolder)
+    #     return filename  # return the filename string
     return r
 
 

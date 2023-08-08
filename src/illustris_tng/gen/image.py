@@ -7,7 +7,7 @@ import numpy as np
 from illustris_tng.data import get, get_cutouts
 from illustris_tng.data.data_handling import save_cutout
 from illustris_tng.gen.fits import cutout_to_xray_fits
-from utils.multiprocessing import run_apply_async_multiprocessing
+from utils.multiprocessing import mp_run
 
 
 # Change the run directory to illustris_tng such that the illustris code finde the cloudy_emissivity_v2.h5 file
@@ -74,7 +74,7 @@ def run(path_to_cfg: Path):
     # TODO This depends on the amount of CPUs available. Maybe do this in run_apply_async_multiprocessing?
     chunks = np.array_split(subs_r, 12)
     argument_list = [(list(chunk), headers, cutout_dir) for chunk in chunks]
-    sc = run_apply_async_multiprocessing(get_cutouts, argument_list, 12)
+    sc = mp_run(get_cutouts, argument_list, 12)
     # sc = get_cutouts(subs=subs_r, headers=headers, cutout_datafolder=cutout_dir)
     # sc = itertools.chain.from_iterable(sc)
     argument_list = []
@@ -108,8 +108,8 @@ def run(path_to_cfg: Path):
             #                                             normal, width, resolution, redshift, overwrite,
             #                                             create_preview)
 
-    run_apply_async_multiprocessing(cutout_to_xray_fits, argument_list, num_processes=12,  # TODO
-                                    gb_per_process=mp_cfg['gb_per_process'])
+    mp_run(cutout_to_xray_fits, argument_list, num_processes=12,  # TODO
+           gb_per_process=mp_cfg['gb_per_process'])
 
 
 if __name__ == '__main__':

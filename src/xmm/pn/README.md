@@ -1,0 +1,2 @@
+- focallength from XMM_MISCDATA_0022.CCF XRT3, from mm to meters
+- "optics:x" and "optics:y" are based on based on XMM_MISCDATA_0022.CCF

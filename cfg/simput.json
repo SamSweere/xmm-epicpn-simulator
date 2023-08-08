@@ -1,0 +1,26 @@
+{
+  "multiprocessing": {
+    "gb_per_process": 2.0,
+    "num_processes": 12
+  },
+  "environment": {
+    "working_directory": "~/Documents/ESA/data/sim",
+    "debug": false,
+    "verbose": false,
+    "keep_files": false
+  },
+  "simput": {
+    "mode": {
+      "img":  0,
+      "agn":  0,
+      "background":  0,
+      "test_grid":  1,
+      "exposure_map": 0
+    },
+    "zoom_img_range": [1, 2],
+    "sigma_b_img_range": [5, 50],
+    "offset_std": 0.05, 
+    "num_img_sample": 5,
+    "simput_in_image_dataset": "tng300_1_2_3_z99_2048"
+  }
+}

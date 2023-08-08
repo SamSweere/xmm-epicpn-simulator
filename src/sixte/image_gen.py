@@ -13,6 +13,7 @@ def merge_ccd_eventlists(input_folder: Path, out_filename: str, verbose: bool = 
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
     # Merge the ccds of every quadrant
+    # TODO fix path to individual .fits files
     cmds = ['ftmerge "ccd01_evt.fits","ccd02_evt.fits","ccd03_evt.fits" "ccd_q0_evt.fits" clobber=yes',
             'ftmerge "ccd04_evt.fits","ccd05_evt.fits","ccd06_evt.fits" "ccd_q1_evt.fits" clobber=yes',
             'ftmerge "ccd07_evt.fits","ccd08_evt.fits","ccd09_evt.fits" "ccd_q2_evt.fits" clobber=yes',
@@ -22,7 +23,7 @@ def merge_ccd_eventlists(input_folder: Path, out_filename: str, verbose: bool = 
 
     # Merge the quadrants into one
     for cmd in tqdm(cmds, desc="Running commands to merge CCD eventlists"):
-        run_headas_command(command=cmd, run_dir=input_folder, verbose=verbose)
+        run_headas_command(cmd=cmd, verbose=verbose)
 
     # Return the final event path
     return input_folder / out_filename
@@ -31,12 +32,13 @@ def merge_ccd_eventlists(input_folder: Path, out_filename: str, verbose: bool = 
 # Merge and generate image command
 def generate_fits_image(evt_file, input_folder, out_name, naxis1, naxis2, crval1, crval2, crpix1, crpix2, cdelt1,
                         cdelt2, verbose=True):
-    cmds = [f"imgev EvtFile='{evt_file}' Image='{out_name}' CoordinateSystem=0 Projection=TAN "
-            f"NAXIS1='{naxis1}' NAXIS2='{naxis2}' CUNIT1=deg CUNIT2=deg CRVAL1='{crval1}' CRVAL2='{crval2}' "
-            f"CRPIX1='{crpix1}' CRPIX2='{crpix2}' CDELT1='{cdelt1}' CDELT2='{cdelt2}' clobber=yes"]
+    cmds = [
+        f"imgev EvtFile='{input_folder / evt_file}' Image='{input_folder / out_name}' CoordinateSystem=0 Projection=TAN "
+        f"NAXIS1='{naxis1}' NAXIS2='{naxis2}' CUNIT1=deg CUNIT2=deg CRVAL1='{crval1}' CRVAL2='{crval2}' "
+        f"CRPIX1='{crpix1}' CRPIX2='{crpix2}' CDELT1='{cdelt1}' CDELT2='{cdelt2}' clobber=yes"]
 
     for cmd in tqdm(cmds, desc="Generating FITS files"):
-        run_headas_command(command=cmd, run_dir=input_folder, verbose=verbose)
+        run_headas_command(cmd=cmd, verbose=verbose)
 
 
 def split_eventlist(run_dir: Path, eventlist_path: Path, multiples: int = 10000, verbose: bool = True):
@@ -57,7 +59,7 @@ def split_eventlist(run_dir: Path, eventlist_path: Path, multiples: int = 10000,
 
                 # Load the full eventlist file
                 # TODO I think that this file opening is not needed
-                # hdu = fits.open(eventlist_path)
+                hdu = fits.open(eventlist_path)
 
                 # Filter the data
                 data = hdu['EVENTS'].data

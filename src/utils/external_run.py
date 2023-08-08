@@ -1,47 +1,37 @@
 import subprocess
-from pathlib import Path
-from typing import List, Optional
-
-from utils import log
+from typing import Optional
 
 
-def _run_command(command, verbose=True, input=None):
+def _run_command(cmd, verbose=True, cmd_input: Optional[str] = None) -> None:
     if verbose:
-        print(command)
+        print(f"Running command: {cmd}")
     #
     # Execute a shell command with the stdout and stderr being redirected to a log file
     #
-    try:
-        result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, input=input,
-                                encoding='ascii')
-        retcode = result.returncode
-        if retcode < 0:
-            w_message = f"Execution of {command} was terminated by signal: {-retcode} \n {result.stdout}"
-            log.wlog(w_message, verbose=verbose)
-        elif retcode > 0:
-            message = f"Execution of {command} returned {retcode}, \n {retcode, result.stdout}"
-            log.elog(message, verbose=verbose)
-            raise RuntimeError(message)
-        else:
-            message = f"Execution of {command} returned {retcode}, \n {retcode, result.stdout}"
-            log.plog(message, verbose=verbose)
-    except OSError as e:
-        e_message = f"Execution of {command} failed: {e}"
-        log.elog(e_message)
-        raise OSError(e_message)
-    return retcode, result
+    if cmd_input is not None:
+        cmd_input = bytes(cmd_input, 'ascii')
+    result = subprocess.run(args=cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, input=cmd_input,
+                            close_fds=True)
+    retcode = result.returncode
+    if retcode != 0:
+        raise RuntimeError(f"Execution of {cmd} returned {retcode}\n{result.stdout}")
 
 
 def run_headas_command(
-        command: str,
-        run_dir: Optional[Path] = None,
-        input=None,
-        verbose=True
+        cmd: str,
+        cmd_input: Optional[str] = None,
+        verbose: bool = True
 ):
     # Initilialize HEADAS before running the command
-    cmds: List[str] = [] if run_dir is None else [f"cd {run_dir.resolve()}"]
-    cmds.extend([". $HEADAS/headas-init.sh",
-                 "export HEADASNOQUERY= && export HEADASPROMPT=/dev/null",
-                 command])
-    cmd = " && ".join(cmds)
-    _run_command(cmd, input=input, verbose=verbose)
+    cmd = f". $HEADAS/headas-init.sh && {cmd}"
+    _run_command(cmd, cmd_input=cmd_input, verbose=verbose)
+
+
+def run_sixte_command(
+        cmd: str,
+        verbose: bool = True
+) -> None:
+    cmd = (f"export SIMPUT=/home/bojantodorkov/simput &&"
+           f"export SIXTE=/home/bojantodorkov/simput &&"
+           f". $SIXTE/bin/sixte-install.sh && {cmd}")
+    run_headas_command(cmd, verbose=verbose)

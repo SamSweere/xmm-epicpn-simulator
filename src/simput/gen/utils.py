@@ -1,8 +1,11 @@
+import os
 from pathlib import Path
 from typing import Union, Tuple, Iterable
-from src.utils.external_run import run_headas_command
+
 import numpy as np
 from astropy.io import fits
+
+from src.utils.external_run import run_headas_command
 
 
 def ones_like_xmm(
@@ -43,26 +46,34 @@ def ones_like_xmm(
 
 def generate_ascii_spectrum(
         run_dir: Path,
-        energies,
-        rates: Union[float, Iterable],
-        verbose: bool
+        energies: Union[float, Iterable, np.ndarray],
+        rates: Union[float, Iterable, np.ndarray],
+        verbose: bool = True
 ) -> Path:
-    if isinstance(rates, float):
-        content = [f"{energy} {rates}" for energy in energies]
-    elif isinstance(rates, Iterable):
-        content = [f"{energy} {rate}" for energy, rate in zip(energies, rates)]
-    else:
-        raise AttributeError
-    content = "\n".join(content)
+    if not isinstance(energies, (float, Iterable, np.ndarray)):
+        raise TypeError(f"'energies' has to be one of (float, Iterable, np.ndarray)! Got: {type(energies)}")
+    if not isinstance(rates, (float, Iterable, np.ndarray)):
+        raise TypeError(f"'rates' has to be one of (float, Iterable, np.ndarray)! Got: {type(rates)}")
 
-    out_file = run_dir / "background_spectrum.txt"
+    if isinstance(energies, float):
+        if not isinstance(rates, float):
+            raise ValueError(f"If 'energies' is a float, than 'rates' has to be a float too!")
+        content = [f"{energies} {rates}"]
+    else:
+        rates = rates if isinstance(rates, Iterable) else [rates for _ in energies]
+        content = [f"{energy} {rate}" for energy, rate in zip(energies, rates)]
+
+    content = f"{os.linesep}".join(content)
+    content = content.strip()
+
+    out_file = run_dir / "ascii_spectrum.txt"
     with open(out_file, "w") as f:
         f.write(content)
 
     if verbose:
         print("energy (keV) | rate (photon/s/cm**2/keV)")
         print(content)
-        print(f"Ascii spectrum generated and saved to: {out_file}")
+        print(f"Ascii spectrum generated and saved to: {out_file.resolve()}")
 
     return out_file
 

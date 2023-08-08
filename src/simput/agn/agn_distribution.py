@@ -5,7 +5,8 @@ import numpy as np
 
 
 def get_s_n_from_file() -> Tuple[np.ndarray, np.ndarray]:
-    with open(os.path.join(os.path.dirname(__file__), "../../../simput/agn_counts.cgi"), "r") as f:
+    # TODO Fix path
+    with open(os.path.join(os.path.dirname(__file__), "../../../res/simput/agn_counts.cgi"), "r") as f:
         lines = f.readlines()
     # This is very specific for the file format, if the files changes recheck this
     lines = lines[7:27]
