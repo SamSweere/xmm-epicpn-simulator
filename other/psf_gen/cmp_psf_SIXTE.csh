@@ -1,4 +1,4 @@
-#!/bin/tcsh
+#!/bin/csh
 # Numeric fix
 setenv LC_NUMERIC "en_US.UTF-8"
 

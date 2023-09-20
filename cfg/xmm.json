@@ -11,7 +11,7 @@
   "sixte": {
     "pn_instrument_dir": "/home/bojantodorkov/simput/share/sixte/instruments/xmm/epicpn",
     "mos_instrument_dir": "/home/bojantodorkov/simput/share/sixte/instruments/xmm/epicmos",
-    "res_mult": [1, 2],
+    "res_mult": [1, 2, 4],
     "exposure": [100000]
   },
   "simput": {

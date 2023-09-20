@@ -25,7 +25,8 @@ if !(-e ${ccf}) then
 	exit
 endif
 
-# Defaults (sampling from SIXTE instruemnt file v1.1.0)
+# Defaults (sampling from SIXTE instrument file v1.1.0)
+# TODO find resources
 set binning=-1
 set ImWidth=1
 set lst=None
@@ -250,7 +251,7 @@ echo
 
 # Create temporry folder
 set datestr=`date '+%s%N'`
-set tmpDir=/tmp/XMMpsfScript${datestr}
+set tmpDir=/home/bojantodorkov/Projects/xmm-epicpn-simulator/other/psf_gen/tmp/XMMpsfScript${datestr}
 if !(-d ${tmpDir}) mkdir ${tmpDir}
 
 # Get reference image for psfgen 

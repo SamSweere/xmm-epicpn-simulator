@@ -17,7 +17,7 @@
       "test_grid":  1,
       "exposure_map": 0
     },
-    "zoom_img_range": [1, 2],
+    "zoom_img_range": [1, 2, 4],
     "sigma_b_img_range": [5, 50],
     "offset_std": 0.05, 
     "num_img_sample": 5,

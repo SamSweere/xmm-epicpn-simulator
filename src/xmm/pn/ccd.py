@@ -11,7 +11,8 @@ class PnCcd:
             num: int,
             res_mult: int,
             individual_ccd: bool,
-            rotation
+            rotation: int,
+            noise: bool = False
     ):
         # TODO Add parameter which gives if we want a single CCD or the whole camera
         if not float(res_mult).is_integer():
@@ -44,7 +45,6 @@ class PnCcd:
             lincoord = file[1].data
             if individual_ccd:
                 # TODO Why did Sam rotate these values?
-                # TODO Why did Sam calculate an own offset?
                 xrval = lincoord["X0"][num - 1] + cc12_tx
                 yrval = lincoord["Y0"][num - 1] + cc12_ty
             else:
@@ -97,27 +97,25 @@ class PnCcd:
         # TODO I don't get the rota key. Why did Sam set this to 90 for ccds 1-6 and to 270 for ccds 7-12?
         rota = round(rotation, 12)
 
-        self.instrument = Element("instrument", telescope="XMM", instrument="EPIC-pn")
+        self.instrument = Element("instrument", telescope="XMM", instrument="EPIC-MOS")
 
         self.telescope = SubElement(self.instrument, "telescope")
         # Based on the pixel fov and the biggest axis
         SubElement(self.telescope, "focallength", value=f"{focallength}")
         SubElement(self.telescope, "fov", diameter=f"{fov}")
         # TODO Check if the psf file exists
-        SubElement(self.telescope, "psf", filename=f"pn_psf_small_str_{1.0 / res_mult}_e_0.5_2.0_kev_v.1.3.fits")
-        self.detector = SubElement(self.instrument, 'detector', type='EPIC-pn')
+        SubElement(self.telescope, "psf", filename=f"m1_psf_small_str_{1.0 / res_mult}_e_0.5_2.0_kev_v.1.3.fits")
+        self.detector = SubElement(self.instrument, 'detector', type='EPIC-MOS')
         SubElement(self.detector, 'dimensions', xwidth=f"{width}", ywidth=f"{height}")
         SubElement(self.detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}", xrval=f"{xrval}", yrval=f"{yrval}",
                    xdelt=f"{p_delt}", ydelt=f"{p_delt}", rota=f"{rota}")
         SubElement(self.detector, 'cte', value="1")
         # TODO Check if the rmf file exists
-        SubElement(self.detector, 'rmf', filename="epn_e3_ff20_sdY9_v19.0.rmf")
+        SubElement(self.detector, 'rmf', filename="m1_e19_im_pall_o.rmf")
         # TODO Check if the arf file exists
-        SubElement(self.detector, 'arf', filename="pn_thin_onaxis.arf")
-        # TODO: one could add instrument noise here, this is currently incorperated in the background files
-        # if self.g_settings['noise']:
-        #     # SubElement(detector, 'phabackground', filename = "pntffu_background_spectrum.fits")
-        #     pass
+        SubElement(self.detector, 'arf', filename="mos1-thin-10.arf")
+        if noise:
+            SubElement(self.detector, 'phabackground', filename="pntffu_background_spectrum.fits")
         # TODO Check if the vignetting file exists
         SubElement(self.detector, 'vignetting', filename="xmm_pn_vignet_0_6_fov.fits")
         SubElement(self.detector, 'split', type="gauss", par1=f"{11.e-6 / res_mult}")

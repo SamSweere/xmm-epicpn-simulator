@@ -1,6 +1,6 @@
-./cmp_psf_SIXTE.csh ccf.cif pn_psf_str_1.0_v.1.3.fits instrument=PN stretch=1.0
+./cmp_psf_SIXTE.csh ccf.cif pn_psf_str_1.0_v.1.3.fits instrument=M1 stretch=1.0
 
 Smaller file:
-./cmp_psf_SIXTE_small.csh ccf.cif pn_psf_small_str_1.0_e_0.5_2.0_kev_v.1.3.fits instrument=PN stretch=1.0 &&
-./cmp_psf_SIXTE_small.csh ccf.cif pn_psf_small_str_0.5_e_0.5_2.0_kev_v.1.3.fits instrument=PN stretch=0.5 &&
-./cmp_psf_SIXTE_small.csh ccf.cif pn_psf_small_str_0.25_e_0.5_2.0_kev_v.1.3.fits instrument=PN stretch=0.25
+./cmp_psf_SIXTE_small.csh ccf.cif m1_psf_small_str_1.0_e_0.5_2.0_kev_v.1.3.fits instrument=M1 stretch=1.0 &&
+./cmp_psf_SIXTE_small.csh ccf.cif m1_psf_small_str_0.5_e_0.5_2.0_kev_v.1.3.fits instrument=M1 stretch=0.5 &&
+./cmp_psf_SIXTE_small.csh ccf.cif m1_psf_small_str_0.25_e_0.5_2.0_kev_v.1.3.fits instrument=M1 stretch=0.25
