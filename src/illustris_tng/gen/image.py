@@ -1,42 +1,35 @@
 import json
+import pickle
 from pathlib import Path
 from typing import List, Dict, Union, Any
 
-import numpy as np
-
-from illustris_tng.data import get, get_cutouts
-from illustris_tng.data.data_handling import save_cutout
-from illustris_tng.gen.fits import cutout_to_xray_fits
-from utils.multiprocessing import mp_run
+from src.illustris_tng.data import get, get_cutouts
+from src.illustris_tng.data.data_handling import save_cutout
+from src.illustris_tng.gen.fits import cutout_to_xray_fits
+from src.xmm_utils.multiprocessing import mp_run
 
 
-# Change the run directory to illustris_tng such that the illustris code finde the cloudy_emissivity_v2.h5 file
-# root_dir = os.path.dirname(__file__)
-# run_dir = tng_api_key_path = os.path.join(root_dir, 'illustris_tng')
-# os.chdir(run_dir)
-def run(path_to_cfg: Path):
+def run(
+        path_to_cfg: Path,
+        api_key: str,
+        cloudy_emissivity_root: Path
+):
     with open(path_to_cfg, "r") as file:
         cfg: Dict[str, dict] = json.load(file)
     env_cfg: Dict[str, Any] = cfg["environment"]
     mp_cfg: Dict[str, Any] = cfg["multiprocessing"]
     illustris_cfg: Dict[str, Any] = cfg["illustris"]
 
-    api_key = illustris_cfg.get("api_key", None)
-
-    if api_key is None:
-        raise ValueError(f"API key is not set! If you do not have one, request it at "
-                         f"https://www.tng-project.org/users/register/")
-
     working_dir = Path(env_cfg["working_directory"]).expanduser()
     cutout_dir = working_dir / "cutout_data"
     dataset_dir = working_dir / illustris_cfg["dataset_dir"]
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
-    baseUrl = "http://www.tng-project.org/api/"
+    base_url = "http://www.tng-project.org/api/"
     headers = {"api-key": api_key}
 
     print("Getting snaps...")
-    simulations: List[Dict[str, Union[str, int]]] = get(baseUrl, headers=headers, cutout_datafolder=cutout_dir)[
+    simulations: List[Dict[str, Union[str, int]]] = get(base_url, headers=headers, cutout_datafolder=cutout_dir)[
         "simulations"]
     simulations_to_use: List[Dict[str, Union[str, int]]] = []
     for simulation in simulations:
@@ -71,14 +64,16 @@ def run(path_to_cfg: Path):
     print(f"Total subs loaded", len(subs_r))
 
     # Download all the cutouts
-    # TODO This depends on the amount of CPUs available. Maybe do this in run_apply_async_multiprocessing?
-    chunks = np.array_split(subs_r, 12)
-    argument_list = [(list(chunk), headers, cutout_dir) for chunk in chunks]
-    sc = mp_run(get_cutouts, argument_list, 12)
-    # sc = get_cutouts(subs=subs_r, headers=headers, cutout_datafolder=cutout_dir)
-    # sc = itertools.chain.from_iterable(sc)
-    argument_list = []
+    cutouts_path = get_cutouts(subs=subs_r, headers=headers, cutout_datafolder=cutout_dir,
+                               fail_on_error=env_cfg["fail_on_error"])
+    with open(cutouts_path, "rb") as f:
+        sc = pickle.load(f)
 
+    for i, mode in enumerate(illustris_cfg["modes"].keys()):
+        if mode not in ("proj", "slice"):
+            raise ValueError(f"Expected either 'proj' or 'slice' at index {i} but got mode '{mode}'!")
+
+    argument_list = []
     for res in sc:
         sub = res["sub"]
         cutout = res["cutout"]
@@ -86,31 +81,14 @@ def run(path_to_cfg: Path):
             cutout = save_cutout(cutout, cutout_dir)
         # Generate the fits file
         # We can change the normal to rotate the image
-        for mode in illustris_cfg['modes']:
-            if mode == "proj":
-                normals = illustris_cfg['proj_normals']
-            elif mode == "slice":
-                normals = illustris_cfg['slice_axes']
-            else:
-                raise ValueError(f"mode {mode} not suported")
+        cutout_args = (cutout, dataset_dir, sub, illustris_cfg['modes'], cloudy_emissivity_root, illustris_cfg['emin'],
+                       illustris_cfg['emax'], illustris_cfg['width'],
+                       illustris_cfg['resolutions'],
+                       illustris_cfg['redshift'], illustris_cfg['overwrite'], illustris_cfg['create_preview'])
+        argument_list.append(cutout_args)
 
-            for width in illustris_cfg['width']:
-                for normal in normals:
-                    for resolution in illustris_cfg['resolutions']:
-                        args = (
-                            cutout, dataset_dir, sub, mode, illustris_cfg['emin'], illustris_cfg['emax'],
-                            normal, width, resolution, illustris_cfg['redshift'], illustris_cfg['overwrite'],
-                            illustris_cfg['create_preview'])
-                        argument_list.append(args)
-
-            # For debugging, this does not use multiprocessing
-            # cutout_to_xray_fits(cutout, cutout_datafolder, dataset_dir, sub, mode, emin, emax,
-            #                                             normal, width, resolution, redshift, overwrite,
-            #                                             create_preview)
-
-    mp_run(cutout_to_xray_fits, argument_list, num_processes=12,  # TODO
-           gb_per_process=mp_cfg['gb_per_process'])
-
-
-if __name__ == '__main__':
-    run(Path("/home/bojantodorkov/Projects/xmm-epicpn-simulator/cfg/illustris.json"))
+    if env_cfg["debug"]:
+        for cutout_args in argument_list:
+            cutout_to_xray_fits(*cutout_args)
+    else:
+        mp_run(cutout_to_xray_fits, argument_list, mp_conf=mp_cfg)

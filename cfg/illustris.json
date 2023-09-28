@@ -1,13 +1,14 @@
 {
   "multiprocessing": {
-    "gb_per_process": 2.0,
-    "num_processes": 0
+    "gb_per_process": 0.0,
+    "num_processes": 8
   },
   "environment": {
-    "working_directory": "~/Documents/ESA/data/sim"
+    "working_directory": "~/Projects/ESA",
+    "debug": false,
+    "fail_on_error": false
   },
   "illustris": {
-    "api_key": "86292fe3cd6820ff0c06a72261c620c6",
     "dataset_dir": "tng300_1_2_3_z99_2048",
     "simulation_names": ["TNG300-3"],
     "snapshot_nums": [99],
@@ -16,11 +17,11 @@
     "emax": 2.0,
     "redshift": 0.05,
     "overwrite": false,
-    "create_preview": false,
     "width": [1000, 4000],
     "resolutions": [2048],
-    "modes": ["proj", "slice"],
-    "proj_normals": [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]],
-    "slice_axes": ["x", "y", "z"]
+    "modes": {
+      "proj": [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]],
+      "slice": ["x", "y", "z"]
+    }
   }
 }

@@ -1,3 +1,4 @@
+import pickle
 from pathlib import Path
 from typing import Union, List, Tuple
 from warnings import warn
@@ -5,7 +6,7 @@ from warnings import warn
 import requests
 from tqdm import tqdm
 
-from illustris_tng.data.data_handling import get_saved_file, save_cutout, handle_cutout_name
+from src.illustris_tng.data.data_handling import get_saved_file, handle_cutout_name
 
 _cutout_request = {'gas': 'Coordinates,Density,ElectronAbundance,GFM_Metallicity,'
                           'InternalEnergy,Masses,NeutralHydrogenAbundance,Velocities'}
@@ -56,7 +57,13 @@ def _get_cutout(path, headers, cutout_datafolder: Path) -> Union[Path, Tuple[Pat
         return cutout_datafolder / filename, path, r.content
 
 
-def get_cutouts(subs, headers, cutout_datafolder) -> List[dict]:
+def get_cutouts(
+        subs,
+        headers,
+        cutout_datafolder: Path,
+        fail_on_error: bool = False
+) -> Path:
+    cutouts_path = cutout_datafolder / "cutouts.p"
     sc = []
     for sub in tqdm(subs):
         try:
@@ -67,5 +74,11 @@ def get_cutouts(subs, headers, cutout_datafolder) -> List[dict]:
                 "cutout": cutout
             })
         except Exception as e:
-            warn(f"Failed to load sub {sub['url']} due to error {e}")
-    return sc
+            if fail_on_error:
+                e.add_note(f"Failed to load sub {sub['url']} due to above stacktrace.")
+                raise
+            else:
+                warn(f"Failed to load sub {sub['url']} due to error {e}")
+    with open(cutouts_path, "wb") as f:
+        pickle.dump(sc, f)
+    return cutouts_path
