@@ -1,4 +1,3 @@
-# This code generates the background noise (sky + instrument + particle) based on a background spectrum
 from pathlib import Path
 
 import numpy as np
@@ -40,19 +39,21 @@ def background(
         spectrum_file: Path,
         emin: float,
         emax: float,
+        suffix=None,
         verbose: bool = True
 ) -> Path:
+    suffix = "" if suffix is None else f"_{suffix}"
     image_file = ones_like_xmm(resolution=RESOLUTION,
                                cdelt=CDELT,
                                crpix1=int(RESOLUTION / 2) - 44,
                                crpix2=219,
                                run_dir=run_dir,
-                               filename="const_background.fits")
+                               filename=f"const_background{suffix}.fits")
 
     ascii_spectrum_file = _get_ascii_spectrum(run_dir, spectrum_file, verbose)
 
     outfile_path = generate_simput(run_dir=run_dir,
-                                   filename=f"background.simput",
+                                   filename=f"background{suffix}.simput",
                                    emin=emin,
                                    emax=emax,
                                    image_file=image_file,

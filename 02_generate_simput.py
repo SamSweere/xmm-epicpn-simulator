@@ -1,14 +1,19 @@
 import json
+from argparse import ArgumentParser
 from pathlib import Path
-from typing import Dict
-
+from typing import Dict, Optional
+from itertools import repeat
 import numpy as np
 
 from src.simput.gen import simput_generate
-from utils.multiprocessing import mp_run
+from src.xmm_utils.multiprocessing import mp_run
 
 
-def run(path_to_cfg: Path) -> None:
+def run(
+        path_to_cfg: Path,
+        agn_counts_file: Optional[Path],
+        spectrum_file: Optional[Path]
+) -> None:
     with open(path_to_cfg, "r") as f:
         cfg: Dict[str, dict] = json.load(f)
     env_cfg = cfg["environment"]
@@ -47,7 +52,6 @@ def run(path_to_cfg: Path) -> None:
         mode_dir = simput_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
 
-        args = []
         if mode == "img":
             in_files = list(sim_in_dataset_dir.glob("*.fits"))
             if not num == -1:
@@ -75,21 +79,51 @@ def run(path_to_cfg: Path) -> None:
                     "offset_y": offset_y
                 }
 
-                args.append((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose))
+                argument_list.append((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose))
+        elif mode == "agn":
+            if debug:
+                img_settings = {
+                    "num": num,
+                    "agn_counts_file": agn_counts_file
+                }
+                argument_list.append((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose))
+            else:
+                img_settings = {
+                    "num": 1,
+                    "agn_counts_file": agn_counts_file
+                }
+                argument_list.extend(repeat((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose), num))
+        elif mode == "background" or mode == "exposure_map":
+            if debug:
+                img_settings = {
+                    "num": num,
+                    "spectrum_file": spectrum_file
+                }
+                argument_list.append((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose))
+            else:
+                img_settings = {
+                    "num": 1,
+                    "spectrum_file": spectrum_file
+                }
+                argument_list.extend(repeat((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose), num))
         else:
-            # for _ in range(num):
-            #     args.append((mode, 1, tmp_dir, mode_dir, keep_files, verbose))
-            args.append((mode, num, tmp_dir, mode_dir, keep_files, verbose))
-        argument_list.extend(args)
+            if debug:
+                argument_list.append((mode, num, tmp_dir, mode_dir, keep_files, verbose))
+            else:
+                argument_list.extend(repeat((mode, 1, tmp_dir, mode_dir, keep_files, verbose), num))
 
-    for args in argument_list:
-        simput_generate(*args)
-
-    # mp_run(simput_generate, argument_list, mp_cfg)
+    if debug:
+        for args_tuple in argument_list:
+            simput_generate(*args_tuple)
+    else:
+        mp_run(simput_generate, argument_list, mp_cfg)
 
 
 if __name__ == '__main__':
-    # Setup logging
-    # log.setup_logging(cf, prefix="simput_gen")
+    parser = ArgumentParser(prog="", description="")
+    parser.add_argument("-a", "--agn_counts_file", type=Path, help="Path to agn_counts_cgi.")
+    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
+    parser.add_argument("-s", "--spectrum_file", type=Path, help="Path to spectrum file.")
 
-    run(Path("/home/bojantodorkov/Projects/xmm-epicpn-simulator/cfg/simput.json"))
+    args = parser.parse_args()
+    run(path_to_cfg=args.config_path, agn_counts_file=args.agn_counts_file, spectrum_file=args.spectrum_file)

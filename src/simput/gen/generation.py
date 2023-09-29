@@ -1,58 +1,74 @@
-import os
-import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import List, Union, Tuple
 from uuid import uuid4
 from warnings import warn
-
+from tqdm import tqdm
 import numpy as np
 
 from src.simput.agn import get_fluxes
-from src.simput.gen import background, generate_exposure_map, simput_ps
+from src.simput.gen import background, exposure_map, simput_ps
 from src.simput.gen.image import simput_image
 from src.simput.utils import get_spectrumfile
 from src.simput.utils import merge_simputs
-from utils.file_utils import compress_gzip
-from utils.log import elog
+from src.xmm_utils.file_utils import compress_gzip
 
 
-_spectrum_ds_file = Path("/home/bojantodorkov/Projects/xmm-epicpn-simulator/res/simput/pntffg_spectrum.ds")
+# from utils.log import elog
 
 
 def create_background(
         run_dir: Path,
+        spectrum_file: Path,
         num: int = 1,
         verbose: bool = True
 ) -> List[Path]:
     output_files = []
 
-    # TODO Generation does not work
-    for _ in range(num):
+    if num == 1:
         output_file = background(run_dir=run_dir,
-                                 spectrum_file=_spectrum_ds_file,
+                                 spectrum_file=spectrum_file,
                                  emin=0.15,
                                  emax=15.0,
                                  verbose=verbose)
         output_files.append(output_file)
+    else:
+        for i in range(num):
+            output_file = background(run_dir=run_dir,
+                                     spectrum_file=spectrum_file,
+                                     emin=0.15,
+                                     emax=15.0,
+                                     suffix=i,
+                                     verbose=verbose)
+            output_files.append(output_file)
 
     return output_files
 
 
 def create_exposure_map(
-        run_dir,
+        run_dir: Path,
+        spectrum_file: Path,
         num: int = 1,
         verbose: bool = True
 ) -> List[Path]:
     output_files = []
 
-    for _ in range(num):
-        output_file = generate_exposure_map(run_dir=run_dir,
-                                            spectrum_file=_spectrum_ds_file,
-                                            emin=0.15,
-                                            emax=15.0,
-                                            verbose=verbose)
+    if num == 1:
+        output_file = exposure_map(run_dir=run_dir,
+                                   spectrum_file=spectrum_file,
+                                   emin=0.15,
+                                   emax=15.0,
+                                   verbose=verbose)
         output_files.append(output_file)
+    else:
+        for i in range(num):
+            output_file = exposure_map(run_dir=run_dir,
+                                       spectrum_file=spectrum_file,
+                                       emin=0.15,
+                                       emax=15.0,
+                                       suffix=i,
+                                       verbose=verbose)
+            output_files.append(output_file)
 
     return output_files
 
@@ -67,11 +83,11 @@ def create_random_sources(
     """
     Generates an image with multiple random sources in it.
     """
+    spectrum_file = get_spectrumfile(run_dir=run_dir, norm=0.01)
+
     output_files = []
     for _ in range(num):
         simput_files = []
-
-        spectrum_file = get_spectrumfile(run_dir=run_dir, norm=0.01)
 
         # emin = 0.15, emax = 15.0 is ideal
         # For some reason if I go into the emin=0.5 and emax=2.0 sixte will not complete anymore
@@ -82,8 +98,7 @@ def create_random_sources(
         output_file = run_dir / f"{name}.simput"
 
         # Create the point sources
-        for i in range(num_sources):
-            print(f"Generating point source {i}/{num_sources - 1}")
+        for i in tqdm(range(num_sources), desc="Generating point sources..."):
             simput_file = run_dir / f"ps_{i}.simput"
             simput_ps(emin=emin,
                       emax=emax,
@@ -107,6 +122,7 @@ def create_random_sources(
 
 def create_agn_sources(
         run_dir: Path,
+        agn_counts_file: Path,
         num: int = 1,
         keep_files: bool = False,
         verbose: bool = True
@@ -117,19 +133,20 @@ def create_agn_sources(
     emin = 0.5
     emax = 2.0
 
+    # Get the spectrum file
+    spectrum_file = get_spectrumfile(run_dir=run_dir, norm=0.001, verbose=verbose)
     # Get the fluxes from the agn distribution
-    fluxes = get_fluxes()
+    fluxes = get_fluxes(agn_counts_file)
 
     for _ in range(num):
         # Use the current time as id, such that clashes don't happen
         unique_id = uuid4().int
         output_file_path = run_dir / f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput"
         simput_files = []
-        # Get the spectrum file
-        spectrum_file = get_spectrumfile(run_dir=run_dir, norm=0.001, verbose=verbose)
-        for i, flux in enumerate(fluxes):
+
+        for i, flux in tqdm(enumerate(fluxes), desc="Creating agn sources..."):
             if verbose:
-                print("Creating source with flux:", flux)
+                print(f"flux: {flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
             output_file = simput_ps(emin=emin,
                                     emax=emax,
@@ -157,6 +174,8 @@ def create_test_grid(
         keep_files: bool = False,
         verbose=True
 ) -> List[Path]:
+    spectrum_file = get_spectrumfile(run_dir=run_dir, norm=0.01, verbose=verbose)
+
     output_files = []
     # emin = 0.15, emax = 15.0 is ideal
     # For some reason if I go into the emin=0.5 and emax=2.0 sixte will not complete anymore
@@ -173,7 +192,6 @@ def create_test_grid(
 
         counter = 0
         simput_files = []
-        spectrum_file = get_spectrumfile(run_dir=run_dir, norm=0.01, verbose=verbose)
         # Create one point source at (0, 0)
         if verbose:
             print(f"Generating point source at (0, 0)")
@@ -212,8 +230,7 @@ def simput_generate(
         keep_files: bool = False,
         verbose: bool = True
 ) -> None:
-    if mode != "test_grid":
-        return
+    # TODO Add possibility to choose between different instruments (pn, mos1, mos2)
     with TemporaryDirectory(dir=tmp_dir) as temp:
         run_dir = Path(temp)
 
@@ -223,8 +240,11 @@ def simput_generate(
                                           keep_files=keep_files,
                                           verbose=verbose)
         elif mode == "agn":
+            if img_settings["agn_counts_file"] is None:
+                raise FileNotFoundError(f"Path to agn_counts.cgi cannot be None!")
             file_names = create_agn_sources(run_dir=run_dir,
-                                            num=img_settings,
+                                            agn_counts_file=img_settings["agn_counts_file"],
+                                            num=img_settings["num"],
                                             keep_files=keep_files,
                                             verbose=verbose)
         elif mode == "img":
@@ -233,17 +253,20 @@ def simput_generate(
                                       keep_files=keep_files,
                                       verbose=verbose)
         elif mode == "background":
-            # TODO
+            if img_settings["spectrum_file"] is None:
+                raise FileNotFoundError(f"Path to pnttfg_spectrum.ds cannot be None!")
             file_names = create_background(run_dir=run_dir,
-                                           num=img_settings,
+                                           spectrum_file=img_settings["spectrum_file"],
+                                           num=img_settings["num"],
                                            verbose=verbose)
             pass
         elif mode == "exposure_map":
-            # TODO
-            # file_names = create_exposure_map(run_dir=run_dir,
-            #                                  num=img_settings,
-            #                                  verbose=verbose)
-            pass
+            if img_settings["spectrum_file"] is None:
+                raise FileNotFoundError(f"Path to pnttfg_spectrum.ds cannot be None!")
+            file_names = create_exposure_map(run_dir=run_dir,
+                                             spectrum_file=img_settings["spectrum_file"],
+                                             num=img_settings["num"],
+                                             verbose=verbose)
         elif mode == "random":
             file_names = create_random_sources(run_dir=run_dir,
                                                num=img_settings,
@@ -251,7 +274,7 @@ def simput_generate(
                                                verbose=verbose)
         else:
             e_message = f"Mode {mode} is not supported"
-            elog(e_message)
+            # elog(e_message)
             raise ValueError(e_message)
 
         for file_name in file_names:

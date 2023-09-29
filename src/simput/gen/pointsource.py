@@ -1,10 +1,9 @@
-# Simulate two point sources with power-law spectra
 from pathlib import Path
 from typing import Tuple, Union
 
 import numpy as np
 
-from src.utils.external_run import run_headas_command
+from src.xmm_utils.external_run import run_headas_command
 
 
 def simput_ps(

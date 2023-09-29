@@ -1,4 +1,3 @@
-# This code generates the background noise (sky + instrument + particle) based on a background spectrum
 from pathlib import Path
 
 from astropy.io import fits
@@ -28,18 +27,26 @@ def get_ascii_spectrum(
     return ascii_spectrum
 
 
-def generate_exposure_map(run_dir: Path, spectrum_file, emin, emax, verbose):
+def exposure_map(
+        run_dir: Path,
+        spectrum_file: Path,
+        emin: float,
+        emax: float,
+        suffix=None,
+        verbose: bool = True
+):
+    suffix = "" if suffix is None else f"_{suffix}"
     image_file = ones_like_xmm(resolution=RESOLUTION,
                                cdelt=CDELT,
                                crpix1=186,
                                crpix2=219,
                                run_dir=run_dir,
-                               filename="exposure_map.fits")
+                               filename=f"exposure_map{suffix}.fits")
 
     ascii_spectrum_file = get_ascii_spectrum(run_dir, spectrum_file, verbose)
 
     outfile_path = generate_simput(run_dir=run_dir,
-                                   filename="exposure_map.simput",
+                                   filename=f"exposure_map{suffix}.simput",
                                    emin=emin,
                                    emax=emax,
                                    image_file=image_file,

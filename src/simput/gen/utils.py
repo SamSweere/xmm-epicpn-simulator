@@ -5,7 +5,7 @@ from typing import Union, Tuple, Iterable
 import numpy as np
 from astropy.io import fits
 
-from src.utils.external_run import run_headas_command
+from src.xmm_utils.external_run import run_headas_command
 
 
 def ones_like_xmm(

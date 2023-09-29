@@ -7,7 +7,7 @@ import numpy as np
 from astropy.io import fits
 
 from src.simput.utils import get_spectrumfile
-from src.utils.external_run import run_headas_command
+from src.xmm_utils.external_run import run_headas_command
 
 
 def _prepare_fits_image(
@@ -138,6 +138,9 @@ def simput_image(
     ra = 0.0
     dec = 0.0
 
+    # Get the spectrum file
+    spectrum_file = get_spectrumfile(run_dir=run_dir, verbose=verbose)
+
     output_files = []
 
     for zoom, sigma_b, offset_x, offset_y in zip(zooms, sigmas_b, offsets_x, offsets_y):
@@ -149,9 +152,6 @@ def simput_image(
         output_file_name = f"{name}.simput"
 
         output_file = run_dir / output_file_name
-
-        # Get the spectrum file
-        spectrum_file = get_spectrumfile(run_dir=run_dir, verbose=verbose)
 
         simput_command = (f"simputfile Simput={output_file.resolve()} RA={ra} Dec={dec} "
                           f"XSPECFile={spectrum_file.resolve()} Emin={emin} Emax={emax} "

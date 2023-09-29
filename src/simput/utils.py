@@ -2,15 +2,15 @@ import random
 import shutil
 from pathlib import Path
 from typing import List, Dict
-
-from src.utils.external_run import run_headas_command
+from src.xmm_utils.external_run import run_headas_command
+from xspec import Model, Xset
 
 
 def get_spectrumfile(run_dir: Path, norm=0.01, verbose=True):
     spectrum_file = run_dir / "spectrum.xcm"
-    command = "xspec"
-    xspec_in = f"model phabs*power\n0.04\n2.0\n{norm}\n save model {spectrum_file.resolve()}"
-    run_headas_command(command, cmd_input=xspec_in, verbose=verbose)
+    if not spectrum_file.exists():
+        Model("phabs*power", setPars={1: 0.04, 2: 2.0, 3: norm})
+        Xset.save(f"{spectrum_file.resolve()}")
     return spectrum_file
 
 

@@ -1,10 +1,10 @@
 {
   "multiprocessing": {
-    "gb_per_process": 2.0,
-    "num_processes": 12
+    "gb_per_process": 0.0,
+    "num_processes": 8
   },
   "environment": {
-    "working_directory": "~/Documents/ESA/data/sim",
+    "working_directory": "~/Projects/ESA",
     "debug": false,
     "verbose": false,
     "keep_files": false
