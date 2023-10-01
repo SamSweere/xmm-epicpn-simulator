@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.utils.external_run import run_headas_command
+from src.xmm_utils.external_run import run_headas_command
 
 
 def run_sixte(

@@ -1,89 +1,98 @@
-import shutil
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from tempfile import TemporaryDirectory
+from typing import Any, Dict, Literal, List
 
 from astropy.io import fits
 
 from src.simput.utils import get_simputs
-from src.sixte.image_gen import merge_ccd_eventlists, generate_fits_image, split_eventlist
-from src.sixte.simulation import run_sixte_all_ccds
-from utils.file_utils import decompress_gzip, compress_gzip
-from utils.fits_utils import filter_evt_pattern_type
-from utils.log import elog, plog
-from utils.multiprocessing import mp_run
-from src.xmm.pn_ff import XmmPnFf
-from tempfile import TemporaryDirectory
+from src.sixte.image_gen import merge_ccd_eventlists, imgev, split_eventlist
+from src.xmm import epn
+from src.xmm.xmm_xml import get_pn_xml
+from src.xmm_utils.external_run import run_headas_command
+from src.xmm_utils.file_utils import decompress_gzip, compress_gzip
+from src.xmm_utils.fits_utils import filter_evt_pattern_type
+from src.xmm_utils.multiprocessing import mp_run
 
 
 def run_simulation(
         img_name,
-        instrument_path: Path,
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        xmm_filter: Literal["thin", "med", "thick"],
         simput_path: Path,
         run_dir: Path,
-        res_mult,
-        exposure,
-        ra=0.0, dec=0.0,
-        rollangle=0.0,
-        debug=False, run_sim=True,
-        # noise=True,
-        sim_separate_ccds=False,
-        verbose=True
+        res_mult: int,
+        exposure: int,
+        ra: float = 0.0,
+        dec: float = 0.0,
+        rollangle: float = 0.0,
+        debug=False,
+        sim_separate_ccds: bool = False,
+        verbose: bool = True
 ):
-    # TODO Avoid creating XmmPnFf for every single simput file
-    xmm = XmmPnFf(res_mult=res_mult, sim_separate_ccds=sim_separate_ccds, verbose=verbose)
-    if debug:
-        xmm.pprint_xml()
-
-    # Save the xml to the sixte instrument location
-    xmm.save_xml(folder_location=instrument_path)
-
-    # Rename the simput file to something short
-    short_simput_path = run_dir / "in.simput"
-    shutil.copyfile(simput_path, short_simput_path)
-
-    if run_sim:
-        run_sixte_all_ccds(xmm=xmm,
-                           simput_file_path=short_simput_path,
-                           rundir=run_dir,
-                           exposure=exposure,
-                           ra=ra,
-                           dec=dec,
-                           rollangle=rollangle,
-                           verbose=verbose)
-
-    # Merge all the ccd.py eventlists into one eventlist
-    if sim_separate_ccds:
-        combined_evt_path = merge_ccd_eventlists(input_folder=run_dir, out_filename="ccd_combined_evt.fits")
+    if instrument_name == "epn":
+        xml_paths = get_pn_xml(res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+    elif instrument_name == "emos1":
+        # TODO
+        xml_paths = []
+    elif instrument_name == "emos2":
+        # TODO
+        xml_paths = []
     else:
-        combined_evt_path = run_dir / "ccd00_evt.fits"
+        raise ValueError(f"Unknown instrument name '{instrument_name}!")
+
+    if not xml_paths:
+        raise FileNotFoundError(f"It looks like you have not created the corresponding XML files for instrument "
+                                f"'{instrument_name}'")
+
+    evt_filepaths: List[Path] = []
+    for xml_path in xml_paths:
+        ccd_name = xml_path.name.split("_")[0]
+        evt_filepath = run_dir / f"{ccd_name}_evt.fits"
+        runsixt = (f"runsixt EvtFile={evt_filepath.resolve()} XMLFile={xml_path.resolve()} "
+                   f"Simput={simput_path.resolve()} Exposure={exposure} RA={ra} "
+                   f"Dec={dec} rollangle={rollangle} clobber=yes")
+        run_headas_command(runsixt, verbose=verbose)
+        evt_filepaths.append(evt_filepath)
+
+    if len(evt_filepaths) > 1:
+        # Merge all the ccd.py eventlists into one eventlist
+        evt_filepath = merge_ccd_eventlists(infiles=evt_filepaths, out_dir=run_dir, verbose=verbose)
+    else:
+        evt_filepath = evt_filepaths[0]
 
     # Remove everything with pattern type (TYPE) > 4
-    combined_evt_path = filter_evt_pattern_type(combined_evt_path, max_pattern_type=4, verbose=verbose)
+    combined_evt_path = filter_evt_pattern_type(evt_filepath, max_pattern_type=4, verbose=verbose)
 
     # split the eventlist
     split_exposure_evt_files = split_eventlist(run_dir=run_dir, eventlist_path=combined_evt_path, multiples=10000,
                                                verbose=verbose)
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
-    # NAXIS1 and NAXIS2 keywords give the number of x- andy-pixels in the calculated exposure map
-    # CRVAL1 and CRVAL2 define the center of the map
-    # CRPIX1 and CRPIX2 are the point corresponding to the optical axis on the instrument define the corresponding
-    # pixel coordinate
-    # CDELT1 and CDELT2 give the pixel sizes in degrees
-    naxis2 = round(xmm.total_pixel_height)  # * res_mult
-    naxis1 = round(xmm.total_pixel_width)  # * res_mult
+    if instrument_name == "epn":
+        naxis1, naxis2 = epn.get_img_width_height(res_mult)
+        cdelt1 = cdelt2 = epn.get_cdelt(res_mult)
+    elif instrument_name == "emos1":
+        # TODO
+        naxis1 = 392 * res_mult
+        naxis2 = 402 * res_mult
+        cdelt1 = round(4.0 / 3600 / float(res_mult), 12)
+        cdelt2 = round(4.0 / 3600 / float(res_mult), 12)
+    else:
+        # TODO
+        naxis1 = 392 * res_mult
+        naxis2 = 402 * res_mult
+        cdelt1 = round(4.0 / 3600 / float(res_mult), 12)
+        cdelt2 = round(4.0 / 3600 / float(res_mult), 12)
+
     crval1 = dec
     crval2 = ra
-    crpix1 = round(xmm.crpix1, 12)  # * res_mult
-    crpix2 = round(xmm.crpix2, 12)  # * res_mult
-    # cdelt1 = -1.0 * xmm.cdelt_x  # / res_mult
-    cdelt1 = xmm.cdelt_x  # / res_mult
-    cdelt2 = xmm.cdelt_y  # / res_mult
+    crpix1 = round(naxis1 / 2.0, 6)
+    crpix2 = round(naxis2 / 2.0, 6)
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
-        split_evt_file = split_dict['filename']
+        split_evt_file = split_dict['outfile']
         split_name = split_dict['base_name']
         t_start = split_dict['t_start']
         t_stop = split_dict['t_stop']
@@ -93,9 +102,9 @@ def run_simulation(
 
         final_img_name = f"{img_name}_{split_name}.fits"
 
-        generate_fits_image(evt_file=split_evt_file, input_folder=run_dir, out_name=final_img_name, naxis1=naxis1,
-                            naxis2=naxis2, crval1=crval1, crval2=crval2, crpix1=crpix1,
-                            crpix2=crpix2, cdelt1=cdelt1, cdelt2=cdelt2, verbose=verbose)
+        imgev(evt_file=split_evt_file, input_folder=run_dir, out_name=final_img_name, naxis1=naxis1,
+              naxis2=naxis2, crval1=crval1, crval2=crval2, crpix1=crpix1,
+              crpix2=crpix2, cdelt1=cdelt1, cdelt2=cdelt2, verbose=verbose)
 
         # Rename the final file, due to lengths of names we have to do this with shutil.move
         final_img_path = run_dir / final_img_name
@@ -122,52 +131,21 @@ def run_simulation(
 
 def run_xmm_simulation(
         simput_file: Path,
-        mode,
-        working_dir: Path,
-        res_mult,
-        exposure,
-        config
+        img_name: str,
+        mode: str,
+        tmp_dir: Path,
+        out_dir: Path,
+        res_mult: int,
+        exposure: int,
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        xmm_filter: Literal["thin", "med", "thick"],
+        sim_separate_ccds: bool,
+        debug: bool = False,
+        verbose: bool = True
 ):
-    # TODO Path
-    dataset_dir = Path("~/Documents/ESA/data/sim").expanduser() / "xmm_sim_dataset"
-    debug = config["environment"]["debug"]
-    verbose = config["environment"]["verbose"]
-
-    # plog(f"Running simulation with:", verbose)
-    # plog(f"Mode: {mode}", verbose)
-    # plog(f"Exposure: {exposure}", verbose)
-    # plog(f"Resolution multiplier: {res_mult}", verbose)
-    # plog(f"Simput: {simput_path}", verbose)
-
-    simput_filename = simput_file.name.replace(".simput.gz", "")
-
-    res_str = f"{res_mult}x"
-    img_name = f"{simput_filename}_mult_{res_mult}"
-
-    if not debug:
-        # Do not skip in debug mode
-        if mode != "background":
-            # Check if the max exposure time already exists, if so we know that this one was already generated
-            max_exp_str = f"{round(exposure / 1000)}ks"
-
-            # The final name always is part 0 out of 0
-            final_compressed_img_name = f"{img_name}_{max_exp_str}_p_0-0.fits.gz"
-
-            # # Save the files in a exposuretime -> mode -> resolution mult structure
-            final_img_directory = dataset_dir / max_exp_str / mode / res_str
-
-            final_compressed_file_path = final_img_directory / final_compressed_img_name
-            if final_compressed_file_path.exists():
-                plog(f"Image: {final_compressed_file_path} already exists, skipping", verbose=verbose)
-                return final_compressed_file_path
-
-    tmp_dir = working_dir / "xmm_sim_tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-
     with TemporaryDirectory(dir=tmp_dir) as tmp:
         run_dir = Path(tmp)
-
-        # File does not exists yet, make the run dir, unpack the simput file and run the simulation
+        # File does not exist yet, make the run dir, unpack the simput file and run the simulation
         # Create the run_dir for this specific resolution
         # We create it here such that if the simulation fails or the file already exists
         # we have no empty run dir
@@ -176,17 +154,22 @@ def run_xmm_simulation(
 
         # Run the simulation
         tmp_split_img_paths_exps = run_simulation(img_name=img_name,
-                                                  instrument_path=Path(config["sixte"]['pn_instrument_dir']),
+                                                  instrument_name=instrument_name,
+                                                  xmm_filter=xmm_filter,
                                                   simput_path=simput_file,
                                                   run_dir=run_dir, res_mult=res_mult,
-                                                  exposure=exposure, ra=0.0, dec=0.0, rollangle=0.0,
-                                                  debug=debug, run_sim=True,
-                                                  sim_separate_ccds=config["xmm"]['sim_seperate_ccds'],
+                                                  exposure=exposure,
+                                                  debug=debug,
+                                                  sim_separate_ccds=sim_separate_ccds,
                                                   verbose=verbose)
 
         for i, p in enumerate(tmp_split_img_paths_exps):
             file_path = p[0]
             split_exp = p[1]
+
+            final_img_directory = out_dir / f"{round(split_exp / 1000)}ks" / mode / f"{res_mult}x"
+            final_img_directory.mkdir(parents=True, exist_ok=True)
+
             if mode == "background":
                 # Remove the part numbers since they do not matter for the background
                 # Split on the part numbering
@@ -199,57 +182,62 @@ def run_xmm_simulation(
                 # Rename the file
                 file_path.rename(new_bg_path)
                 file_path = new_bg_path
-            compressed_file_path = file_path.parent / f"{file_path.name}.gz"
-            compress_gzip(in_file_path=file_path, out_file_path=compressed_file_path)
-
-            if not debug:
-                exp_str = str(round(split_exp / 1000)) + "ks"
-                final_img_directory = dataset_dir / exp_str / mode / res_str
-                final_img_directory.mkdir(parents=True, exist_ok=True)
-                final_compressed_file_path = final_img_directory / compressed_file_path.name
-                compressed_file_path.rename(final_compressed_file_path)
-                plog(f"Saved compressed fits file at: {final_compressed_file_path}", verbose=verbose)
-
-
-def run_simulation_simput(working_directory: Path, simput_file: Path, mode, config):
-    for exposure in config["sixte"]['exposure']:
-        # Run the simulation for all the specified resolutions
-        for res_mult in config["sixte"]['res_mult']:
-            try:
-                # Run the simulation
-                run_xmm_simulation(simput_file=simput_file, mode=mode, working_dir=working_directory,
-                                   res_mult=res_mult, exposure=exposure, config=config)
-
-            except Exception as e:
-                e_m = f"ERROR: failed to run simulation with simput file: {simput_file}; exposure: {exposure}; " \
-                      f"res_mult: {res_mult}; with error: {e}"
-                print(e_m)
-
-                if config["environment"]['debug']:
-                    raise
+            final_compressed_file_path = final_img_directory / f"{file_path.name}.gz"
+            compress_gzip(in_file_path=file_path, out_file_path=final_compressed_file_path)
 
 
 def run_simulation_modes(
+        mp_conf: Dict[str, float],
         mode_amount_dict: Dict[str, int],
         working_directory: Path,
         simput_path: Path,
-        order: str,
-        config
+        instrument_conf: Dict[str, Any],
+        debug: bool = False,
+        verbose: bool = True
 ) -> None:
-    mode_simput_files = get_simputs(simput_path=simput_path, mode_amount_dict=mode_amount_dict, order=order)
+    dataset_dir = working_directory / "xmm_sim_dataset"
+    tmp_dir = working_directory / "xmm_sim_tmp"
+
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    mode_simput_files = get_simputs(simput_path=simput_path, mode_amount_dict=mode_amount_dict,
+                                    order=instrument_conf["order"])
 
     if "background" in mode_simput_files:
         # Since we only have one background but want multiple simulations of it repeat it
         mode_simput_files["background"] = mode_simput_files["background"] * mode_amount_dict["background"]
 
-    argument_list = []
-    for mode, files in mode_simput_files.items():
-        for file in files:
-            argument_list.append((file, mode, config))
+    max_exposure = instrument_conf['max_exposure']
+    max_exp_str = f"{round(max_exposure / 1000)}ks"
+    instrument_name = instrument_conf["instrument_name"]
+    xmm_filter = instrument_conf["filter"]
+    xmm_filter_dir = dataset_dir / instrument_name / xmm_filter
+    max_exp_dir = xmm_filter_dir / max_exp_str
+    args_list = []
+    for res_mult in instrument_conf["res_mults"]:
+        res_str = f"{res_mult}x"
+        for mode, files in mode_simput_files.items():
+            res_dir = max_exp_dir / mode / res_str
+            for file in files:
+                img_name = f"{file.name.replace('.simput.gz', '')}_mult_{res_mult}"
+                final_compressed_img_name = f"{img_name}_{max_exp_str}_p_0-0.fits.gz"
+                final_compressed_file_path = res_dir / final_compressed_img_name
+                if not debug:
+                    if mode != "background":
+                        # Check if the max exposure time already exists,
+                        # if so we know that this one was already generated,
+                        # and we can skip its generation
+                        if final_compressed_file_path.exists():
+                            continue
+                args_list.append(
+                    (file.resolve(), img_name, mode, tmp_dir.resolve(), xmm_filter_dir.resolve(),
+                     res_mult, max_exposure, instrument_conf["instrument_name"], instrument_conf["filter"],
+                     instrument_conf["sim_separate_ccds"], debug, verbose)
+                )
 
-    # TODO Create XmmPnFf BEFORE starting the mp.Pool
-
-    for args in argument_list:
-        run_simulation_simput(working_directory, *args)
-
-    # TODO Add multiprocessing version
+    if debug:
+        for args in args_list:
+            run_xmm_simulation(*args)
+    else:
+        mp_run(run_xmm_simulation, argument_list=args_list, mp_conf=mp_conf)

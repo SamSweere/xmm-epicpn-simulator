@@ -23,7 +23,7 @@ def run_headas_command(
         verbose: bool = True
 ):
     # Initilialize HEADAS before running the command
-    cmd = f". $HEADAS/headas-init.sh && {cmd}"
+    # cmd = f". $HEADAS/headas-init.sh && {cmd}"
     _run_command(cmd, cmd_input=cmd_input, verbose=verbose)
 
 
