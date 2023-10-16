@@ -22,6 +22,16 @@ def create_pn_xml(
                                  f"(see https://www.sternwarte.uni-erlangen.de/sixte/instruments/)! Please download "
                                  f"and extract them as given in their instructions.")
 
+    out_dir = instrument_path / xmm_filter / f"{res_mult}x"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Add symbolic links to used files
+    files = [f"pn_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits", "xmm_pn_vignet.fits", f"pn-{xmm_filter}-10.rmf",
+             f"pn-{xmm_filter}-10.arf"]
+    for file in files:
+        tmp_link = out_dir / file
+        if not tmp_link.exists():
+            tmp_link.symlink_to(instrument_path / file)
+
     epn_lincoord = get_epn_lincoord()
 
     with fits.open(name=epn_lincoord, mode="readonly") as file:
@@ -42,15 +52,16 @@ def create_pn_xml(
     # See: http://www.sternwarte.uni-erlangen.de/~sixte/data/simulator_manual.pdf
     # in chap. "C: XML Instrument Configuration"
     focallength = round(focallength * 1e-3, 6)
-    xrval = xrval * 1e-3
-    yrval = yrval * 1e-3
     p_delt = round((p_delt * 1e-3) / res_mult, 6)
 
     if sim_separate_ccds:
         width = 64 * res_mult
         height = 200 * res_mult
+        xrval = xrval * 1e-3
+        yrval = yrval * 1e-3
     else:
         width, height = get_img_width_height(res_mult)
+        xrval = yrval = np.zeros_like(xrval)
 
     # The coordinates of the sensor are always in the middle of the sensor
     xrpix = round(width / 2.0, 6)
@@ -95,10 +106,10 @@ def create_pn_xml(
 
         tree = ElementTree(instrument)
         if sim_separate_ccds:
-            xml_path = instrument_path / f"ccd{i + 1:02d}_{xmm_filter}_{res_mult}x.xml"
+            xml_path = out_dir / f"ccd{i + 1:02d}.xml"
             tree.write(xml_path, encoding='UTF-8', xml_declaration=True, pretty_print=True)
         else:
-            xml_path = instrument_path / f"combined_{xmm_filter}_{res_mult}x.xml"
+            xml_path = out_dir / f"combined.xml"
             tree.write(xml_path, encoding='UTF-8', xml_declaration=True, pretty_print=True)
 
         xml_paths.append(xml_path)
@@ -111,17 +122,15 @@ def get_pn_xml(
         sim_separate_ccds: bool,
 ) -> List[Path]:
     instrument_path = Path(os.environ["SIXTE"]) / "share" / "sixte" / "instruments" / "xmm" / "epicpn"
+    root = instrument_path / xmm_filter / f"{res_mult}x"
 
     xml_paths: List[Path] = []
     if sim_separate_ccds:
-        for i in range(12):
-            xml_path = instrument_path / f"ccd{i + 1:02d}_{xmm_filter}_{res_mult}x.xml"
-            if xml_path.exists():
-                xml_paths.append(xml_path)
+        xml_paths = list(root.glob("ccd*.xml"))
         if not len(xml_paths) == 12:
             xml_paths.clear()
     else:
-        xml_path = instrument_path / f"combined_{xmm_filter}_{res_mult}x.xml"
+        xml_path = root / f"combined.xml"
         if xml_path.exists():
             xml_paths.append(xml_path)
 

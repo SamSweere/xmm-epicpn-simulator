@@ -48,7 +48,7 @@ def run_simulation(
 
     evt_filepaths: List[Path] = []
     for xml_path in xml_paths:
-        ccd_name = xml_path.name.split("_")[0]
+        ccd_name = xml_path.stem
         evt_filepath = run_dir / f"{ccd_name}_evt.fits"
         runsixt = (f"runsixt EvtFile={evt_filepath.resolve()} XMLFile={xml_path.resolve()} "
                    f"Simput={simput_path.resolve()} Exposure={exposure} RA={ra} "
@@ -73,6 +73,7 @@ def run_simulation(
     if instrument_name == "epn":
         naxis1, naxis2 = epn.get_img_width_height(res_mult)
         cdelt1 = cdelt2 = epn.get_cdelt(res_mult)
+        crpix1, crpix2 = epn.get_crpix(res_mult)
     elif instrument_name == "emos1":
         # TODO
         naxis1 = 392 * res_mult
@@ -88,8 +89,6 @@ def run_simulation(
 
     crval1 = dec
     crval2 = ra
-    crpix1 = round(naxis1 / 2.0, 6)
-    crpix2 = round(naxis2 / 2.0, 6)
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
         split_evt_file = split_dict['outfile']
