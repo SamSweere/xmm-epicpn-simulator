@@ -1,21 +1,14 @@
-# This file should not depend on other in project dependencies
 import json
 import os
 import random
+from argparse import ArgumentParser
 from datetime import datetime
 from itertools import repeat
 from pathlib import Path
-from typing import List, Union, Dict, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from astropy.io import fits
-
-config = {
-    'run_dir': None,
-    'data_dir': None,
-    'dataset_dir': None,
-    'dataset_name': 'xmm_demo_dataset',
-}
 
 
 def process_one_simulation(file_path: Path, general_header_dict: Optional[dict]) -> Tuple[np.ndarray, dict, dict]:
@@ -158,20 +151,22 @@ def combine_and_save_sim(
         hdu.writeto(compressed_out_path, overwrite=True)
 
 
-def run(cfg: Union[Path, Dict[str, dict]]) -> None:
-    if isinstance(cfg, Path):
-        with open(cfg, "r") as f:
-            cfg: Dict[str, dict] = json.load(f)
+def run(path_to_cfg: Path) -> None:
+    with open(path_to_cfg, "r") as f:
+        cfg: dict = json.load(f)
 
     env_cfg = cfg["environment"]
+    instrument_cfg = cfg["instrument"]
 
     exposures = cfg["exposure"]
     mode_dict = cfg["mode"]
     res_mults = cfg['res_mult']
 
-    lowest_res_mult = f"{res_mults[0]}x"
     working_directory = Path(env_cfg["working_directory"]).expanduser()
-    dataset_dir = working_directory / env_cfg["dataset_dir"]
+    dataset_dir = working_directory / env_cfg["dataset_dir"] / instrument_cfg["instrument_name"] / instrument_cfg[
+        "filter"]
+
+    det_mask_root = instrument_cfg["det_mask_root"]
 
     for exposure in exposures:
         exposure = f"{exposure}ks"
@@ -214,8 +209,8 @@ def run(cfg: Union[Path, Dict[str, dict]]) -> None:
                 # Get the detector mask path, these should be present in the simulated dataset
                 det_mask = None
                 if mode_params["add_detmask"]:
-                    # TODO Fix path for different kinds of detectors
-                    det_mask = Path.cwd() / "res" / "detector_masks" / f"pn_mask_500_2000_detxy_{res_mult}.ds"
+                    if instrument_cfg["instrument_name"] == "epn":
+                        det_mask = det_mask_root / f"pn_mask_500_2000_detxy_{res_mult}.ds"
 
                 agn_files = None
                 if amount_agn:
@@ -231,4 +226,8 @@ def run(cfg: Union[Path, Dict[str, dict]]) -> None:
 
 
 if __name__ == '__main__':
-    run(Path("/home/bojantodorkov/Projects/xmm-epicpn-simulator/cfg/combine.json"))
+    parser = ArgumentParser(prog="", description="")
+    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
+
+    args = parser.parse_args()
+    run(path_to_cfg=args.config_path)
