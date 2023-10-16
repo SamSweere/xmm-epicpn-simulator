@@ -20,7 +20,6 @@
       "background":  0,
       "test_grid": 0
     },
-    "sim_separate_ccds": true,
-    "fov": 0.8
+    "sim_separate_ccds": false
   }
 }

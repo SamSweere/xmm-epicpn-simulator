@@ -14,8 +14,8 @@
       "img":  0,
       "agn":  0,
       "background":  0,
-      "test_grid":  1,
-      "exposure_map": 0
+      "test_grid":  0,
+      "exposure_map": 1
     },
     "zoom_img_range": [1, 2, 4],
     "sigma_b_img_range": [5, 50],

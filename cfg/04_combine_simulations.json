@@ -1,10 +1,15 @@
 {
   "exposure": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
   "environment": {
-    "working_directory": "~/Documents/ESA/data/sim",
+    "working_directory": "~/ESA/data/sim",
     "dataset_dir": "xmm_sim_dataset",
     "debug": false,
     "verbose": false
+  },
+  "instrument": {
+    "instrument_name": "epn",
+    "filter": "thin",
+    "det_mask_root": ""
   },
   "res_mult": [1, 2],
   "mode": {
