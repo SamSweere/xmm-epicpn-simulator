@@ -87,5 +87,5 @@ RUN wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heas
 ENV PYTHONPATH="$PYTHONPATH:$SAS_DIR/lib/python:$HEADAS/lib/python"
 
 # Check if HEASoft, XMM-SAS have been installed correctly
-RUN . $HEADAS/headas-init.sh && \
-   . $SAS_DIR/setsas.sh
+RUN . $HEADAS/headas-init.sh &&  \
+    . $SAS_DIR/setsas.sh
