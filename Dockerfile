@@ -25,9 +25,6 @@ RUN git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ && \
 
 ENV SIMPUT=$HOME/simput SIXTE=$HOME/simput
 
-# Check that the installation of SIXTE was successfull
-RUN . $SIXTE/bin/sixte-install.sh
-
 # Download the SIXTE instrument files
 RUN cd $SIXTE && \
     wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz && \
@@ -85,7 +82,3 @@ RUN wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heas
     echo "export HEADAS=`echo $HOME/heasoft-6.32.1/x*`" >> ~/.bashrc
 
 ENV PYTHONPATH="$PYTHONPATH:$SAS_DIR/lib/python:$HEADAS/lib/python"
-
-# Check if HEASoft, XMM-SAS have been installed correctly
-RUN . $HEADAS/headas-init.sh &&  \
-    . $SAS_DIR/setsas.sh
