@@ -5,6 +5,8 @@ SHELL ["/bin/bash", "-c"]
 ENV HOME=/xmm
 WORKDIR $HOME
 
+RUN echo "export HOME=/xmm" >> ~/.bashrc
+
 # Update everything and install required packages
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y git libtool autoconf wget rsync perl perlbrew && \
@@ -40,7 +42,7 @@ RUN conda init bash
 RUN conda config --add channels conda-forge
 
 # Create the conda environment
-RUN conda create -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery tqdm lxml
+RUN conda create -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery tqdm lxml yt
 
 ENV SAS_PYTHON=$HOME/miniconda3/envs/xmm/bin/python
 
@@ -82,3 +84,4 @@ RUN wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heas
     echo "export HEADAS=`echo $HOME/heasoft-6.32.1/x*`" >> ~/.bashrc
 
 ENV PYTHONPATH="$PYTHONPATH:$SAS_DIR/lib/python:$HEADAS/lib/python"
+RUN echo "export PYTHONPATH=$PYTHONPATH:$SAS_DIR/lib/python:$HEADAS/lib/python" >> ~/.bashrc
