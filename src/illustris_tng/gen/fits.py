@@ -49,8 +49,7 @@ def cutout_to_xray_fits(
                                                                center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
                                                                width=(w, "code_length"), image_res=r)
                         else:
-                            # TODO For whatever reason the field 'gas' cannot be found.
-                            yt_fits = yt.FITSSlice(ds, axis=normal, fields=['gas', 'xray_photon_intensity_0.5_2.0_keV'],
+                            yt_fits = yt.FITSSlice(ds, axis=normal, fields=('gas', 'xray_photon_intensity_0.5_2.0_keV'),
                                                    center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
                                                    width=(w, "code_length"), image_res=r)
 
