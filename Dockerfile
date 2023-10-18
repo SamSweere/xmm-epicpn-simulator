@@ -42,7 +42,7 @@ RUN conda init bash
 RUN conda config --add channels conda-forge
 
 # Create the conda environment
-RUN conda create -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery tqdm lxml yt
+RUN conda create -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery tqdm lxml yt h5py
 
 ENV SAS_PYTHON=$HOME/miniconda3/envs/xmm/bin/python
 
