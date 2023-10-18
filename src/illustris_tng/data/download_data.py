@@ -7,6 +7,7 @@ import requests
 from tqdm import tqdm
 
 from src.illustris_tng.data.data_handling import get_saved_file, handle_cutout_name
+from src.illustris_tng.data.data_handling import save_cutout
 
 _cutout_request = {'gas': 'Coordinates,Density,ElectronAbundance,GFM_Metallicity,'
                           'InternalEnergy,Masses,NeutralHydrogenAbundance,Velocities'}
@@ -62,13 +63,19 @@ def get_cutouts(
         headers,
         cutout_datafolder: Path,
         fail_on_error: bool = False
-) -> Path:
-    cutouts_path = cutout_datafolder / "cutouts.p"
+) -> List[dict]:
     sc = []
     for sub in tqdm(subs):
         try:
             sub = _get_sub(sub["url"], headers=headers)
             cutout = _get_cutout(sub["cutouts"]["subhalo"], headers=headers, cutout_datafolder=cutout_datafolder)
+            if isinstance(cutout, tuple):
+                cutout = save_cutout(cutout=cutout, datafolder=cutout_datafolder)
+            sub = {
+                "pos_x": sub["pos_x"],
+                "pos_y": sub["pos_y"],
+                "pos_z": sub["pos_z"]
+            }
             sc.append({
                 "sub": sub,
                 "cutout": cutout
@@ -79,6 +86,5 @@ def get_cutouts(
                 raise
             else:
                 warn(f"Failed to load sub {sub['url']} due to error {e}")
-    with open(cutouts_path, "wb") as f:
-        pickle.dump(sc, f)
-    return cutouts_path
+    return sc
+
