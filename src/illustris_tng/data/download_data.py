@@ -66,8 +66,9 @@ def get_cutouts(
 ) -> List[dict]:
     sc = []
     for sub in tqdm(subs):
+        url = sub["url"]
         try:
-            sub = _get_sub(sub["url"], headers=headers)
+            sub = _get_sub(url, headers=headers)
             cutout = _get_cutout(sub["cutouts"]["subhalo"], headers=headers, cutout_datafolder=cutout_datafolder)
             if isinstance(cutout, tuple):
                 cutout = save_cutout(cutout=cutout, datafolder=cutout_datafolder)
@@ -82,9 +83,9 @@ def get_cutouts(
             })
         except Exception as e:
             if fail_on_error:
-                e.add_note(f"Failed to load sub {sub['url']} due to above stacktrace.")
+                e.add_note(f"Failed to load sub {url} due to above stacktrace.")
                 raise
             else:
-                warn(f"Failed to load sub {sub['url']} due to error {e}")
+                warn(f"Failed to load sub {url} due to error {e}")
     return sc
 

@@ -24,10 +24,10 @@ def cutout_to_xray_fits(
     if resolution is None:
         resolution = [2048]
     try:
-        print(f"Processing cutout: {cutout}. Arguments: mode={mode_dict}; emin={emin}; emax={emax}; "
+        print(f"Processing cutout: {cutout.resolve()}. Arguments: mode={mode_dict}; emin={emin}; emax={emax}; "
               f"width={width}; resolution={resolution}; redshift={redshift}; overwrite={overwrite}; "
               f"output_dir={output_dir}; cutout_datafolder={cutout.parent}")
-        ds = yt.load(cutout, default_species_fields="ionized")
+        ds = yt.load(f"{cutout.resolve()}", default_species_fields="ionized")
 
         yt.add_xray_emissivity_field(ds, emin, emax, redshift, data_dir=cloudy_emissivity_root)
 
