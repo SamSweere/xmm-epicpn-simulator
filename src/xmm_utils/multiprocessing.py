@@ -39,7 +39,10 @@ def mp_run(func, argument_list, mp_conf: Dict[str, float]) -> None:
     start = datetime.now()
     print(f"STARTED AT: {start}")
     with Pool(get_num_processes(mp_conf)) as pool:
-        pool.starmap(func=func, iterable=argument_list)
+        for args in argument_list:
+            pool.apply_async(func, args=args)
+        pool.close()
+        pool.join()
     end = datetime.now()
     print(f"FINISHED AT: {end}")
     print(f"DURATION: {end - start}")
