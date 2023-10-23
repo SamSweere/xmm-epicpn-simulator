@@ -1,7 +1,11 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
+from loguru import logger
+
 from src.illustris_tng import run
+
+logger.remove()
 
 if __name__ == '__main__':
     parser = ArgumentParser(prog="", description="")

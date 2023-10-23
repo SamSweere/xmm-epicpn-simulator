@@ -1,9 +1,10 @@
-import os
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
 import yt
+from loguru import logger
+
+yt.set_log_level(50)  # Turn of logging to console since it could lead to a deadlock when using multiprocessing
 
 
 def cutout_to_xray_fits(
@@ -24,9 +25,9 @@ def cutout_to_xray_fits(
     if resolution is None:
         resolution = [2048]
     try:
-        print(f"Processing cutout: {cutout.resolve()}. Arguments: mode={mode_dict}; emin={emin}; emax={emax}; "
-              f"width={width}; resolution={resolution}; redshift={redshift}; overwrite={overwrite}; "
-              f"output_dir={output_dir}; cutout_datafolder={cutout.parent}")
+        logger.info(f"Processing cutout: {cutout.resolve()}. Arguments: mode={mode_dict}; emin={emin}; emax={emax}; "
+                    f"width={width}; resolution={resolution}; redshift={redshift}; overwrite={overwrite}; "
+                    f"output_dir={output_dir}; cutout_datafolder={cutout.parent}")
         ds = yt.load(f"{cutout.resolve()}", default_species_fields="ionized")
 
         yt.add_xray_emissivity_field(ds, emin, emax, redshift, data_dir=cloudy_emissivity_root)
@@ -60,13 +61,7 @@ def cutout_to_xray_fits(
                         yt_fits.update_header(field="all", key="EMAX", value=emax)
 
                         yt_fits.writeto(str(fits_path.resolve()), overwrite=overwrite)
-                        print(f'\nConverted {cutout} to {fits_filename}')
+                        logger.info(f'\nConverted {cutout} to {fits_filename}')
 
     except Exception as e:
-
-        # Returns a datetime object containing the local date and time
-        dateTimeObj = datetime.now()
-        message = str(dateTimeObj) + f" ERROR, failed to process {cutout.name} with errro: {e}"
-
-        with open(os.path.join(output_dir, "illustristng_failed_processes.txt"), "a") as myfile:
-            myfile.write(message + "\n")
+        logger.exception(f" ERROR, failed to process {cutout.name} with errro: {e}")

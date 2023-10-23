@@ -1,16 +1,17 @@
 {
   "multiprocessing": {
     "gb_per_process": 0.0,
-    "num_processes": 8
+    "num_processes": 12
   },
   "environment": {
     "working_directory": "~/Projects/ESA",
+    "log_directory": "~/Projects/ESA/logs",
     "debug": false,
     "fail_on_error": false
   },
   "illustris": {
     "dataset_dir": "tng300_1_2_3_z99_2048",
-    "simulation_names": ["TNG300-3"],
+    "simulation_names": ["TNG300-1", "TNG300-2", "TNG300-3"],
     "snapshot_nums": [99],
     "top_n": 100,
     "emin": 0.5,
@@ -20,7 +21,6 @@
     "width": [1000, 4000],
     "resolutions": [2048],
     "modes": {
-      "proj": [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]],
       "slice": ["x", "y", "z"]
     }
   }

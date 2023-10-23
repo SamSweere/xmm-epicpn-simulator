@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from typing import List, Dict, Union, Any
 
+from loguru import logger
+
 from src.illustris_tng.data import get, get_cutouts
 from src.illustris_tng.gen.fits import cutout_to_xray_fits
 from src.xmm_utils.multiprocessing import mp_run
@@ -18,6 +20,12 @@ def run(
     mp_cfg: Dict[str, Any] = cfg["multiprocessing"]
     illustris_cfg: Dict[str, Any] = cfg["illustris"]
 
+    log_dir = Path(env_cfg["log_directory"])
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_level = "DEBUG" if env_cfg["debug"] else "INFO"
+    logger.add(f"{(log_dir / '01_download_files_{time}.log')}", enqueue=True,
+               format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level=log_level)
+
     working_dir = Path(env_cfg["working_directory"]).expanduser()
     cutout_dir = working_dir / "cutout_data"
     dataset_dir = working_dir / illustris_cfg["dataset_dir"]
@@ -26,7 +34,7 @@ def run(
     base_url = "http://www.tng-project.org/api/"
     headers = {"api-key": api_key}
 
-    print("Getting snaps...")
+    logger.info("Getting snaps...")
     simulations: List[Dict[str, Union[str, int]]] = get(base_url, headers=headers, cutout_datafolder=cutout_dir)[
         "simulations"]
     simulations_to_use: List[Dict[str, Union[str, int]]] = []
@@ -43,10 +51,10 @@ def run(
         snaps = [snaps[z] for z in illustris_cfg['snapshot_nums']]
 
         subs_sim_r = []
-        print(f"\tGetting subs for: {name}")
+        logger.info(f"\tGetting subs for: {name}")
         # There are 100 snapshots, the last one corresponds to z=0
         for z, snap in zip(illustris_cfg['snapshot_nums'], snaps):
-            print(f"\tsnapshot num (z): {z}")
+            logger.info(f"\tsnapshot num (z): {z}")
             subhalos = get(snap['url'], headers=headers, cutout_datafolder=cutout_dir)["subhalos"]
 
             # request and inspect most massive 100 subhalos that are central (primary_flag = 1)
@@ -59,9 +67,9 @@ def run(
                                           fail_on_error=env_cfg["fail_on_error"]))
 
         subs_r += subs_sim_r
-        print(f"\tNumber of subs loaded: {len(subs_sim_r)}")
+        logger.info(f"\tNumber of subs loaded: {len(subs_sim_r)}")
 
-    print(f"Total subs loaded: {len(subs_r)}")
+    logger.info(f"Total subs loaded: {len(subs_r)}")
 
     for i, mode in enumerate(illustris_cfg["modes"].keys()):
         if mode not in ("proj", "slice"):
