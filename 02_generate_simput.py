@@ -1,13 +1,18 @@
 import json
 from argparse import ArgumentParser
+from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import Dict, Optional
-from itertools import repeat
+
 import numpy as np
 from loguru import logger
 
 from src.simput.gen import simput_generate
-from src.xmm_utils.multiprocessing import mp_run
+from src.xmm_utils.multiprocessing import get_num_processes
+
+logger.remove()
+
+available_modes = ["img", "agn", "background", "exposure_map", "test_grid", "random"]
 
 
 def run(
@@ -21,6 +26,12 @@ def run(
     mp_cfg = cfg["multiprocessing"]
     simput_cfg = cfg["simput"]
 
+    log_dir = Path(env_cfg["log_directory"]).expanduser()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_level = "DEBUG" if env_cfg["debug"] else "INFO"
+    logger.add(f"{(log_dir / '02_generate_simput_{time}.log')}", enqueue=True,
+               format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level=log_level)
+
     working_directory = Path(env_cfg["working_directory"]).expanduser()
 
     tmp_dir = working_directory / "simput_tmp"
@@ -29,6 +40,9 @@ def run(
     debug = env_cfg["debug"]
     keep_files = env_cfg["keep_files"]
     verbose = env_cfg["verbose"]
+
+    if debug:
+        logger.info(f"Since 'debug' is set to 'true' generation will be run asynchronously.")
 
     simput_dir = working_directory / "simput"
     simput_dir.mkdir(parents=True, exist_ok=True)
@@ -41,83 +55,82 @@ def run(
     zoom_range = simput_cfg["zoom_img_range"]
     sigma_b_range = simput_cfg['sigma_b_img_range']
     offset_std = simput_cfg['offset_std']
+    instrument_name = simput_cfg["instrument_name"]
 
-    argument_list = []
     mode_dict: Dict[str, int] = simput_cfg["mode"]
-    for mode, num in mode_dict.items():
-        if num < -1:
-            raise ValueError("num has to be >= -1")
-        if num == 0:
-            continue
+    with Pool(get_num_processes(mp_conf=mp_cfg)) as pool:
+        for mode, num in mode_dict.items():
+            if mode not in available_modes:
+                raise ValueError(f"Unkown mode '{mode}'! Available modes: {available_modes}.")
 
-        mode_dir = simput_dir / mode
-        mode_dir.mkdir(parents=True, exist_ok=True)
+            if num < -1:
+                raise ValueError("num has to be >= -1")
 
-        if mode == "img":
-            in_files = list(sim_in_dataset_dir.glob("*.fits"))
-            if not num == -1:
-                in_files = in_files[:num]
+            if num == 0:
+                continue
 
-            rng = np.random.default_rng()
+            mode_dir = simput_dir / instrument_name / mode
+            mode_dir.mkdir(parents=True, exist_ok=True)
 
-            for in_file in in_files:
-                generated_files = len(list(mode_dir.glob(f"{in_file.stem}*")))
-                to_generate = sample_num - generated_files
+            if mode == "img":
+                in_files = list(sim_in_dataset_dir.glob("*.fits"))
+                if not num == -1:
+                    in_files = in_files[:num]
 
-                if to_generate <= 0:
-                    continue
+                rng = np.random.default_rng()
 
-                zoom = np.round(np.random.uniform(low=zoom_range[0], high=zoom_range[1], size=to_generate), 2)
-                sigma_b = np.round(np.random.uniform(low=sigma_b_range[0], high=sigma_b_range[1], size=to_generate), 2)
-                offset_x = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
-                offset_y = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
+                for in_file in in_files:
+                    generated_files = len(list(mode_dir.glob(f"{in_file.stem}*")))
+                    to_generate = sample_num - generated_files
 
-                img_settings = {
-                    "img_path": in_file.resolve(),
-                    "zoom": zoom,
-                    "sigma_b": sigma_b,
-                    "offset_x": offset_x,
-                    "offset_y": offset_y
-                }
+                    if to_generate <= 0:
+                        logger.info(f"Won't generate any images for {in_file.name}.")
+                        continue
 
-                argument_list.append((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose))
-        elif mode == "agn":
-            if debug:
-                img_settings = {
-                    "num": num,
-                    "agn_counts_file": agn_counts_file
-                }
-                argument_list.append((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose))
+                    logger.info(f"Will generate {to_generate} images for {in_file.name}.")
+
+                    zoom = np.round(rng.uniform(low=zoom_range[0], high=zoom_range[1], size=to_generate), 2)
+                    sigma_b = np.round(rng.uniform(low=sigma_b_range[0], high=sigma_b_range[1], size=to_generate), 2)
+                    offset_x = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
+                    offset_y = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
+
+                    img_settings = {
+                        "img_path": in_file.resolve(),
+                        "zoom": zoom,
+                        "sigma_b": sigma_b,
+                        "offset_x": offset_x,
+                        "offset_y": offset_y
+                    }
+
+                    arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, keep_files, verbose)
+                    if debug:
+                        pool.apply(simput_generate, arguments)
+                    else:
+                        pool.apply_async(simput_generate, arguments)
+
             else:
-                img_settings = {
-                    "num": 1,
-                    "agn_counts_file": agn_counts_file
-                }
-                argument_list.extend(repeat((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose), num))
-        elif mode == "background" or mode == "exposure_map":
-            if debug:
-                img_settings = {
-                    "num": num,
-                    "spectrum_file": spectrum_file
-                }
-                argument_list.append((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose))
-            else:
-                img_settings = {
-                    "num": 1,
-                    "spectrum_file": spectrum_file
-                }
-                argument_list.extend(repeat((mode, img_settings, tmp_dir, mode_dir, keep_files, verbose), num))
-        else:
-            if debug:
-                argument_list.append((mode, num, tmp_dir, mode_dir, keep_files, verbose))
-            else:
-                argument_list.extend(repeat((mode, 1, tmp_dir, mode_dir, keep_files, verbose), num))
+                if mode == "agn":
+                    logger.info(f"Will generate {num} AGNs.")
+                    img_settings = {"agn_counts_file": agn_counts_file}
+                elif mode == "background" or mode == "exposure_map":
+                    logger.info(f"Will generate {num} {'backgrounds' if mode == 'background' else 'exposure maps'}.")
+                    img_settings = {"spectrum_file": spectrum_file}
+                else:
+                    logger.info(f"Will generate {num} {'test grids' if mode == 'test_grid' else 'random sources'}.")
+                    img_settings = {}
 
-    if debug:
-        for args_tuple in argument_list:
-            simput_generate(*args_tuple)
-    else:
-        mp_run(simput_generate, argument_list, mp_cfg)
+                if debug:
+                    img_settings["num"] = num
+                    arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, keep_files, verbose)
+                    pool.apply(simput_generate, arguments)
+                else:
+                    img_settings["num"] = 1
+                    for _ in range(num):
+                        arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, keep_files, verbose)
+                        pool.apply_async(simput_generate, arguments)
+
+        pool.close()
+        pool.join()
 
 
 if __name__ == '__main__':

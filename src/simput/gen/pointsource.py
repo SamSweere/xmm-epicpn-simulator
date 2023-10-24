@@ -1,12 +1,14 @@
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Literal, Tuple, Union
 
 import numpy as np
 
+from src.xmm.utils import get_fov_for_instrument
 from src.xmm_utils.external_run import run_headas_command
 
 
 def simput_ps(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         emin: float,
         emax: float,
         output_file: Path,
@@ -30,12 +32,11 @@ def simput_ps(
     if src_flux == 'random':
         src_flux = rng.uniform(low=1.0e-13, high=1.0e-10)
 
-    # Epic pn has a fov of 30 arcmin = 0.5 degrees.
-    pn_fov = 0.5
+    fov = get_fov_for_instrument(instrument_name)
 
     # Randomly position the point source within the fov
     if offset == 'random':
-        offset = rng.uniform(low=-1.0 * pn_fov / 2, high=pn_fov / 2, size=2)
+        offset = rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=2)
 
     location = (center_point[0] + offset[0], center_point[1] + offset[1])
     ra = location[0]

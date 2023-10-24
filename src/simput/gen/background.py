@@ -1,16 +1,19 @@
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 from astropy.io import fits
 from loguru import logger
 
-from src.simput.constants import CDELT, RESOLUTION, PIXEL_SIZE
 from src.simput.gen.utils import ones_like_xmm, generate_ascii_spectrum, generate_simput
+from src.xmm.utils import get_cdelt_for_instrument, get_surface_for_instrument, get_width_height_for_instrument
+from src.xmm.utils import get_crpix12_for_instrument
 
 
-def _get_ascii_spectrum(
+def get_ascii_spectrum(
         run_dir: Path,
         spectrum_file: Path,
+        instrument_name: Literal["epn", "emos1", "emos2"],
         verbose: bool = True
 ) -> Path:
     # Open the background spectrum file (sky + instrument + particle)
@@ -24,7 +27,7 @@ def _get_ascii_spectrum(
         counts = spectrum.data['COUNTS'].astype(np.float32)
         rates = counts / float(spectrum.header['EXPOSURE'])
 
-    surface = (PIXEL_SIZE * RESOLUTION) ** 2  # cm**2
+    surface = get_surface_for_instrument(instrument_name=instrument_name, res_mult=1) * 1e-2  # cm**2
     cgi_rates = rates / surface  # photon/s/cm**2/keV
 
     ascii_spectrum = generate_ascii_spectrum(run_dir,
@@ -38,20 +41,26 @@ def _get_ascii_spectrum(
 def background(
         run_dir: Path,
         spectrum_file: Path,
+        instrument_name: Literal["epn", "emos1", "emos2"],
         emin: float,
         emax: float,
         suffix=None,
         verbose: bool = True
 ) -> Path:
     suffix = "" if suffix is None else f"_{suffix}"
-    image_file = ones_like_xmm(resolution=RESOLUTION,
-                               cdelt=CDELT,
-                               crpix1=int(RESOLUTION / 2) - 44,
-                               crpix2=219,
+
+    cdelt = get_cdelt_for_instrument(instrument_name=instrument_name, res_mult=1)
+    width, height = get_width_height_for_instrument(instrument_name=instrument_name, res_mult=1)
+    crpix1, crpix2 = get_crpix12_for_instrument(instrument_name=instrument_name, res_mult=1)
+
+    image_file = ones_like_xmm(resolution=(width, height),
+                               cdelt=cdelt,
+                               crpix1=crpix1,
+                               crpix2=crpix2,
                                run_dir=run_dir,
                                filename=f"const_background{suffix}.fits")
 
-    ascii_spectrum_file = _get_ascii_spectrum(run_dir, spectrum_file, verbose)
+    ascii_spectrum_file = get_ascii_spectrum(run_dir, spectrum_file, instrument_name, verbose)
 
     outfile_path = generate_simput(run_dir=run_dir,
                                    filename=f"background{suffix}.simput",

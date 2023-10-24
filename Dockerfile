@@ -8,7 +8,8 @@ WORKDIR $HOME
 RUN echo "export HOME=/xmm" >> ~/.bashrc
 
 # Update everything and install required packages
-RUN apt-get update && apt-get upgrade -y && \
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
+    apt-get update && apt-get upgrade -y && apt-get dist-upgrade && \
     apt-get install -y git libtool autoconf wget rsync perl perlbrew && \
     apt-get install -y libreadline-dev libncurses5-dev ncurses-dev curl libcurl4 libcurl4-gnutls-dev xorg-dev make  \
     gcc g++ gfortran perl-modules && \
@@ -42,7 +43,8 @@ RUN conda init bash
 RUN conda config --add channels conda-forge
 
 # Create the conda environment
-RUN conda create -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery tqdm lxml yt h5py loguru
+RUN conda create -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery \
+    tqdm lxml yt h5py loguru
 
 ENV SAS_PYTHON=$HOME/miniconda3/envs/xmm/bin/python
 

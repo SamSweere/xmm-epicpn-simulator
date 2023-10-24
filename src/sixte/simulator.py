@@ -8,7 +8,6 @@ from astropy.io import fits
 
 from src.simput.utils import get_simputs
 from src.sixte.image_gen import merge_ccd_eventlists, imgev, split_eventlist
-from src.xmm import epn
 from src.xmm.xmm_xml import get_pn_xml
 from src.xmm_utils.external_run import run_headas_command
 from src.xmm_utils.file_utils import decompress_gzip, compress_gzip
@@ -35,10 +34,10 @@ def run_simulation(
         xml_paths = get_pn_xml(res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
     elif instrument_name == "emos1":
         # TODO
-        xml_paths = []
+        raise NotImplementedError
     elif instrument_name == "emos2":
         # TODO
-        xml_paths = []
+        raise NotImplementedError
     else:
         raise ValueError(f"Unknown instrument name '{instrument_name}!")
 
@@ -71,24 +70,17 @@ def run_simulation(
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
     if instrument_name == "epn":
-        naxis1, naxis2 = epn.get_img_width_height(res_mult)
-        cdelt1 = cdelt2 = epn.get_cdelt(res_mult)
-        crpix1, crpix2 = epn.get_crpix(res_mult)
+        from src.xmm.epn import get_img_width_height, get_cdelt, get_crpix
+        naxis1, naxis2 = get_img_width_height(res_mult)
+        cdelt1 = cdelt2 = get_cdelt(res_mult)
+        crpix1, crpix2 = get_crpix(res_mult)
     elif instrument_name == "emos1":
         # TODO
-        naxis1 = 392 * res_mult
-        naxis2 = 402 * res_mult
-        cdelt1 = round(4.0 / 3600 / float(res_mult), 12)
-        cdelt2 = round(4.0 / 3600 / float(res_mult), 12)
+        raise NotImplementedError
     else:
         # TODO
-        naxis1 = 392 * res_mult
-        naxis2 = 402 * res_mult
-        cdelt1 = round(4.0 / 3600 / float(res_mult), 12)
-        cdelt2 = round(4.0 / 3600 / float(res_mult), 12)
+        raise NotImplementedError
 
-    crval1 = dec
-    crval2 = ra
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
         split_evt_file = split_dict['outfile']
@@ -102,7 +94,7 @@ def run_simulation(
         final_img_name = f"{img_name}_{split_name}.fits"
 
         imgev(evt_file=split_evt_file, input_folder=run_dir, out_name=final_img_name, naxis1=naxis1,
-              naxis2=naxis2, crval1=crval1, crval2=crval2, crpix1=crpix1,
+              naxis2=naxis2, crval1=dec, crval2=ra, crpix1=crpix1,
               crpix2=crpix2, cdelt1=cdelt1, cdelt2=cdelt2, verbose=verbose)
 
         # Rename the final file, due to lengths of names we have to do this with shutil.move

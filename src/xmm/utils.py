@@ -1,5 +1,172 @@
+from typing import Literal, Tuple
+
 import numpy as np
 from astropy.io import fits
+
+available_instruments = ["epn", "emos1", "emos2"]
+
+
+def get_fov_for_instrument(
+        instrument_name: Literal["epn", "emos1", "emos2"]
+) -> float:
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_fov
+        return get_fov()
+
+    if instrument_name == "emos1":
+        from src.xmm.emos import get_fov
+        return get_fov(1)
+
+    if instrument_name == "emos2":
+        from src.xmm.emos import get_fov
+        return get_fov(2)
+
+
+def get_cdelt_for_instrument(
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        res_mult: int
+) -> float:
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_cdelt
+        return get_cdelt(res_mult)
+
+    if instrument_name == "emos1":
+        from src.xmm.emos import get_cdelt
+        return get_cdelt(1, res_mult)
+
+    if instrument_name == "emos2":
+        from src.xmm.emos import get_cdelt
+        return get_cdelt(2, res_mult)
+
+
+def get_pixel_size_for_instrument(
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        res_mult: int
+) -> float:
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_pixel_size
+        return get_pixel_size(res_mult)
+
+    if instrument_name == "emos1":
+        from src.xmm.emos import get_pixel_size
+        return get_pixel_size(1, res_mult)
+
+    if instrument_name == "emos2":
+        from src.xmm.emos import get_pixel_size
+        return get_pixel_size(2, res_mult)
+
+
+def get_surface_for_instrument(
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        res_mult: int
+) -> float:
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_surface
+        return get_surface(res_mult=res_mult)
+
+    if instrument_name == "emos1":
+        raise NotImplementedError
+
+    if instrument_name == "emos2":
+        raise NotImplementedError
+
+
+def get_width_height_for_instrument(
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        res_mult: int
+) -> Tuple[int, int]:
+    """
+    Returns:
+        Tuple[int, int]: The width and height of the instrument in pixels.
+    """
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_img_width_height
+        return get_img_width_height(res_mult=res_mult)
+
+    if instrument_name == "emos1":
+        raise NotImplementedError
+
+    if instrument_name == "emos2":
+        raise NotImplementedError
+
+
+def get_crpix12_for_instrument(
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        res_mult: int
+) -> Tuple[float, float]:
+    """
+    Returns:
+        Tuple[float, float]: The pixels corresponding to the focal point on the instrument.
+    """
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_crpix
+        return get_crpix(res_mult=res_mult)
+
+    if instrument_name == "emos1":
+        raise NotImplementedError
+
+    if instrument_name == "emos2":
+        raise NotImplementedError
+
+
+def get_cc12_txy(
+        instrument_name: Literal["epn", "emos1", "emos2"]
+) -> Tuple[float, float]:
+    """
+        Returns:
+            Tuple[float, float]: The pixels corresponding to the focal point on the instrument.
+        """
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_cc12_txy
+        return get_cc12_txy()
+
+    if instrument_name == "emos1":
+        raise NotImplementedError
+
+    if instrument_name == "emos2":
+        raise NotImplementedError
+
+
+def get_arc_mm_xy(
+        instrument_name: Literal["epn", "emos1", "emos2"]
+) -> Tuple[float, float]:
+    """
+    Returns:
+        Tuple[float, float]: Returns the arcsec/mm plate scale in X and Y.
+    """
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_arc_mm_xy
+        return get_arc_mm_xy()
+
+    if instrument_name == "emos1":
+        raise NotImplementedError
+
+    if instrument_name == "emos2":
+        raise NotImplementedError
 
 
 def add_ccdnr_and_xy(hdu, xmm, ccdnr):

@@ -12,8 +12,8 @@ from src.xmm_utils.external_run import run_headas_command
 def ones_like_xmm(
         resolution: Union[int, Tuple[int, int]],
         cdelt: float,
-        crpix1: int,
-        crpix2: int,
+        crpix1: float,
+        crpix2: float,
         run_dir: Path,
         filename: str
 ) -> Path:

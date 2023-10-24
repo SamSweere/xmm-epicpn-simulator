@@ -6,8 +6,7 @@ import numpy as np
 from astropy.io import fits
 from lxml.etree import Element, SubElement, ElementTree
 
-from src.xmm.epn import get_img_width_height, get_focal_length, get_fov, get_pixel_size
-from src.xmm.xmm_ccf import get_epn_lincoord
+from src.xmm.xmm_ccf import get_emos_lincoord
 
 
 def create_pn_xml(
@@ -16,6 +15,8 @@ def create_pn_xml(
         sim_separate_ccds: bool,
         wait_time: float = 23.04e-6  # Setting this to 0.0 eliminates out of time events
 ) -> List[Path]:
+    from src.xmm.epn import get_focal_length, get_fov, get_pixel_size
+
     instrument_path = Path(os.environ["SIXTE"]) / "share" / "sixte" / "instruments" / "xmm" / "epicpn"
     if not instrument_path.exists():
         raise NotADirectoryError(f"It looks like you haven't downloaded the instrument files provided by SIXTE "
@@ -32,18 +33,6 @@ def create_pn_xml(
         if not tmp_link.exists():
             tmp_link.symlink_to(instrument_path / file)
 
-    epn_lincoord = get_epn_lincoord()
-
-    with fits.open(name=epn_lincoord, mode="readonly") as file:
-        # See: https://xmmweb.esac.esa.int/docs/documents/CAL-MAN-0001.pdf chap. 4.3.20
-        # See: http://www.sternwarte.uni-erlangen.de/~sixte/data/simulator_manual.pdf chap.
-        # "C: XML Instrument Configuration".
-        lincoord = file[1].data
-        # I don't know why, but the axis have to be switched and the signs flipped for yrval
-        xrval = lincoord["Y0"].astype(float)
-        yrval = -lincoord["X0"].astype(float)
-    print(f"Finished reading {epn_lincoord.resolve()}")
-
     focallength = get_focal_length()
     fov = get_fov()
     p_delt = get_pixel_size(res_mult)
@@ -52,18 +41,22 @@ def create_pn_xml(
     # See: http://www.sternwarte.uni-erlangen.de/~sixte/data/simulator_manual.pdf
     # in chap. "C: XML Instrument Configuration"
     focallength = round(focallength * 1e-3, 6)
-    p_delt = round((p_delt * 1e-3) / res_mult, 6)
+    p_delt = round(p_delt * 1e-3, 6)
 
     if sim_separate_ccds:
-        width = 64 * res_mult
-        height = 200 * res_mult
-        xrval = xrval * 1e-3
-        yrval = yrval * 1e-3
+        from src.xmm.epn import get_ccd_width_height, get_xyrval, get_cc12_txy
+        width, height = get_ccd_width_height(res_mult=res_mult)
+        xrval, yrval = get_xyrval()
+        cc12tx, cc12ty = get_cc12_txy()
+        xrval = (xrval + cc12tx) * 1e-3
+        yrval = (yrval + cc12ty) * 1e-3
     else:
-        width, height = get_img_width_height(res_mult)
-        xrval = yrval = np.zeros_like(xrval)
+        from src.xmm.epn import get_img_width_height, get_cc12_txy
+        width, height = get_img_width_height(res_mult=res_mult)
+        xrval, yrval = get_cc12_txy()
+        xrval = np.asarray([xrval * 1e-3])
+        yrval = np.asarray([yrval * 1e-3])
 
-    # The coordinates of the sensor are always in the middle of the sensor
     xrpix = round(width / 2.0, 6)
     yrpix = round(height / 2.0, 6)
 

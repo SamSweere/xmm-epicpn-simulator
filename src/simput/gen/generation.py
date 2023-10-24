@@ -1,6 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List, Union, Tuple
+from typing import List, Literal
 from uuid import uuid4
 
 import numpy as np
@@ -10,68 +10,65 @@ from tqdm import tqdm
 from src.simput.agn import get_fluxes
 from src.simput.gen import background, exposure_map, simput_ps
 from src.simput.gen.image import simput_image
-from src.simput.utils import get_spectrumfile
-from src.simput.utils import merge_simputs
+from src.simput.utils import get_spectrumfile, merge_simputs
+from src.xmm.utils import get_fov_for_instrument, get_cc12_txy, get_arc_mm_xy
 from src.xmm_utils.file_utils import compress_gzip
 
 
 def create_background(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         run_dir: Path,
         spectrum_file: Path,
         num: int = 1,
         verbose: bool = True
 ) -> List[Path]:
-    output_files = []
-
     if num == 1:
-        output_file = background(run_dir=run_dir,
-                                 spectrum_file=spectrum_file,
-                                 emin=0.15,
-                                 emax=15.0,
-                                 verbose=verbose)
-        output_files.append(output_file)
+        output_files = [background(run_dir=run_dir,
+                                   spectrum_file=spectrum_file,
+                                   instrument_name=instrument_name,
+                                   emin=0.15,
+                                   emax=15.0,
+                                   verbose=verbose)]
     else:
-        for i in range(num):
-            output_file = background(run_dir=run_dir,
-                                     spectrum_file=spectrum_file,
-                                     emin=0.15,
-                                     emax=15.0,
-                                     suffix=i,
-                                     verbose=verbose)
-            output_files.append(output_file)
+        output_files = [background(run_dir=run_dir,
+                                   spectrum_file=spectrum_file,
+                                   instrument_name=instrument_name,
+                                   emin=0.15,
+                                   emax=15.0,
+                                   suffix=i,
+                                   verbose=verbose) for i in range(num)]
 
     return output_files
 
 
 def create_exposure_map(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         run_dir: Path,
         spectrum_file: Path,
         num: int = 1,
         verbose: bool = True
 ) -> List[Path]:
-    output_files = []
-
     if num == 1:
-        output_file = exposure_map(run_dir=run_dir,
-                                   spectrum_file=spectrum_file,
-                                   emin=0.15,
-                                   emax=15.0,
-                                   verbose=verbose)
-        output_files.append(output_file)
+        output_files = [exposure_map(run_dir=run_dir,
+                                     spectrum_file=spectrum_file,
+                                     instrument_name=instrument_name,
+                                     emin=0.15,
+                                     emax=15.0,
+                                     verbose=verbose)]
     else:
-        for i in range(num):
-            output_file = exposure_map(run_dir=run_dir,
-                                       spectrum_file=spectrum_file,
-                                       emin=0.15,
-                                       emax=15.0,
-                                       suffix=i,
-                                       verbose=verbose)
-            output_files.append(output_file)
+        output_files = [exposure_map(run_dir=run_dir,
+                                     spectrum_file=spectrum_file,
+                                     instrument_name=instrument_name,
+                                     emin=0.15,
+                                     emax=15.0,
+                                     suffix=i,
+                                     verbose=verbose) for i in range(num)]
 
     return output_files
 
 
 def create_random_sources(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         run_dir: Path,
         num: int = 1,
         num_sources: int = 10,
@@ -98,7 +95,8 @@ def create_random_sources(
         # Create the point sources
         for i in tqdm(range(num_sources), desc="Generating point sources..."):
             simput_file = run_dir / f"ps_{i}.simput"
-            simput_ps(emin=emin,
+            simput_ps(instrument_name=instrument_name,
+                      emin=emin,
                       emax=emax,
                       center_point=(0, 0),
                       xspec_file=spectrum_file,
@@ -119,6 +117,7 @@ def create_random_sources(
 
 
 def create_agn_sources(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         run_dir: Path,
         agn_counts_file: Path,
         num: int = 1,
@@ -146,7 +145,8 @@ def create_agn_sources(
             if verbose:
                 logger.info(f"flux: {flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
-            output_file = simput_ps(emin=emin,
+            output_file = simput_ps(instrument_name=instrument_name,
+                                    emin=emin,
                                     emax=emax,
                                     output_file=output_file,
                                     src_flux=flux,
@@ -164,15 +164,15 @@ def create_agn_sources(
 
 
 def create_test_grid(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         run_dir: Path,
         num: int = 1,
         flux: float = 1.0e-13,
         step_size: int = 10,
-        center_offset: Tuple[float, float] = (0.005, 0.015),
         keep_files: bool = False,
         verbose=True
 ) -> List[Path]:
-    spectrum_file = get_spectrumfile(run_dir=run_dir, norm=0.01, verbose=verbose)
+    spectrum_file = get_spectrumfile(run_dir=run_dir, verbose=verbose)
 
     output_files = []
     # emin = 0.15, emax = 15.0 is ideal
@@ -180,9 +180,9 @@ def create_test_grid(
     emin = 0.15
     emax = 15.0
 
-    xmm_fov = 0.5
-    x_loc = np.linspace(-xmm_fov / 2, xmm_fov / 2, step_size)
-    y_loc = np.linspace(-xmm_fov / 2, xmm_fov / 2, step_size)
+    fov = get_fov_for_instrument(instrument_name)
+    x_loc = np.linspace(-fov / 2, fov / 2, step_size)
+    y_loc = np.linspace(-fov / 2, fov / 2, step_size)
     for _ in range(num):
         unique_id = uuid4().int
         name = f"test_grid_f_{flux}_step_{step_size}_{unique_id}.simput"
@@ -195,19 +195,34 @@ def create_test_grid(
             logger.info(f"Generating point source at (0, 0)")
 
         simput_file_path = run_dir / f"ps_center_{unique_id}.simput"
-        simput_ps(emin=emin, emax=emax, center_point=(0.0, 0.0), xspec_file=spectrum_file,
-                  output_file=simput_file_path, src_flux=flux, offset=(0.0, 0.0), verbose=verbose)
+        simput_ps(instrument_name=instrument_name,
+                  emin=emin,
+                  emax=emax,
+                  xspec_file=spectrum_file,
+                  output_file=simput_file_path,
+                  src_flux=flux,
+                  verbose=verbose)
         simput_files.append(simput_file_path)
 
         # Create the point sources
+        cc12_tx, cc12_ty = get_cc12_txy(instrument_name=instrument_name)
+        arc_mm_x, arc_mm_y = get_arc_mm_xy(instrument_name=instrument_name)
+        center_offset = ((cc12_ty * arc_mm_y) / 3600, (cc12_tx * arc_mm_x) / 3600)
         for x in x_loc:
             for y in y_loc:
                 if verbose:
                     logger.info(f"Generating point source {counter}/{step_size ** 2}")
                 ps_simput_file_name = f"ps_{counter}_{unique_id}.simput"
                 simput_file_path = run_dir / ps_simput_file_name
-                simput_ps(emin=emin, emax=emax, center_point=center_offset, xspec_file=spectrum_file,
-                          output_file=simput_file_path, src_flux=flux, offset=(x, y), verbose=verbose)
+                simput_ps(instrument_name=instrument_name,
+                          emin=emin,
+                          emax=emax,
+                          center_point=center_offset,
+                          xspec_file=spectrum_file,
+                          output_file=simput_file_path,
+                          src_flux=flux,
+                          offset=(x, y),
+                          verbose=verbose)
                 simput_files.append(simput_file_path)
                 counter += 1
 
@@ -222,26 +237,28 @@ def create_test_grid(
 
 
 def simput_generate(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         mode: str,
-        img_settings: Union[dict, int],
+        img_settings: dict,
         tmp_dir: Path,
         output_dir: Path,
         keep_files: bool = False,
         verbose: bool = True
 ) -> None:
-    # TODO Add possibility to choose between different instruments (pn, mos1, mos2)
     with TemporaryDirectory(dir=tmp_dir) as temp:
         run_dir = Path(temp)
 
         if mode == "test_grid":
-            file_names = create_test_grid(run_dir=run_dir,
-                                          num=img_settings,
+            file_names = create_test_grid(instrument_name=instrument_name,
+                                          run_dir=run_dir,
+                                          num=img_settings["num"],
                                           keep_files=keep_files,
                                           verbose=verbose)
         elif mode == "agn":
             if img_settings["agn_counts_file"] is None:
                 raise FileNotFoundError(f"Path to agn_counts.cgi cannot be None!")
-            file_names = create_agn_sources(run_dir=run_dir,
+            file_names = create_agn_sources(instrument_name=instrument_name,
+                                            run_dir=run_dir,
                                             agn_counts_file=img_settings["agn_counts_file"],
                                             num=img_settings["num"],
                                             keep_files=keep_files,
@@ -254,21 +271,23 @@ def simput_generate(
         elif mode == "background":
             if img_settings["spectrum_file"] is None:
                 raise FileNotFoundError(f"Path to pnttfg_spectrum.ds cannot be None!")
-            file_names = create_background(run_dir=run_dir,
+            file_names = create_background(instrument_name=instrument_name,
+                                           run_dir=run_dir,
                                            spectrum_file=img_settings["spectrum_file"],
                                            num=img_settings["num"],
                                            verbose=verbose)
-            pass
         elif mode == "exposure_map":
             if img_settings["spectrum_file"] is None:
                 raise FileNotFoundError(f"Path to pnttfg_spectrum.ds cannot be None!")
-            file_names = create_exposure_map(run_dir=run_dir,
+            file_names = create_exposure_map(instrument_name=instrument_name,
+                                             run_dir=run_dir,
                                              spectrum_file=img_settings["spectrum_file"],
                                              num=img_settings["num"],
                                              verbose=verbose)
         elif mode == "random":
-            file_names = create_random_sources(run_dir=run_dir,
-                                               num=img_settings,
+            file_names = create_random_sources(instrument_name=instrument_name,
+                                               run_dir=run_dir,
+                                               num=img_settings["num"],
                                                keep_files=keep_files,
                                                verbose=verbose)
         else:

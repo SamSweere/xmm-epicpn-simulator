@@ -2,8 +2,10 @@ import random
 import shutil
 from pathlib import Path
 from typing import List, Dict
-from src.xmm_utils.external_run import run_headas_command
+
 from xspec import Model, Xset
+
+from src.xmm_utils.external_run import run_headas_command
 
 
 def get_spectrumfile(run_dir: Path, norm=0.01, verbose=True):

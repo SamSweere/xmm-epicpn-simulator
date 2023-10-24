@@ -1,33 +1,67 @@
-from pathlib import Path
 from typing import Tuple
 
 import numpy as np
 from astropy.io import fits
 
+from src.xmm.xmm_ccf import get_epn_lincoord
 from src.xmm.xmm_ccf import get_xmm_miscdata
 
 
-# This is the version if you want to calculate the image size through EPN_LINCOORD.CCF
-# Unfortunately, I'm not entirely sure if the resulting image size is correct.
-# def get_img_width_height(res_mult: int = 1) -> Tuple[int, int]:
-#     epn_lincoord = get_epn_lincoord()
-#     with fits.open(name=epn_lincoord, mode="readonly") as file:
-#         lincoord = file[1].data
-#         xrval = lincoord["Y0"].astype(float)
-#         yrval = -lincoord["X0"].astype(float)
-#
-#     p_delt = get_pixel_size(res_mult)
-#
-#     dy = round(yrval[2] - yrval[5], 3)
-#     drows = round(yrval[9] - yrval[0], 3)
-#     width = np.ceil((dy + 64 * p_delt * res_mult + drows) / p_delt)
-#     dx = round(xrval[5] - xrval[8], 3)
-#     height = np.ceil((dx + 200 * p_delt * res_mult) / p_delt)
-#
-#     return int(width), int(height)
-
 def get_img_width_height(res_mult: int = 1) -> Tuple[int, int]:
-    return 403 * res_mult, 411 * res_mult
+    xrval, yrval = get_xyrval()
+
+    p_delt = get_pixel_size(res_mult)
+
+    dy = round(float(yrval[2] - yrval[5]), 3)
+    drows = round(float(yrval[9] - yrval[0]), 3)
+    width = np.ceil((dy + 64 * p_delt * res_mult + drows) / p_delt)
+    dx = round(float(xrval[5] - xrval[8]), 3)
+    height = np.ceil((dx + 200 * p_delt * res_mult) / p_delt)
+
+    return int(width), int(height)
+
+
+def get_surface(res_mult: int = 1) -> float:
+    """
+    Returns:
+        float: The surface of EPIC-pn in mm²
+    """
+    pixel_size = get_pixel_size(res_mult=res_mult)
+    width, height = get_img_width_height(res_mult=res_mult)
+
+    return (pixel_size ** 2) * width * height
+
+
+def get_ccd_width_height(res_mult: int = 1) -> Tuple[int, int]:
+    return 64 * res_mult, 200 * res_mult
+
+
+def get_cc12_txy() -> Tuple[float, float]:
+    epn_lincoord = get_epn_lincoord()
+    with fits.open(name=epn_lincoord, mode="readonly") as file:
+        header = file[1].header
+        cc12_tx = header["CC12_TY"]
+        cc12_ty = header["CC12_TX"]
+    return cc12_tx, cc12_ty
+
+
+def get_arc_mm_xy() -> Tuple[float, float]:
+    epn_lincoord = get_epn_lincoord()
+    with fits.open(name=epn_lincoord, mode="readonly") as file:
+        header = file[1].header
+        arc_mm_x = header["ARC_MM_Y"]
+        arc_mm_y = header["ARC_MM_X"]
+    return arc_mm_x, arc_mm_y
+
+
+def get_xyrval() -> Tuple[np.ndarray, np.ndarray]:
+    epn_lincoord = get_epn_lincoord()
+    with fits.open(name=epn_lincoord, mode="readonly") as file:
+        lincoord = file[1].data
+        xrval = lincoord["Y0"].astype(float)
+        yrval = -lincoord["X0"].astype(float)
+
+    return xrval, yrval
 
 
 def get_pixel_size(res_mult: int = 1) -> float:
@@ -77,65 +111,53 @@ def get_fov() -> float:
     return fov
 
 
-# This is the version if you want to calculate the detector mask through EPN_LINCOORD.CCF
-# Unfortunately, I'm not entirely sure if the resulting mask is correct.
-# def create_detector_mask(res_mult: int = 1) -> np.ndarray:
-#     width, height = get_img_width_height(res_mult)
-#     mask = np.zeros((width, height))
-#
-#     pixel_size = get_pixel_size(res_mult)
-#
-#     epn_lincoord = get_epn_lincoord()
-#     with fits.open(name=epn_lincoord, mode="readonly") as file:
-#         lincoord = file[1].data
-#         xrval = lincoord["Y0"].astype(float)
-#         yrval = -lincoord["X0"].astype(float)
-#
-#     small_gap = int(np.ceil((round(yrval[1] - yrval[0], 3) - (64 * pixel_size * res_mult)) / pixel_size))
-#     large_gap = int(np.ceil((round(yrval[0] - yrval[3], 3) - (64 * pixel_size * res_mult)) / pixel_size))
-#     vertical_gap = int(np.ceil((round(xrval[0] - xrval[9], 3) - (200 * pixel_size * res_mult)) / pixel_size))
-#
-#     drows = int(np.ceil((round(yrval[9] - yrval[0], 3) / pixel_size)))
-#
-#     # --- Upper row ---
-#     start = drows
-#     end = start + 64 * res_mult
-#     for i in range(6):
-#         mask[start:end + 1, :(200 * res_mult + 1)] = 1
-#         gap = small_gap if i != 2 else large_gap
-#         start = end + gap
-#         end = start + 64 * res_mult
-#
-#     # Lower row
-#     start = 0
-#     end = start + 64 * res_mult
-#     for i in range(6):
-#         mask[start:end + 1, (200 * res_mult + vertical_gap):] = 1
-#         gap = small_gap if i != 2 else large_gap
-#         start = end + gap
-#         end = start + 64 * res_mult
-#
-#     # For whatever reason the images in the fits files are flipped -> We also have to flip the detector mask
-#     # mask = np.flipud(np.fliplr(mask))
-#
-#     return mask
+def create_detector_mask(res_mult: int = 1) -> np.ndarray:
+    width, height = get_img_width_height(res_mult)
+    pixel_size = get_pixel_size(res_mult)
+    xrval, yrval = get_xyrval()
 
+    mask = np.zeros((width, height))
 
-def create_detector_mask(out_path: Path, res_mult: int = 1) -> np.ndarray:
-    with fits.open('pn_expo_500_2000_detxy.ds') as hdu:
-        # now make it a mask image
-        mask = hdu[0].data > 0.0
-        if res_mult > 1:
-            mask = mask.repeat(res_mult, axis=0).repeat(res_mult, axis=1)
+    small_gap = int(np.ceil((round(float(yrval[1] - yrval[0]), 3) - (64 * pixel_size * res_mult)) / pixel_size))
+    large_gap = int(np.ceil((round(float(yrval[0] - yrval[3]), 3) - (64 * pixel_size * res_mult)) / pixel_size))
+    vertical_gap = int(np.ceil((round(float(xrval[0] - xrval[9]), 3) - (200 * pixel_size * res_mult)) / pixel_size))
 
-        hdu_out = hdu.copy()
-        hdu_out[0].data = mask.astype(np.ubyte)
-        hdu_out[0].scale('ubyte')
+    drows = int(np.ceil((round(float(yrval[9] - yrval[0]), 3) / pixel_size)))
 
-        hdu_out.writeto(out_path / f'pn_mask_500_2000_detxy_{res_mult}x.ds', overwrite=True)
+    # --- Upper row ---
+    start = drows
+    end = start + 64 * res_mult
+    for i in range(6):
+        mask[start:end + 1, :(200 * res_mult + 1)] = 1
+        gap = small_gap if i != 2 else large_gap
+        start = end + gap
+        end = start + 64 * res_mult
+
+    # --- Bottom row ---
+    start = 0
+    end = start + 64 * res_mult
+    for i in range(6):
+        mask[start:end + 1, (200 * res_mult + vertical_gap):] = 1
+        gap = small_gap if i != 2 else large_gap
+        start = end + gap
+        end = start + 64 * res_mult
+
+    # TODO
+    # For whatever reason the images in the fits files are flipped -> We also have to flip the detector mask
+    # mask = np.flipud(np.fliplr(mask))
+
     return mask
+
+
+# TODO Add get_bad_pixels
 
 
 def get_crpix(res_mult: int = 1) -> Tuple[float, float]:
     width, height = get_img_width_height(res_mult)
-    return round(width / 2.0, 6), round(height / 2.0, 6)
+    cc12tx, cc12ty = get_cc12_txy()
+    p_delt = get_pixel_size(res_mult)
+    shift_y = cc12tx / p_delt
+    shift_x = cc12ty / p_delt
+    xrpix = round((width / 2.0) + shift_x, 6)
+    yrpix = round((height / 2.0) - shift_y, 6)
+    return xrpix, yrpix

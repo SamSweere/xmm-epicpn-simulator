@@ -5,18 +5,21 @@
   },
   "environment": {
     "working_directory": "~/Projects/ESA",
+    "log_directory": "~/Projects/ESA/logs",
     "debug": false,
     "verbose": false,
     "keep_files": false
   },
   "simput": {
     "mode": {
-      "img":  0,
+      "img":  1,
       "agn":  0,
       "background":  0,
       "test_grid":  0,
-      "exposure_map": 1
+      "exposure_map": 0,
+      "random": 0
     },
+    "instrument_name": "epn",
     "zoom_img_range": [1, 2, 4],
     "sigma_b_img_range": [5, 50],
     "offset_std": 0.05, 
