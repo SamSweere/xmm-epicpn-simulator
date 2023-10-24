@@ -3,7 +3,6 @@ from typing import Union, List, Tuple
 
 import requests
 from loguru import logger
-from tqdm import tqdm
 
 from src.illustris_tng.data.data_handling import get_saved_file, handle_cutout_name
 from src.illustris_tng.data.data_handling import save_cutout
@@ -61,7 +60,7 @@ def get_cutouts(
         fail_on_error: bool = False
 ) -> List[dict]:
     sc = []
-    for sub in tqdm(subs):
+    for sub in subs:
         url = sub["url"]
         try:
             sub = _get_sub(url, headers=headers)

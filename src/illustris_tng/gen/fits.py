@@ -64,8 +64,7 @@ def cutout_to_xray_fits(
 
                         yt_fits.writeto(str(fits_path.resolve()), overwrite=overwrite)
         end = datetime.now()
-        logger.info(f"Processing of {cutout} done!")
-        logger.info(f"Duration: {end - start}")
+        logger.info(f"DONE\tProcessing of {cutout} took {end - start}.")
 
     except Exception as e:
         logger.exception(f" ERROR, failed to process {cutout.name} with errro: {e}")

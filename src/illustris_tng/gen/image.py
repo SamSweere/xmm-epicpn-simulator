@@ -10,6 +10,10 @@ from src.illustris_tng.gen.fits import cutout_to_xray_fits
 from src.xmm_utils.multiprocessing import get_num_processes
 
 
+def handle_error(error):
+    logger.exception(error)
+
+
 def run(
         path_to_cfg: Path,
         api_key: str,
@@ -23,11 +27,13 @@ def run(
 
     debug = env_cfg["debug"]
 
-    log_dir = Path(env_cfg["log_directory"])
+    log_dir = Path(env_cfg["log_directory"]).expanduser()
     log_dir.mkdir(parents=True, exist_ok=True)
     log_level = "DEBUG" if env_cfg["debug"] else "INFO"
-    logger.add(f"{(log_dir / '01_download_files_{time}.log')}", enqueue=True,
+    log_file = log_dir / "01_download_files.log"
+    logger.add(f"{log_file}", enqueue=True,
                format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level=log_level)
+    log_file.chmod(0o777)
 
     if not debug:
         logger.info(f"Since 'debug' is set to 'false' the download will be run asynchronously.")
@@ -93,7 +99,7 @@ def run(
             if debug:
                 pool.apply(cutout_to_xray_fits, cutout_args)
             else:
-                pool.apply_async(cutout_to_xray_fits, cutout_args)
+                pool.apply_async(cutout_to_xray_fits, cutout_args, error_callback=handle_error)
         pool.close()
         pool.join()
     logger.info("Done!")
