@@ -8,7 +8,9 @@ WORKDIR $HOME
 RUN echo "export HOME=/xmm" >> ~/.bashrc
 
 # Update everything and install required packages
-RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
+RUN apt-get install software-properties-common &&  \
+    apt-get update && apt-get upgrade -y && apt-get dist-upgrade && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && apt-get upgrade -y && apt-get dist-upgrade && \
     apt-get install -y git libtool autoconf wget rsync perl perlbrew && \
     apt-get install -y libreadline-dev libncurses5-dev ncurses-dev curl libcurl4 libcurl4-gnutls-dev xorg-dev make  \
