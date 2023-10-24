@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 from astropy.io import fits
+from loguru import logger
 
 from src.simput.constants import CDELT, RESOLUTION, PIXEL_SIZE
 from src.simput.gen.utils import ones_like_xmm, generate_ascii_spectrum, generate_simput
@@ -60,6 +61,6 @@ def background(
                                    ascii_spectrum_file=ascii_spectrum_file)
 
     if verbose:
-        print(f"Background generation complete. Saved to {outfile_path.resolve()}")
+        logger.info(f"Background generation complete. Saved to {outfile_path.resolve()}")
 
     return outfile_path

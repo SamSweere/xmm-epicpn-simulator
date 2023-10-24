@@ -1,9 +1,8 @@
-import pickle
 from pathlib import Path
 from typing import Union, List, Tuple
-from warnings import warn
 
 import requests
+from loguru import logger
 from tqdm import tqdm
 
 from src.illustris_tng.data.data_handling import get_saved_file, handle_cutout_name
@@ -35,9 +34,6 @@ def get(
     if r.headers['content-type'] == 'application/json':
         return r.json()  # parse json responses automatically
 
-    # if 'cutout' in path and 'content-disposition' in r.headers:
-    #     filename = save_cutout(cutout_url=path, content=r.content, datafolder=cutout_datafolder)
-    #     return filename  # return the filename string
     return r
 
 
@@ -83,9 +79,7 @@ def get_cutouts(
             })
         except Exception as e:
             if fail_on_error:
-                e.add_note(f"Failed to load sub {url} due to above stacktrace.")
-                raise
+                logger.exception(f"Failed to load sub {url}!")
             else:
-                warn(f"Failed to load sub {url} due to error {e}")
+                logger.warning(f"Failed to load sub {url} due to error {e}")
     return sc
-

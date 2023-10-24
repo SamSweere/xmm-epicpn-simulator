@@ -4,6 +4,7 @@ from typing import Union, Tuple, Iterable
 
 import numpy as np
 from astropy.io import fits
+from loguru import logger
 
 from src.xmm_utils.external_run import run_headas_command
 
@@ -71,9 +72,8 @@ def generate_ascii_spectrum(
         f.write(content)
 
     if verbose:
-        print("energy (keV) | rate (photon/s/cm**2/keV)")
-        print(content)
-        print(f"Ascii spectrum generated and saved to: {out_file.resolve()}")
+        logger.info(f"Ascii spectrum generated and saved to: {out_file.resolve()}")
+        logger.info(f"energy (keV) | rate (photon/s/cm**2/keV)\n\t{content}")
 
     return out_file
 

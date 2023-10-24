@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, Optional
 from itertools import repeat
 import numpy as np
+from loguru import logger
 
 from src.simput.gen import simput_generate
 from src.xmm_utils.multiprocessing import mp_run

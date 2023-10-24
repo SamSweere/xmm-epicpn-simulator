@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
@@ -28,6 +29,7 @@ def cutout_to_xray_fits(
         logger.info(f"Processing cutout: {cutout.resolve()}. Arguments: mode={mode_dict}; emin={emin}; emax={emax}; "
                     f"width={width}; resolution={resolution}; redshift={redshift}; overwrite={overwrite}; "
                     f"output_dir={output_dir}; cutout_datafolder={cutout.parent}")
+        start = datetime.now()
         ds = yt.load(f"{cutout.resolve()}", default_species_fields="ionized")
 
         yt.add_xray_emissivity_field(ds, emin, emax, redshift, data_dir=cloudy_emissivity_root)
@@ -61,7 +63,9 @@ def cutout_to_xray_fits(
                         yt_fits.update_header(field="all", key="EMAX", value=emax)
 
                         yt_fits.writeto(str(fits_path.resolve()), overwrite=overwrite)
-                        logger.info(f'\nConverted {cutout} to {fits_filename}')
+        end = datetime.now()
+        logger.info(f"Processing of {cutout} done!")
+        logger.info(f"Duration: {end - start}")
 
     except Exception as e:
         logger.exception(f" ERROR, failed to process {cutout.name} with errro: {e}")

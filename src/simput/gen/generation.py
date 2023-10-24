@@ -2,9 +2,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import List, Union, Tuple
 from uuid import uuid4
-from warnings import warn
-from tqdm import tqdm
+
 import numpy as np
+from loguru import logger
+from tqdm import tqdm
 
 from src.simput.agn import get_fluxes
 from src.simput.gen import background, exposure_map, simput_ps
@@ -12,9 +13,6 @@ from src.simput.gen.image import simput_image
 from src.simput.utils import get_spectrumfile
 from src.simput.utils import merge_simputs
 from src.xmm_utils.file_utils import compress_gzip
-
-
-# from utils.log import elog
 
 
 def create_background(
@@ -146,7 +144,7 @@ def create_agn_sources(
 
         for i, flux in tqdm(enumerate(fluxes), desc="Creating agn sources..."):
             if verbose:
-                print(f"flux: {flux}")
+                logger.info(f"flux: {flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
             output_file = simput_ps(emin=emin,
                                     emax=emax,
@@ -194,7 +192,8 @@ def create_test_grid(
         simput_files = []
         # Create one point source at (0, 0)
         if verbose:
-            print(f"Generating point source at (0, 0)")
+            logger.info(f"Generating point source at (0, 0)")
+
         simput_file_path = run_dir / f"ps_center_{unique_id}.simput"
         simput_ps(emin=emin, emax=emax, center_point=(0.0, 0.0), xspec_file=spectrum_file,
                   output_file=simput_file_path, src_flux=flux, offset=(0.0, 0.0), verbose=verbose)
@@ -204,7 +203,7 @@ def create_test_grid(
         for x in x_loc:
             for y in y_loc:
                 if verbose:
-                    print(f"Generating point source {counter}/{step_size ** 2}")
+                    logger.info(f"Generating point source {counter}/{step_size ** 2}")
                 ps_simput_file_name = f"ps_{counter}_{unique_id}.simput"
                 simput_file_path = run_dir / ps_simput_file_name
                 simput_ps(emin=emin, emax=emax, center_point=center_offset, xspec_file=spectrum_file,
@@ -273,18 +272,12 @@ def simput_generate(
                                                keep_files=keep_files,
                                                verbose=verbose)
         else:
-            e_message = f"Mode {mode} is not supported"
-            # elog(e_message)
-            raise ValueError(e_message)
+            raise ValueError(f"Mode {mode} is not supported!")
 
         for file_name in file_names:
             # Compress the simput file and move it to the correct output dir
             compressed_file = output_dir / f"{file_name.name}.gz"
             if compressed_file.exists():
-                m = f"WARNING: Simput file {compressed_file.resolve()} already exists, skipping"
-                warn(m)
-                # plog(m, verbose)
+                logger.warning(f"Simput file {compressed_file.resolve()} already exists, skipping.")
             else:
                 compress_gzip(in_file_path=file_name, out_file_path=compressed_file)
-
-            # plog(f"Saved compressed simput file at: {compressed_file}", verbose)

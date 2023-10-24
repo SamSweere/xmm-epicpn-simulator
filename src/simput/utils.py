@@ -24,10 +24,7 @@ def _simput_merge(
 
     merge_command = f"simputmerge FetchExtensions=yes Infiles={str_infiles} Outfile={outfile.resolve()}"
 
-    if verbose:
-        print(merge_command)
     run_headas_command(merge_command, verbose=verbose)
-    # run_sixte_command(merge_command, verbose=verbose)
 
 
 def merge_simputs(

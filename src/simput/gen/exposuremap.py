@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from astropy.io import fits
+from loguru import logger
 
 from src.simput.constants import CDELT, RESOLUTION
 from src.simput.gen.utils import ones_like_xmm, generate_ascii_spectrum, generate_simput
@@ -53,6 +54,6 @@ def exposure_map(
                                    ascii_spectrum_file=ascii_spectrum_file)
 
     if verbose:
-        print(f"Exposure map generation complete. Saved to {outfile_path.resolve()}")
+        logger.info(f"Exposure map generation complete. Saved to {outfile_path.resolve()}")
 
     return outfile_path
