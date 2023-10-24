@@ -41,8 +41,8 @@ def run(
     keep_files = env_cfg["keep_files"]
     verbose = env_cfg["verbose"]
 
-    if debug:
-        logger.info(f"Since 'debug' is set to 'true' generation will be run asynchronously.")
+    if not debug:
+        logger.info(f"Since 'debug' is set to 'false' the generation will be run asynchronously.")
 
     simput_dir = working_directory / "simput"
     simput_dir.mkdir(parents=True, exist_ok=True)
@@ -128,9 +128,9 @@ def run(
                     for _ in range(num):
                         arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, keep_files, verbose)
                         pool.apply_async(simput_generate, arguments)
-
         pool.close()
         pool.join()
+    logger.info("Done!")
 
 
 if __name__ == '__main__':
