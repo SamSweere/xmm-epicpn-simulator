@@ -8,7 +8,8 @@ WORKDIR $HOME
 RUN echo "export HOME=/xmm" >> ~/.bashrc
 
 # Update everything and install required packages
-RUN apt-get install software-properties-common &&  \
+RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade && \
+    apt-get install software-properties-common -y &&  \
     apt-get update && apt-get upgrade -y && apt-get dist-upgrade && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && apt-get upgrade -y && apt-get dist-upgrade && \
