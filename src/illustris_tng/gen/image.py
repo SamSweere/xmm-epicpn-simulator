@@ -1,4 +1,5 @@
 import json
+from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import List, Dict, Union, Any
 
@@ -6,7 +7,7 @@ from loguru import logger
 
 from src.illustris_tng.data import get, get_cutouts
 from src.illustris_tng.gen.fits import cutout_to_xray_fits
-from src.xmm_utils.multiprocessing import mp_run
+from src.xmm_utils.multiprocessing import get_num_processes
 
 
 def run(
@@ -20,11 +21,16 @@ def run(
     mp_cfg: Dict[str, Any] = cfg["multiprocessing"]
     illustris_cfg: Dict[str, Any] = cfg["illustris"]
 
+    debug = env_cfg["debug"]
+
     log_dir = Path(env_cfg["log_directory"])
     log_dir.mkdir(parents=True, exist_ok=True)
     log_level = "DEBUG" if env_cfg["debug"] else "INFO"
     logger.add(f"{(log_dir / '01_download_files_{time}.log')}", enqueue=True,
                format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level=log_level)
+
+    if not debug:
+        logger.info(f"Since 'debug' is set to 'false' the download will be run asynchronously.")
 
     working_dir = Path(env_cfg["working_directory"]).expanduser()
     cutout_dir = working_dir / "cutout_data"
@@ -75,20 +81,19 @@ def run(
         if mode not in ("proj", "slice"):
             raise ValueError(f"Expected either 'proj' or 'slice' at index {i} but got mode '{mode}'!")
 
-    argument_list = []
-    for res in subs_r:
-        sub = res["sub"]
-        cutout = res["cutout"]
-        # Generate the fits file
-        # We can change the normal to rotate the image
-        cutout_args = (cutout, dataset_dir, sub, illustris_cfg['modes'], cloudy_emissivity_root, illustris_cfg['emin'],
-                       illustris_cfg['emax'], illustris_cfg['width'],
-                       illustris_cfg['resolutions'],
-                       illustris_cfg['redshift'], illustris_cfg['overwrite'])
-        argument_list.append(cutout_args)
-
-    if env_cfg["debug"]:
-        for cutout_args in argument_list:
-            cutout_to_xray_fits(*cutout_args)
-    else:
-        mp_run(cutout_to_xray_fits, argument_list, mp_conf=mp_cfg)
+    with Pool(get_num_processes(mp_conf=mp_cfg)) as pool:
+        for res in subs_r:
+            sub = res["sub"]
+            cutout = res["cutout"]
+            # Generate the fits file
+            # We can change the normal to rotate the image
+            cutout_args = (cutout, dataset_dir, sub, illustris_cfg['modes'], cloudy_emissivity_root,
+                           illustris_cfg['emin'], illustris_cfg['emax'], illustris_cfg['width'],
+                           illustris_cfg['resolutions'], illustris_cfg['redshift'], illustris_cfg['overwrite'])
+            if debug:
+                pool.apply(cutout_to_xray_fits, cutout_args)
+            else:
+                pool.apply_async(cutout_to_xray_fits, cutout_args)
+        pool.close()
+        pool.join()
+    logger.info("Done!")
