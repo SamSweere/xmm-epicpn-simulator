@@ -3,10 +3,8 @@ from pathlib import Path
 from typing import Literal, List
 
 import numpy as np
-from astropy.io import fits
 from lxml.etree import Element, SubElement, ElementTree
-
-from src.xmm.xmm_ccf import get_emos_lincoord
+from loguru import logger
 
 
 def create_pn_xml(
@@ -48,8 +46,8 @@ def create_pn_xml(
         width, height = get_ccd_width_height(res_mult=res_mult)
         xrval, yrval = get_xyrval()
         cc12tx, cc12ty = get_cc12_txy()
-        xrval = (xrval + cc12tx) * 1e-3
-        yrval = (yrval + cc12ty) * 1e-3
+        xrval = (xrval - cc12tx) * 1e-3
+        yrval = (yrval - cc12ty) * 1e-3
     else:
         from src.xmm.epn import get_img_width_height, get_cc12_txy
         width, height = get_img_width_height(res_mult=res_mult)
@@ -57,8 +55,8 @@ def create_pn_xml(
         xrval = np.asarray([xrval * 1e-3])
         yrval = np.asarray([yrval * 1e-3])
 
-    xrpix = round(width / 2.0, 6)
-    yrpix = round(height / 2.0, 6)
+    xrpix = round((width + 1) / 2.0, 6)
+    yrpix = round((height + 1) / 2.0, 6)
 
     xml_paths: List[Path] = []
     loops = 12 if sim_separate_ccds else 1
@@ -73,10 +71,11 @@ def create_pn_xml(
         SubElement(telescope, 'vignetting', filename="xmm_pn_vignet.fits")
         detector = SubElement(instrument, 'detector', type='EPIC-PN')
         SubElement(detector, 'dimensions', xwidth=f"{width}", ywidth=f"{height}")
+        # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota
         SubElement(detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}",
                    xrval=np.format_float_positional(xrval[i], 6),
                    yrval=np.format_float_positional(yrval[i], 6),
-                   xdelt=f"{p_delt}", ydelt=f"{p_delt}", rota=f"90.0")
+                   xdelt=f"{p_delt}", ydelt=f"{p_delt}", rota=f"{'180.0' if i < 6 else '0.0'}")
         SubElement(detector, 'cte', value="1")
         SubElement(detector, 'rmf', filename=f"pn-{xmm_filter}-10.rmf")
         SubElement(detector, 'arf', filename=f"pn-{xmm_filter}-10.arf")
@@ -112,20 +111,19 @@ def create_pn_xml(
 def get_pn_xml(
         res_mult: int,
         xmm_filter: Literal["thin", "med", "thick"],
-        sim_separate_ccds: bool,
+        sim_separate_ccds: bool
 ) -> List[Path]:
     instrument_path = Path(os.environ["SIXTE"]) / "share" / "sixte" / "instruments" / "xmm" / "epicpn"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
-    xml_paths: List[Path] = []
-    if sim_separate_ccds:
-        xml_paths = list(root.glob("ccd*.xml"))
-        if not len(xml_paths) == 12:
-            xml_paths.clear()
-    else:
-        xml_path = root / f"combined.xml"
-        if xml_path.exists():
-            xml_paths.append(xml_path)
+    glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
+    xml_paths: List[Path] = list(root.glob(glob_pattern))
+
+    if sim_separate_ccds and not len(xml_paths) == 12:
+        logger.warning(f"'sim_separate_ccds' is set to 'True', but I could find only {len(xml_paths)} of the 12 CCDs."
+                       f"I will simulate only the CCDs given in these files. If that was intentional, then you can "
+                       f"ignore this warning. Otherwise abort the execution, create all XML files and re-run the"
+                       f"code.")
 
     return xml_paths
 

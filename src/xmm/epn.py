@@ -12,11 +12,11 @@ def get_img_width_height(res_mult: int = 1) -> Tuple[int, int]:
 
     p_delt = get_pixel_size(res_mult)
 
-    dy = round(float(yrval[2] - yrval[5]), 3)
-    drows = round(float(yrval[9] - yrval[0]), 3)
-    width = np.ceil((dy + 64 * p_delt * res_mult + drows) / p_delt)
-    dx = round(float(xrval[5] - xrval[8]), 3)
-    height = np.ceil((dx + 200 * p_delt * res_mult) / p_delt)
+    dx = round(float(xrval[5] - xrval[2]), 3)
+    drows = round(float(xrval[0] - xrval[9]), 3)
+    width = np.ceil((dx + 64 * p_delt * res_mult + drows) / p_delt)
+    dy = round(float(yrval[5] - yrval[8]), 3)
+    height = np.ceil((dy + 200 * p_delt * res_mult) / p_delt)
 
     return int(width), int(height)
 
@@ -40,8 +40,8 @@ def get_cc12_txy() -> Tuple[float, float]:
     epn_lincoord = get_epn_lincoord()
     with fits.open(name=epn_lincoord, mode="readonly") as file:
         header = file[1].header
-        cc12_tx = header["CC12_TY"]
-        cc12_ty = header["CC12_TX"]
+        cc12_tx = header["CC12_TX"]
+        cc12_ty = header["CC12_TY"]
     return cc12_tx, cc12_ty
 
 
@@ -58,8 +58,8 @@ def get_xyrval() -> Tuple[np.ndarray, np.ndarray]:
     epn_lincoord = get_epn_lincoord()
     with fits.open(name=epn_lincoord, mode="readonly") as file:
         lincoord = file[1].data
-        xrval = lincoord["Y0"].astype(float)
-        yrval = -lincoord["X0"].astype(float)
+        xrval = lincoord["X0"].astype(float)
+        yrval = lincoord["Y0"].astype(float)
 
     return xrval, yrval
 
@@ -156,8 +156,8 @@ def get_crpix(res_mult: int = 1) -> Tuple[float, float]:
     width, height = get_img_width_height(res_mult)
     cc12tx, cc12ty = get_cc12_txy()
     p_delt = get_pixel_size(res_mult)
-    shift_y = cc12tx / p_delt
-    shift_x = cc12ty / p_delt
-    xrpix = round((width / 2.0) + shift_x, 6)
-    yrpix = round((height / 2.0) - shift_y, 6)
+    shift_x = cc12tx / p_delt
+    shift_y = cc12ty / p_delt
+    xrpix = round(((width + 1) / 2.0) + shift_x, 6)
+    yrpix = round(((height + 1) / 2.0) - shift_y, 6)
     return xrpix, yrpix

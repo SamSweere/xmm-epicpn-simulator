@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Literal
 
 
 def get_ccf_path() -> Path:
@@ -20,6 +21,15 @@ def get_epn_lincoord() -> Path:
         raise FileExistsError(f"Could not find any EPN_LINCOORD*.CCF in '{ccf_path.resolve()}'!")
     epn_lincoord.sort()
     return epn_lincoord[-1]
+
+
+def get_emos_lincoord(emos_num: Literal[1, 2]):
+    ccf_path = get_ccf_path()
+    emos_lincoord = list(ccf_path.glob(f"EMOS{emos_num}_LINCOORD*.CCF"))
+    if not emos_lincoord:
+        raise FileExistsError(f"Could not find any EMOS{emos_lincoord}_LINCOORD*.CCF in '{ccf_path.resolve()}'!")
+    emos_lincoord.sort()
+    return emos_lincoord[-1]
 
 
 def get_xmm_miscdata() -> Path:

@@ -1,4 +1,5 @@
-from typing import Literal, Tuple
+from pathlib import Path
+from typing import List, Literal, Tuple
 
 import numpy as np
 from astropy.io import fits
@@ -131,9 +132,9 @@ def get_cc12_txy(
         instrument_name: Literal["epn", "emos1", "emos2"]
 ) -> Tuple[float, float]:
     """
-        Returns:
-            Tuple[float, float]: The pixels corresponding to the focal point on the instrument.
-        """
+    Returns:
+        Tuple[float, float]: The pixels corresponding to the focal point on the instrument.
+    """
     if instrument_name not in available_instruments:
         raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -167,6 +168,62 @@ def get_arc_mm_xy(
 
     if instrument_name == "emos2":
         raise NotImplementedError
+
+
+def create_xml_files(
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        res_mult: int,
+        xmm_filter: Literal["thin", "med", "thick"],
+        sim_separate_ccds: bool,
+        wait_time: float,
+        overwrite: bool = True
+) -> List[Path]:
+    """
+    Returns:
+        List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list
+            contains a single Path to /path/to/instrument/combined.xml
+    """
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    # TODO Add overwrite
+    if instrument_name == "epn":
+        from src.xmm.xmm_xml import create_pn_xml
+        return create_pn_xml(res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds,
+                             wait_time=wait_time)
+
+    if instrument_name == "emos1":
+        raise NotImplementedError
+
+    if instrument_name == "emos2":
+        raise NotImplementedError
+
+
+def get_xml_files(
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        res_mult: int,
+        xmm_filter: Literal["thin", "med", "thick"],
+        sim_separate_ccds: bool
+) -> List[Path]:
+    """
+    Returns:
+        List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list
+            contains a single Path to /path/to/instrument/combined.xml
+    """
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    if instrument_name == "epn":
+        from src.xmm.xmm_xml import get_pn_xml
+        return get_pn_xml(res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+
+    if instrument_name == "emos1":
+        from src.xmm.xmm_xml import get_mos_xml
+        return get_mos_xml(emos_num=1, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+
+    if instrument_name == "emos2":
+        from src.xmm.xmm_xml import get_mos_xml
+        return get_mos_xml(emos_num=2, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
 
 
 def add_ccdnr_and_xy(hdu, xmm, ccdnr):
