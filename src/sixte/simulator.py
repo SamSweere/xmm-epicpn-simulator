@@ -1,18 +1,24 @@
 import time
 from datetime import datetime
+from multiprocessing.pool import Pool
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, Literal, List
 
 from astropy.io import fits
+from loguru import logger
 
 from src.simput.utils import get_simputs
 from src.sixte.image_gen import merge_ccd_eventlists, imgev, split_eventlist
-from src.xmm.xmm_xml import get_pn_xml
+from src.xmm.utils import get_xml_files
 from src.xmm_utils.external_run import run_headas_command
 from src.xmm_utils.file_utils import decompress_gzip, compress_gzip
 from src.xmm_utils.fits_utils import filter_evt_pattern_type
-from src.xmm_utils.multiprocessing import mp_run
+from src.xmm_utils.multiprocessing import get_num_processes
+
+
+def handle_error(error):
+    logger.exception(error)
 
 
 def run_simulation(
@@ -30,16 +36,8 @@ def run_simulation(
         sim_separate_ccds: bool = False,
         verbose: bool = True
 ):
-    if instrument_name == "epn":
-        xml_paths = get_pn_xml(res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
-    elif instrument_name == "emos1":
-        # TODO
-        raise NotImplementedError
-    elif instrument_name == "emos2":
-        # TODO
-        raise NotImplementedError
-    else:
-        raise ValueError(f"Unknown instrument name '{instrument_name}!")
+    xml_paths = get_xml_files(instrument_name=instrument_name, res_mult=res_mult, xmm_filter=xmm_filter,
+                              sim_separate_ccds=sim_separate_ccds)
 
     if not xml_paths:
         raise FileNotFoundError(f"It looks like you have not created the corresponding XML files for instrument "
@@ -71,9 +69,9 @@ def run_simulation(
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
     if instrument_name == "epn":
         from src.xmm.epn import get_img_width_height, get_cdelt, get_crpix
-        naxis1, naxis2 = get_img_width_height(res_mult)
+        naxis2, naxis1 = get_img_width_height(res_mult)
         cdelt1 = cdelt2 = get_cdelt(res_mult)
-        crpix1, crpix2 = get_crpix(res_mult)
+        crpix2, crpix1 = get_crpix(res_mult)
     elif instrument_name == "emos1":
         # TODO
         raise NotImplementedError
@@ -192,43 +190,43 @@ def run_simulation_modes(
     dataset_dir.mkdir(parents=True, exist_ok=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
+    instrument_name = instrument_conf["instrument_name"]
+
     mode_simput_files = get_simputs(simput_path=simput_path, mode_amount_dict=mode_amount_dict,
                                     order=instrument_conf["order"])
-
     if "background" in mode_simput_files:
         # Since we only have one background but want multiple simulations of it repeat it
         mode_simput_files["background"] = mode_simput_files["background"] * mode_amount_dict["background"]
 
     max_exposure = instrument_conf['max_exposure']
     max_exp_str = f"{round(max_exposure / 1000)}ks"
-    instrument_name = instrument_conf["instrument_name"]
     xmm_filter = instrument_conf["filter"]
     xmm_filter_dir = dataset_dir / instrument_name / xmm_filter
     max_exp_dir = xmm_filter_dir / max_exp_str
-    args_list = []
-    for res_mult in instrument_conf["res_mults"]:
-        res_str = f"{res_mult}x"
-        for mode, files in mode_simput_files.items():
-            res_dir = max_exp_dir / mode / res_str
-            for file in files:
-                img_name = f"{file.name.replace('.simput.gz', '')}_mult_{res_mult}"
-                final_compressed_img_name = f"{img_name}_{max_exp_str}_p_0-0.fits.gz"
-                final_compressed_file_path = res_dir / final_compressed_img_name
-                if not debug:
-                    if mode != "background":
-                        # Check if the max exposure time already exists,
-                        # if so we know that this one was already generated,
-                        # and we can skip its generation
-                        if final_compressed_file_path.exists():
-                            continue
-                args_list.append(
-                    (file.resolve(), img_name, mode, tmp_dir.resolve(), xmm_filter_dir.resolve(),
-                     res_mult, max_exposure, instrument_conf["instrument_name"], instrument_conf["filter"],
-                     instrument_conf["sim_separate_ccds"], debug, verbose)
-                )
-
-    if debug:
-        for args in args_list:
-            run_xmm_simulation(*args)
-    else:
-        mp_run(run_xmm_simulation, argument_list=args_list, mp_conf=mp_conf)
+    with Pool(get_num_processes(mp_conf=mp_conf)) as pool:
+        for res_mult in instrument_conf["res_mults"]:
+            res_str = f"{res_mult}x"
+            for mode, files in mode_simput_files.items():
+                res_dir = max_exp_dir / mode / res_str
+                for file in files:
+                    img_name = f"{file.name.replace('.simput.gz', '')}_mult_{res_mult}"
+                    final_compressed_img_name = f"{img_name}_{max_exp_str}_p_0-0.fits.gz"
+                    final_compressed_file_path = res_dir / final_compressed_img_name
+                    if not debug:
+                        if mode != "background":
+                            # Check if the max exposure time already exists,
+                            # if so we know that this one was already generated,
+                            # and we can skip its generation
+                            if final_compressed_file_path.exists():
+                                continue
+                    simulation_args = (file.resolve(), img_name, mode, tmp_dir.resolve(), xmm_filter_dir.resolve(),
+                                       res_mult, max_exposure, instrument_conf["instrument_name"],
+                                       instrument_conf["filter"],
+                                       instrument_conf["sim_separate_ccds"], debug, verbose)
+                    if debug:
+                        pool.apply(run_xmm_simulation, simulation_args)
+                    else:
+                        pool.apply_async(run_xmm_simulation, simulation_args, error_callback=handle_error)
+        pool.close()
+        pool.join()
+    logger.info("Done!")

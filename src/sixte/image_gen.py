@@ -3,6 +3,7 @@ from typing import List
 
 import heasoftpy as hsp
 from astropy.io import fits
+from loguru import logger
 
 from src.xmm_utils.external_run import run_headas_command
 
@@ -10,7 +11,6 @@ from src.xmm_utils.external_run import run_headas_command
 def merge_ccd_eventlists(
         infiles: List[Path],
         out_dir: Path,
-        keep_files: bool = False,
         verbose: bool = True
 ) -> Path:
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
@@ -25,11 +25,7 @@ def merge_ccd_eventlists(
         hsp.ftmerge(params)
 
     if verbose:
-        print(f"Successfully ran 'ftmerge' with params: {params}")
-
-    if not keep_files:
-        for ccd in all_ccds:
-            Path(ccd).unlink()
+        logger.info(f"Successfully ran 'ftmerge' with params: {params}")
 
     return outfile
 
@@ -47,7 +43,6 @@ def imgev(
         crpix2: float,
         cdelt1: float,
         cdelt2: float,
-        keep_files: bool = False,
         verbose: bool = True
 ) -> Path:
     outfile = input_folder / out_name
@@ -56,9 +51,6 @@ def imgev(
            f"CRVAL2='{crval2}' CRPIX1='{crpix1}' CRPIX2='{crpix2}' CDELT1='{cdelt1}' CDELT2='{cdelt2}' clobber=yes")
 
     run_headas_command(cmd=cmd, verbose=verbose)
-
-    if not keep_files:
-        evt_file.unlink()
 
     return outfile
 
