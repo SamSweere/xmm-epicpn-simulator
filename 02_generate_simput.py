@@ -12,6 +12,11 @@ from src.xmm_utils.multiprocessing import get_num_processes
 
 logger.remove()
 
+
+def handle_error(error):
+    logger.exception(error)
+
+
 available_modes = ["img", "agn", "background", "exposure_map", "test_grid", "random"]
 
 
@@ -29,8 +34,10 @@ def run(
     log_dir = Path(env_cfg["log_directory"]).expanduser()
     log_dir.mkdir(parents=True, exist_ok=True)
     log_level = "DEBUG" if env_cfg["debug"] else "INFO"
-    logger.add(f"{(log_dir / '02_generate_simput_{time}.log')}", enqueue=True,
+    log_file = log_dir / "02_generate_simput.log"
+    logger.add(f"{log_file.resolve()}", enqueue=True,
                format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level=log_level)
+    log_file.chmod(0o777)
 
     working_directory = Path(env_cfg["working_directory"]).expanduser()
 
@@ -38,7 +45,6 @@ def run(
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     debug = env_cfg["debug"]
-    keep_files = env_cfg["keep_files"]
     verbose = env_cfg["verbose"]
 
     if not debug:
@@ -102,11 +108,11 @@ def run(
                         "offset_y": offset_y
                     }
 
-                    arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, keep_files, verbose)
+                    arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, verbose)
                     if debug:
                         pool.apply(simput_generate, arguments)
                     else:
-                        pool.apply_async(simput_generate, arguments)
+                        pool.apply_async(simput_generate, arguments, error_callback=handle_error)
 
             else:
                 if mode == "agn":
@@ -121,13 +127,13 @@ def run(
 
                 if debug:
                     img_settings["num"] = num
-                    arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, keep_files, verbose)
+                    arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, verbose)
                     pool.apply(simput_generate, arguments)
                 else:
                     img_settings["num"] = 1
                     for _ in range(num):
-                        arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, keep_files, verbose)
-                        pool.apply_async(simput_generate, arguments)
+                        arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, verbose)
+                        pool.apply_async(simput_generate, arguments, error_callback=handle_error)
         pool.close()
         pool.join()
     logger.info("Done!")

@@ -7,8 +7,7 @@
     "working_directory": "~/Projects/ESA",
     "log_directory": "~/Projects/ESA/logs",
     "debug": false,
-    "verbose": false,
-    "keep_files": false
+    "verbose": true
   },
   "simput": {
     "mode": {

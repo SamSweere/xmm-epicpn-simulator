@@ -15,7 +15,8 @@ def get_num_processes(mp_conf: Dict[str, float]):
 
     cpu_count = mp.cpu_count()
     mem = virtual_memory().total * 1e-9  # System memory in gb
-    logger.info(f"CPU count: {cpu_count}\nSystem memory: {mem}")
+    logger.info(f"CPU count: {cpu_count}")
+    logger.info(f"System memory: {mem}")
 
     if num_processes:
         logger.info(f"Num processes defined by user: {num_processes}")

@@ -32,22 +32,14 @@ def _simput_merge(
 def merge_simputs(
         simput_files: List[Path],
         output_file: Path,
-        keep_files: bool = False,
         verbose=True
 ) -> Path:
     # Combine the simput point sources
     if len(simput_files) == 1:
         file = simput_files[0]
-        if keep_files:
-            shutil.copy2(file, output_file)
-        else:
-            file.rename(output_file)
+        shutil.copy2(file, output_file)
     else:
         _simput_merge(simput_files, output_file, verbose=verbose)
-
-        if not keep_files:
-            for file in simput_files:
-                file.unlink()
 
     return output_file
 

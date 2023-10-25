@@ -1,44 +1,43 @@
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Literal, Tuple
 from uuid import uuid4
 
 import numpy as np
 from astropy.io import fits
 
 from src.simput.utils import get_spectrumfile
+from src.xmm.utils import get_fov_for_instrument
 from src.xmm_utils.external_run import run_headas_command
 
 
 def _prepare_fits_image(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         run_dir: Path,
         img_path: Path,
         zoom: float = 3,
         sigma_b: float = 10,
         offset_x: float = 0,
-        offset_y: float = 0,
-        fov: float = 0.8
+        offset_y: float = 0
 ) -> Tuple[Path, float]:
-    # fov is in Degrees
-    # offset in range -1, 1. Percentage of possible offset, this scales with the zoom level
-
     with fits.open(img_path) as hdu_in:
-        res = hdu_in['XRAY_PHOTON_INTENSITY_0.5_2.0_KEV'].header['NAXIS1']
+        naxis1 = hdu_in['XRAY_PHOTON_INTENSITY_0.5_2.0_KEV'].header['NAXIS1']
+        naxis2 = hdu_in['XRAY_PHOTON_INTENSITY_0.5_2.0_KEV'].header['NAXIS2']
         data = hdu_in['XRAY_PHOTON_INTENSITY_0.5_2.0_KEV'].data
 
-    max_offset = (res / 3.0) * (1.0 - 1.0 / zoom)  # The maximum pixel offset
-    crpix1 = (res / 2.0) + offset_x * max_offset  # Defines the center pixel x
-    crpix2 = (res / 2.0) + offset_y * max_offset  # Defines the center pixel y
+    max_offset_x = (naxis1 / 3.0) * (1.0 - 1.0 / zoom)
+    max_offset_y = (naxis2 / 3.0) * (1.0 - 1.0 / zoom)
+    crpix1 = (naxis1 / 2.0) + offset_x * max_offset_x
+    crpix2 = (naxis2 / 2.0) + offset_y * max_offset_y
 
-    # cdelt give the pixel sizes in degrees
-    cdelt = (fov / res) * zoom
-    cdelt1 = cdelt
-    cdelt2 = cdelt
+    fov = get_fov_for_instrument(instrument_name=instrument_name)
+    cdelt1 = (fov / naxis1) * zoom
+    cdelt2 = (fov / naxis2) * zoom
 
     header = {
         "CUNIT1": "deg",
         "CUNIT2": "deg",
-        "CDELT1": -1.0 * cdelt1,
+        "CDELT1": cdelt1,
         "CDELT2": cdelt2,
         "CRPIX1": crpix1,
         "CRPIX2": crpix2,
@@ -120,9 +119,9 @@ def _prepare_fits_image(
 
 
 def simput_image(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         run_dir: Path,
         img_settings: dict,
-        keep_files: bool = False,
         verbose: bool = True
 ) -> List[Path]:
     img_path_in: Path = img_settings['img_path']
@@ -144,7 +143,8 @@ def simput_image(
     output_files = []
 
     for zoom, sigma_b, offset_x, offset_y in zip(zooms, sigmas_b, offsets_x, offsets_y):
-        img_path, flux = _prepare_fits_image(run_dir, img_path_in, zoom=zoom, sigma_b=sigma_b, offset_x=offset_x,
+        img_path, flux = _prepare_fits_image(instrument_name, run_dir, img_path_in, zoom=zoom, sigma_b=sigma_b,
+                                             offset_x=offset_x,
                                              offset_y=offset_y)
 
         name = f"{img_path_in.stem}_p0_{emin}ev_p1_{emax}ev_sb_{sigma_b}_zoom_{zoom}_offx_{offset_x}_offy_{offset_y}"
@@ -178,8 +178,5 @@ def simput_image(
                                 f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
 
         output_files.append(output_file.resolve())
-
-    if not keep_files:
-        img_path_in.unlink()
 
     return output_files

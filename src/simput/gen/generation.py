@@ -72,7 +72,6 @@ def create_random_sources(
         run_dir: Path,
         num: int = 1,
         num_sources: int = 10,
-        keep_files: bool = False,
         verbose: bool = True
 ) -> List[Path]:
     """
@@ -108,7 +107,6 @@ def create_random_sources(
 
         random_source = merge_simputs(simput_files=simput_files,
                                       output_file=output_file,
-                                      keep_files=keep_files,
                                       verbose=verbose)
 
         output_files.append(random_source)
@@ -121,7 +119,6 @@ def create_agn_sources(
         run_dir: Path,
         agn_counts_file: Path,
         num: int = 1,
-        keep_files: bool = False,
         verbose: bool = True
 ):
     if not isinstance(num, int):
@@ -156,7 +153,6 @@ def create_agn_sources(
             simput_files.append(output_file)
         output_file = merge_simputs(simput_files=simput_files,
                                     output_file=output_file_path,
-                                    keep_files=keep_files,
                                     verbose=verbose)
         output_files.append(output_file)
 
@@ -169,16 +165,14 @@ def create_test_grid(
         num: int = 1,
         flux: float = 1.0e-13,
         step_size: int = 10,
-        keep_files: bool = False,
         verbose=True
 ) -> List[Path]:
     spectrum_file = get_spectrumfile(run_dir=run_dir, verbose=verbose)
 
     output_files = []
     # emin = 0.15, emax = 15.0 is ideal
-    # For some reason if I go into the emin=0.5 and emax=2.0 sixte will not complete anymore
-    emin = 0.15
-    emax = 15.0
+    emin = 0.5
+    emax = 2.0
 
     fov = get_fov_for_instrument(instrument_name)
     x_loc = np.linspace(-fov / 2, fov / 2, step_size)
@@ -228,7 +222,6 @@ def create_test_grid(
 
         output_file = merge_simputs(simput_files=simput_files,
                                     output_file=output_file,
-                                    keep_files=keep_files,
                                     verbose=verbose)
 
         output_files.append(output_file)
@@ -242,7 +235,6 @@ def simput_generate(
         img_settings: dict,
         tmp_dir: Path,
         output_dir: Path,
-        keep_files: bool = False,
         verbose: bool = True
 ) -> None:
     with TemporaryDirectory(dir=tmp_dir) as temp:
@@ -252,7 +244,6 @@ def simput_generate(
             file_names = create_test_grid(instrument_name=instrument_name,
                                           run_dir=run_dir,
                                           num=img_settings["num"],
-                                          keep_files=keep_files,
                                           verbose=verbose)
         elif mode == "agn":
             if img_settings["agn_counts_file"] is None:
@@ -261,12 +252,11 @@ def simput_generate(
                                             run_dir=run_dir,
                                             agn_counts_file=img_settings["agn_counts_file"],
                                             num=img_settings["num"],
-                                            keep_files=keep_files,
                                             verbose=verbose)
         elif mode == "img":
-            file_names = simput_image(run_dir=run_dir,
+            file_names = simput_image(instrument_name=instrument_name,
+                                      run_dir=run_dir,
                                       img_settings=img_settings,
-                                      keep_files=keep_files,
                                       verbose=verbose)
         elif mode == "background":
             if img_settings["spectrum_file"] is None:
@@ -288,7 +278,6 @@ def simput_generate(
             file_names = create_random_sources(instrument_name=instrument_name,
                                                run_dir=run_dir,
                                                num=img_settings["num"],
-                                               keep_files=keep_files,
                                                verbose=verbose)
         else:
             raise ValueError(f"Mode {mode} is not supported!")
