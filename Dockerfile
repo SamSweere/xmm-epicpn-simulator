@@ -90,3 +90,5 @@ RUN wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heas
 
 ENV PYTHONPATH="$PYTHONPATH:$SAS_DIR/lib/python:$HEADAS/lib/python"
 RUN echo "export PYTHONPATH=$PYTHONPATH:$SAS_DIR/lib/python:$HEADAS/lib/python" >> ~/.bashrc
+RUN echo "export HEADASNOQUERY=" >> ~/.bashrc
+RUN echo "export HEADASPROMPT=/dev/null" >> ~/.bashrc
