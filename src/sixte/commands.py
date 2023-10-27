@@ -1,8 +1,5 @@
-import os
 from pathlib import Path
 from typing import Literal, List, Union
-
-import heasoftpy as hsp
 
 from src.xmm_utils.external_run import run_command
 
@@ -31,8 +28,7 @@ def imgev(
               f"chatter={chatter}", f"clobber={str(clobber).lower()}", f"history={str(history).lower()}"]
 
     cmd = f"imgev {' '.join(params)}"
-    with hsp.utils.local_pfiles_context():
-        run_command(cmd=cmd, cmd_input=os.devnull, verbose=True)
+    run_command(cmd=cmd, verbose=True)
 
 
 def runsixt(
@@ -53,8 +49,7 @@ def runsixt(
               f"chatter={chatter}", f"clobber={str(clobber).lower()}", f"history={str(history).lower()}"]
 
     cmd = f"runsixt {' '.join(params)}"
-    with hsp.utils.local_pfiles_context():
-        run_command(cmd=cmd, cmd_input=os.devnull, verbose=True)
+    run_command(cmd=cmd, verbose=True)
 
 
 def simputfile(
@@ -81,8 +76,7 @@ def simputfile(
 
     cmd = f"simputfile {' '.join(params)}"
     cmd = cmd.replace("none ", "")
-    with hsp.utils.local_pfiles_context():
-        run_command(cmd=cmd, verbose=True)
+    run_command(cmd=cmd, verbose=True)
 
 
 def simputmerge(
@@ -99,5 +93,4 @@ def simputmerge(
               f"FetchExtension={'yes' if fetch_extension else 'no'}"]
 
     cmd = f"simputmerge {' '.join(params)}"
-    with hsp.utils.local_pfiles_context():
-        run_command(cmd=cmd, cmd_input=os.devnull, verbose=True)
+    run_command(cmd=cmd, verbose=True)
