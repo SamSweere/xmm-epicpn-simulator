@@ -4,7 +4,7 @@ from typing import Optional
 from loguru import logger
 
 
-def _run_command(cmd, verbose=True, cmd_input: Optional[str] = None) -> None:
+def run_command(cmd, cmd_input: Optional[str] = None, verbose=True) -> None:
     if verbose:
         logger.info(f"Running command:\n\t{cmd}")
     #
@@ -17,11 +17,3 @@ def _run_command(cmd, verbose=True, cmd_input: Optional[str] = None) -> None:
     retcode = result.returncode
     if retcode != 0:
         raise RuntimeError(f"Execution of {cmd} returned {retcode}\n{result.stdout}")
-
-
-def run_headas_command(
-        cmd: str,
-        cmd_input: Optional[str] = None,
-        verbose: bool = True
-):
-    _run_command(cmd, cmd_input=cmd_input, verbose=verbose)
