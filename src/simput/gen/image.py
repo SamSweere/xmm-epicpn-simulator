@@ -6,9 +6,9 @@ from uuid import uuid4
 import numpy as np
 from astropy.io import fits
 
+from src.sixte import commands
 from src.simput.utils import get_spectrumfile
 from src.xmm.utils import get_fov_for_instrument
-from src.xmm_utils.external_run import run_headas_command
 
 
 def _prepare_fits_image(
@@ -132,10 +132,8 @@ def simput_image(
 
         output_file = run_dir / output_file_name
 
-        simput_command = (f"simputfile Simput={output_file.resolve()} RA=0.0 Dec=0.0 "
-                          f"XSPECFile={spectrum_file.resolve()} Emin={emin} Emax={emax} "
-                          f"ImageFile={img_path.resolve()} srcFlux={flux}")
-        run_headas_command(simput_command, verbose=verbose)
+        commands.simputfile(simput=output_file, ra=0.0, dec=0.0, src_flux=flux, emin=emin, emax=emax,
+                            xspec_file=spectrum_file, image_file=img_path)
 
         # TODO: rotate simput by a random factor
 

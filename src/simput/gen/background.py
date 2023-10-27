@@ -5,7 +5,8 @@ import numpy as np
 from astropy.io import fits
 from loguru import logger
 
-from src.simput.gen.utils import ones_like_xmm, generate_ascii_spectrum, generate_simput
+from src.sixte import commands
+from src.simput.gen.utils import ones_like_xmm, generate_ascii_spectrum
 from src.xmm.utils import get_cdelt_for_instrument, get_surface_for_instrument, get_width_height_for_instrument
 from src.xmm.utils import get_crpix12_for_instrument
 
@@ -62,12 +63,10 @@ def background(
 
     ascii_spectrum_file = get_ascii_spectrum(run_dir, spectrum_file, instrument_name, verbose)
 
-    outfile_path = generate_simput(run_dir=run_dir,
-                                   filename=f"background{suffix}.simput",
-                                   emin=emin,
-                                   emax=emax,
-                                   image_file=image_file,
-                                   ascii_spectrum_file=ascii_spectrum_file)
+    outfile_path = run_dir / f"background{suffix}.simput"
+
+    commands.simputfile(simput=outfile_path, emin=emin, emax=emax, ascii_file=ascii_spectrum_file,
+                        image_file=image_file)
 
     if verbose:
         logger.info(f"Background generation complete. Saved to {outfile_path.resolve()}")

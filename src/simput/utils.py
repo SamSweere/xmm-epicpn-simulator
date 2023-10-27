@@ -3,10 +3,10 @@ import shutil
 from pathlib import Path
 from typing import List, Dict
 
-from xspec import Model, Xset
 from loguru import logger
+from xspec import Model, Xset
 
-from src.xmm_utils.external_run import run_headas_command
+from src.sixte import commands
 
 
 def get_spectrumfile(run_dir: Path, norm=0.01, verbose=True):
@@ -19,19 +19,6 @@ def get_spectrumfile(run_dir: Path, norm=0.01, verbose=True):
     return spectrum_file
 
 
-def _simput_merge(
-        infiles: List[Path],
-        outfile: Path,
-        verbose: bool = True
-) -> None:
-    str_infiles = [str(infile.resolve()) for infile in infiles]
-    str_infiles = ",".join(str_infiles)
-
-    merge_command = f"simputmerge FetchExtensions=yes Infiles={str_infiles} Outfile={outfile.resolve()}"
-
-    run_headas_command(merge_command, verbose=verbose)
-
-
 def merge_simputs(
         simput_files: List[Path],
         output_file: Path,
@@ -42,7 +29,7 @@ def merge_simputs(
         file = simput_files[0]
         shutil.copy2(file, output_file)
     else:
-        _simput_merge(simput_files, output_file, verbose=verbose)
+        commands.simputmerge(infiles=simput_files, outfile=output_file, fetch_extension=True)
 
     return output_file
 

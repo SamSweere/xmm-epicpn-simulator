@@ -5,8 +5,6 @@ import heasoftpy as hsp
 from astropy.io import fits
 from loguru import logger
 
-from src.xmm_utils.external_run import run_headas_command
-
 
 def merge_ccd_eventlists(
         infiles: List[Path],
@@ -26,31 +24,6 @@ def merge_ccd_eventlists(
 
     if verbose:
         logger.info(f"Successfully ran 'ftmerge' with params: {params}")
-
-    return outfile
-
-
-# Merge and generate image command
-def imgev(
-        evt_file: Path,
-        input_folder: Path,
-        out_name: str,
-        naxis1: int,
-        naxis2: int,
-        crval1: float,
-        crval2: float,
-        crpix1: float,
-        crpix2: float,
-        cdelt1: float,
-        cdelt2: float,
-        verbose: bool = True
-) -> Path:
-    outfile = input_folder / out_name
-    cmd = (f"imgev EvtFile='{evt_file.resolve()}' Image='{outfile.resolve()}' CoordinateSystem=0 "
-           f"Projection=TAN NAXIS1='{naxis1}' NAXIS2='{naxis2}' CUNIT1=deg CUNIT2=deg CRVAL1='{crval1}' "
-           f"CRVAL2='{crval2}' CRPIX1='{crpix1}' CRPIX2='{crpix2}' CDELT1='{cdelt1}' CDELT2='{cdelt2}' clobber=yes")
-
-    run_headas_command(cmd=cmd, verbose=verbose)
 
     return outfile
 

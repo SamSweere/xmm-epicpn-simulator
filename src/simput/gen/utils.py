@@ -6,8 +6,6 @@ import numpy as np
 from astropy.io import fits
 from loguru import logger
 
-from src.xmm_utils.external_run import run_headas_command
-
 
 def ones_like_xmm(
         resolution: Union[int, Tuple[int, int]],
@@ -73,25 +71,5 @@ def generate_ascii_spectrum(
 
     if verbose:
         logger.info(f"Ascii spectrum generated and saved to: {out_file.resolve()}")
-        logger.info(f"energy (keV) | rate (photon/s/cm**2/keV)\n\t{content}")
 
     return out_file
-
-
-def generate_simput(
-        run_dir: Path,
-        filename: str,
-        emin,
-        emax,
-        image_file: Path,
-        ascii_spectrum_file: Path
-) -> Path:
-    outfile_path = run_dir / filename
-
-    command = f"simputfile Simput={outfile_path.resolve()} RA=0.0 DEC=0.0 Emin={emin} Emax={emax} " \
-              f"history=True clobber=True ImageFile={image_file.resolve()} " \
-              f"ASCIIFile={ascii_spectrum_file.resolve()}"
-
-    run_headas_command(command)
-
-    return outfile_path

@@ -9,9 +9,9 @@ from astropy.io import fits
 from loguru import logger
 
 from src.simput.utils import get_simputs
-from src.sixte.image_gen import merge_ccd_eventlists, imgev, split_eventlist
+from src.sixte import commands
+from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
 from src.xmm.utils import get_xml_files
-from src.xmm_utils.external_run import run_headas_command
 from src.xmm_utils.file_utils import decompress_gzip, compress_gzip
 from src.xmm_utils.fits_utils import filter_evt_pattern_type
 from src.xmm_utils.multiprocessing import get_num_processes
@@ -47,10 +47,8 @@ def run_simulation(
     for xml_path in xml_paths:
         ccd_name = xml_path.stem
         evt_filepath = run_dir / f"{ccd_name}_evt.fits"
-        runsixt = (f"runsixt EvtFile={evt_filepath.resolve()} Rawdata={(run_dir / f'{ccd_name}_raw.fits')} "
-                   f"XMLFile={xml_path.resolve()} Simput={simput_path.resolve()} Exposure={exposure} RA={ra} "
-                   f"Dec={dec} rollangle={rollangle} clobber=yes")
-        run_headas_command(runsixt, verbose=verbose)
+        commands.runsixt(raw_data=run_dir / f"{ccd_name}_raw.fits", evt_file=evt_filepath, xml_file=xml_path.resolve(),
+                         ra=ra, dec=dec, rollangle=rollangle, simput=simput_path, exposure=exposure)
         evt_filepaths.append(evt_filepath)
 
     if len(evt_filepaths) > 1:
@@ -90,13 +88,11 @@ def run_simulation(
         split_exposure = split_dict['exposure']
 
         final_img_name = f"{img_name}_{split_name}.fits"
-
-        imgev(evt_file=split_evt_file, input_folder=run_dir, out_name=final_img_name, naxis1=naxis1,
-              naxis2=naxis2, crval1=dec, crval2=ra, crpix1=crpix1,
-              crpix2=crpix2, cdelt1=cdelt1, cdelt2=cdelt2, verbose=verbose)
-
-        # Rename the final file, due to lengths of names we have to do this with shutil.move
         final_img_path = run_dir / final_img_name
+
+        commands.imgev(evt_file=split_evt_file, image=final_img_path, coordinate_system=0, cunit1="deg", cunit2="deg",
+                       naxis1=naxis1, naxis2=naxis2, crval1=dec, crval2=ra, crpix1=crpix1, crpix2=crpix2, cdelt1=cdelt1,
+                       cdelt2=cdelt2)
 
         split_img_paths_exps.append((final_img_path, split_exposure))
 

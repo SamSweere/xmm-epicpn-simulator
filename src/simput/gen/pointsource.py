@@ -3,8 +3,8 @@ from typing import Literal, Tuple, Union
 
 import numpy as np
 
+from src.sixte import commands
 from src.xmm.utils import get_fov_for_instrument
-from src.xmm_utils.external_run import run_headas_command
 
 
 def simput_ps(
@@ -50,8 +50,7 @@ def simput_ps(
     # if dec < 0:
     #     dec = 90 + dec
 
-    simput_command = f"simputfile RA={ra} Dec={dec} XSPECFile={xspec_file.resolve()} Emin={emin} Emax={emax} " \
-                     f"srcFlux={src_flux} Simput={output_file.resolve()}"
+    commands.simputfile(simput=output_file, ra=ra, dec=dec, src_flux=src_flux, emin=emin, emax=emax,
+                        xspec_file=xspec_file)
 
-    run_headas_command(simput_command, verbose=verbose)
     return output_file.resolve()
