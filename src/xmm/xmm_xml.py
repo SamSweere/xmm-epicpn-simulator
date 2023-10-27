@@ -75,7 +75,7 @@ def create_pn_xml(
         SubElement(detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}",
                    xrval=np.format_float_positional(xrval[i], 6),
                    yrval=np.format_float_positional(yrval[i], 6),
-                   xdelt=f"{p_delt}", ydelt=f"{p_delt}", rota=f"{'180.0' if i < 6 else '0.0'}")
+                   xdelt=f"{p_delt}", ydelt=f"{p_delt}")
         SubElement(detector, 'cte', value="1")
         SubElement(detector, 'rmf', filename=f"pn-{xmm_filter}-10.rmf")
         SubElement(detector, 'arf', filename=f"pn-{xmm_filter}-10.arf")

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Dict
 
 from xspec import Model, Xset
+from loguru import logger
 
 from src.xmm_utils.external_run import run_headas_command
 
@@ -11,6 +12,8 @@ from src.xmm_utils.external_run import run_headas_command
 def get_spectrumfile(run_dir: Path, norm=0.01, verbose=True):
     spectrum_file = run_dir / "spectrum.xcm"
     if not spectrum_file.exists():
+        if verbose:
+            logger.info(f"Spectrum file at {spectrum_file.resolve()} does not exist. Will create a new one.")
         Model("phabs*power", setPars={1: 0.04, 2: 2.0, 3: norm})
         Xset.save(f"{spectrum_file.resolve()}")
     return spectrum_file

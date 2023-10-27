@@ -20,6 +20,9 @@ def simput_ps(
 ) -> Path:
     """
     Generates a single point-source
+
+    Returns:
+        Path: Path to the file containing the generated single point-source
     """
     if isinstance(offset, str) and offset != "random":
         raise ValueError(f"Value of offset is unknown string \"{offset}\"!")
@@ -42,6 +45,7 @@ def simput_ps(
     ra = location[0]
     if ra < 0:
         ra = 360 + ra
+
     dec = location[1]
     # if dec < 0:
     #     dec = 90 + dec
@@ -50,4 +54,4 @@ def simput_ps(
                      f"srcFlux={src_flux} Simput={output_file.resolve()}"
 
     run_headas_command(simput_command, verbose=verbose)
-    return output_file
+    return output_file.resolve()

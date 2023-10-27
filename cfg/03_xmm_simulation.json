@@ -1,12 +1,13 @@
 {
   "multiprocessing": {
     "gb_per_process": 0.5,
-    "num_processes": 4
+    "num_processes": 12
   },
   "environment": {
     "working_directory": "~/Projects/ESA",
+    "log_directory": "~/Projects/ESA/logs",
     "debug": false,
-    "verbose": false
+    "verbose": true
   },
   "instrument": {
     "instrument_name": "epn",
@@ -20,6 +21,6 @@
       "background":  0,
       "test_grid": 0
     },
-    "sim_separate_ccds": false
+    "sim_separate_ccds": true
   }
 }

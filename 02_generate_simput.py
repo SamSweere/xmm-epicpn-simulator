@@ -7,6 +7,7 @@ from typing import Dict, Optional
 import numpy as np
 from loguru import logger
 
+from src.simput import constants
 from src.simput.gen import simput_generate
 from src.xmm_utils.multiprocessing import get_num_processes
 
@@ -15,9 +16,6 @@ logger.remove()
 
 def handle_error(error):
     logger.exception(error)
-
-
-available_modes = ["img", "agn", "background", "exposure_map", "test_grid", "random"]
 
 
 def run(
@@ -57,6 +55,9 @@ def run(
     # run_dir = working_directory / "tmp"
     # run_dir.mkdir(parents=True, exist_ok=True)
 
+    emin = simput_cfg["emin"]
+    emax = simput_cfg["emax"]
+
     sample_num = simput_cfg["num_img_sample"]
     zoom_range = simput_cfg["zoom_img_range"]
     sigma_b_range = simput_cfg['sigma_b_img_range']
@@ -66,8 +67,8 @@ def run(
     mode_dict: Dict[str, int] = simput_cfg["mode"]
     with Pool(get_num_processes(mp_conf=mp_cfg)) as pool:
         for mode, num in mode_dict.items():
-            if mode not in available_modes:
-                raise ValueError(f"Unkown mode '{mode}'! Available modes: {available_modes}.")
+            if mode not in constants.available_modes:
+                raise ValueError(f"Unkown mode '{mode}'! Available modes: {constants.available_modes}.")
 
             if num < -1:
                 raise ValueError("num has to be >= -1")
@@ -108,7 +109,7 @@ def run(
                         "offset_y": offset_y
                     }
 
-                    arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, verbose)
+                    arguments = (instrument_name, emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
                     if debug:
                         pool.apply(simput_generate, arguments)
                     else:
@@ -127,12 +128,12 @@ def run(
 
                 if debug:
                     img_settings["num"] = num
-                    arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, verbose)
+                    arguments = (instrument_name, emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
                     pool.apply(simput_generate, arguments)
                 else:
                     img_settings["num"] = 1
                     for _ in range(num):
-                        arguments = (instrument_name, mode, img_settings, tmp_dir, mode_dir, verbose)
+                        arguments = (instrument_name, emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
                         pool.apply_async(simput_generate, arguments, error_callback=handle_error)
         pool.close()
         pool.join()

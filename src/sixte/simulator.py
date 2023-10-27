@@ -47,8 +47,8 @@ def run_simulation(
     for xml_path in xml_paths:
         ccd_name = xml_path.stem
         evt_filepath = run_dir / f"{ccd_name}_evt.fits"
-        runsixt = (f"runsixt EvtFile={evt_filepath.resolve()} XMLFile={xml_path.resolve()} "
-                   f"Simput={simput_path.resolve()} Exposure={exposure} RA={ra} "
+        runsixt = (f"runsixt EvtFile={evt_filepath.resolve()} Rawdata={(run_dir / f'{ccd_name}_raw.fits')} "
+                   f"XMLFile={xml_path.resolve()} Simput={simput_path.resolve()} Exposure={exposure} RA={ra} "
                    f"Dec={dec} rollangle={rollangle} clobber=yes")
         run_headas_command(runsixt, verbose=verbose)
         evt_filepaths.append(evt_filepath)
@@ -132,6 +132,7 @@ def run_xmm_simulation(
         debug: bool = False,
         verbose: bool = True
 ):
+    logger.info(f"Running simulations for {simput_file.resolve()}")
     with TemporaryDirectory(dir=tmp_dir) as tmp:
         run_dir = Path(tmp)
         # File does not exist yet, make the run dir, unpack the simput file and run the simulation
@@ -223,6 +224,7 @@ def run_simulation_modes(
                                        res_mult, max_exposure, instrument_conf["instrument_name"],
                                        instrument_conf["filter"],
                                        instrument_conf["sim_separate_ccds"], debug, verbose)
+
                     if debug:
                         pool.apply(run_xmm_simulation, simulation_args)
                     else:

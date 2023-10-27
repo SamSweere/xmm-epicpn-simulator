@@ -10,6 +10,8 @@
     "verbose": true
   },
   "simput": {
+    "emin": 0.5,
+    "emax": 2.0,
     "mode": {
       "img":  1,
       "agn":  0,

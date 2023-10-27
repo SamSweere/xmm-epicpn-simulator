@@ -64,9 +64,6 @@ def _prepare_fits_image(
 
     center_cutout = data[x_left:x_right, y_left:y_right]
 
-    # target_mean = 1000
-    # current_mean = np.mean(center_cutout)
-
     # Making the center a certain brightness. The $flux_{\mu_B}$ and $flux_{\sigma_B}$ where calculated based on a
     # constant distribution. Our sources will not be constant. We want a certain area percentage $x_p$ of the image to
     # have the flux. We therefore have to scale the flux. Note that flux is distributed based on the input image.
@@ -84,8 +81,6 @@ def _prepare_fits_image(
     # time.
     scaling = min(1.0, scaling)
 
-    # print("Scaling:", scaling)
-
     # We also increase the flux with the zoom, since in this case less of the whole will be visible and pixels will
     # cover a bigger part of the fov and are therefore dimmer.
 
@@ -93,17 +88,6 @@ def _prepare_fits_image(
     flux_mu_b = 6.105610561056106e-12  # Flux needed to reach one background
     flux_sigma_b = 7.878743811881188e-12  # Flux needed to reach one sigma
     flux = (flux_mu_b + sigma_b * flux_sigma_b) * zoom * scaling
-
-    # flux = 2e-11
-    #
-    # baseline_mean = 9.085126612539098e-06
-    #
-    # norm_scale = baseline_mean/current_mean
-    #
-    #
-    # background_norm = 0.000017
-    # sigma_norm = 0.0000385
-    # norm = (background_norm + sigma_b * sigma_norm)*zoom*norm_scale
 
     # Scale the data to uint16 such that is can be compressed better
     max_val = np.iinfo(np.uint16).max
@@ -120,6 +104,8 @@ def _prepare_fits_image(
 
 def simput_image(
         instrument_name: Literal["epn", "emos1", "emos2"],
+        emin: float,
+        emax: float,
         run_dir: Path,
         img_settings: dict,
         verbose: bool = True
@@ -129,13 +115,6 @@ def simput_image(
     sigmas_b = img_settings['sigma_b']
     offsets_x = img_settings['offset_x']
     offsets_y = img_settings['offset_y']
-
-    emin = 0.5
-    emax = 2.0
-
-    # We move the image file to the whole simput
-    ra = 0.0
-    dec = 0.0
 
     # Get the spectrum file
     spectrum_file = get_spectrumfile(run_dir=run_dir, verbose=verbose)
@@ -153,7 +132,7 @@ def simput_image(
 
         output_file = run_dir / output_file_name
 
-        simput_command = (f"simputfile Simput={output_file.resolve()} RA={ra} Dec={dec} "
+        simput_command = (f"simputfile Simput={output_file.resolve()} RA=0.0 Dec=0.0 "
                           f"XSPECFile={spectrum_file.resolve()} Emin={emin} Emax={emax} "
                           f"ImageFile={img_path.resolve()} srcFlux={flux}")
         run_headas_command(simput_command, verbose=verbose)
