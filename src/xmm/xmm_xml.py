@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import Literal, List
 
 import numpy as np
-from lxml.etree import Element, SubElement, ElementTree
 from loguru import logger
+from lxml.etree import Element, SubElement, ElementTree
 
 
 def create_pn_xml(
@@ -75,7 +75,7 @@ def create_pn_xml(
         SubElement(detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}",
                    xrval=np.format_float_positional(xrval[i], 6),
                    yrval=np.format_float_positional(yrval[i], 6),
-                   xdelt=f"{p_delt}", ydelt=f"{p_delt}")
+                   xdelt=f"{p_delt}", ydelt=f"{p_delt}", rota=f"{'180.0' if i < 6 else '0.0'}")
         SubElement(detector, 'cte', value="1")
         SubElement(detector, 'rmf', filename=f"pn-{xmm_filter}-10.rmf")
         SubElement(detector, 'arf', filename=f"pn-{xmm_filter}-10.arf")
@@ -129,9 +129,133 @@ def get_pn_xml(
 
 
 def create_mos_xml(
+        emos_num: Literal[1, 2],
+        res_mult: int,
+        xmm_filter: Literal["thin", "med", "thick"],
+        sim_separate_ccds: bool,
+        wait_time: float = 23.04e-6  # Setting this to 0.0 eliminates out of time events
+) -> List[Path]:
+    from src.xmm.emos import get_focal_length, get_fov, get_pixel_size
 
-):
-    pass
+    if emos_num not in [1, 2]:
+        raise ValueError(f"emos_num has to be either '1' or '2', but got {emos_num}!")
+
+    instrument_path = Path(os.environ["SIXTE"]) / "share" / "sixte" / "instruments" / "xmm" / "epicmos"
+    if not instrument_path.exists():
+        raise NotADirectoryError(f"It looks like you haven't downloaded the instrument files provided by SIXTE "
+                                 f"(see https://www.sternwarte.uni-erlangen.de/sixte/instruments/)! Please download "
+                                 f"and extract them as given in their instructions.")
+
+    out_dir = instrument_path / xmm_filter / f"emos{emos_num}" / f"{res_mult}x"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Add symbolic links to used files
+    files = [f"mos{emos_num}_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits",
+             f"mos{emos_num}-{xmm_filter}-10.rmf",
+             f"mos{emos_num}-{xmm_filter}-10.arf"]
+    for file in files:
+        tmp_link = out_dir / file
+        if not tmp_link.exists():
+            tmp_link.symlink_to(instrument_path / file)
+
+    focallength = get_focal_length(emos_num=emos_num)
+    fov = get_fov(emos_num=emos_num)
+    p_delt = get_pixel_size(emos_num=emos_num, res_mult=res_mult)
+
+    # Change units from mm to m
+    # See: http://www.sternwarte.uni-erlangen.de/~sixte/data/simulator_manual.pdf
+    # in chap. "C: XML Instrument Configuration"
+    focallength = round(focallength * 1e-3, 6)
+    p_delt = round(p_delt * 1e-3, 6)
+
+    if sim_separate_ccds:
+        from src.xmm.emos import get_ccd_width_height, get_xyrval
+        width, height = get_ccd_width_height(res_mult=res_mult)
+        xrval, yrval = get_xyrval(emos_num=emos_num)
+        xrval = xrval * 1e-3
+        yrval = yrval * 1e-3
+    else:
+        from src.xmm.emos import get_img_width_height
+        width, height = get_img_width_height(emos_num=emos_num, res_mult=res_mult)
+        xrval = yrval = 0.0
+        xrval = np.asarray([xrval * 1e-3])
+        yrval = np.asarray([yrval * 1e-3])
+
+    xrpix = round((width + 1) / 2.0, 6)
+    yrpix = round((height + 1) / 2.0, 6)
+
+    xml_paths: List[Path] = []
+    if sim_separate_ccds:
+        loops = 7
+        if emos_num == 1:
+            rotas = ["0.0", "90.0", "90.0", "90.0", "270.0", "270.0", "270.0"]
+        else:
+            rotas = ["270.0", "0.0", "0.0", "0.0", "180.0", "180.0", "180.0"]
+    else:
+        loops = 1
+        rotas = ["0.0"]
+
+    for i in range(loops):
+        instrument = Element("instrument", telescop="XMM", instrume=f"EPIC-MOS{emos_num}")
+
+        telescope = SubElement(instrument, "telescope")
+        # Based on the pixel fov and the biggest axis
+        SubElement(telescope, "focallength", value=f"{focallength}")
+        SubElement(telescope, "fov", diameter=f"{fov}")
+        SubElement(telescope, "psf", filename=f"mos{emos_num}_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits")
+        detector = SubElement(instrument, 'detector', type=f'EPIC-MOS{emos_num}')
+        SubElement(detector, 'dimensions', xwidth=f"{width}", ywidth=f"{height}")
+        SubElement(detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}",
+                   xrval=np.format_float_positional(xrval[i], 6),
+                   yrval=np.format_float_positional(yrval[i], 6),
+                   xdelt=f"{p_delt}", ydelt=f"{p_delt}", rota=f"{rotas[i]}")
+        SubElement(detector, 'cte', value="1")
+        SubElement(detector, 'rmf', filename=f"mos{emos_num}-{xmm_filter}-10.rmf")
+        SubElement(detector, 'arf', filename=f"mos{emos_num}-{xmm_filter}-10.arf")
+        SubElement(detector, 'split', type="gauss", par1=f"{11.e-6 / res_mult}")
+        SubElement(detector, 'threshold_readout_lo_keV', value="0.")
+        SubElement(detector, 'threshold_event_lo_keV', value="200.e-3")
+        SubElement(detector, 'threshold_split_lo_fraction', value="0.01")
+        SubElement(detector, 'threshold_pattern_up_keV', value="12.")
+
+        readout = SubElement(detector, 'readout', mode="time")
+        SubElement(readout, 'wait', time="2.6")
+
+        loop = SubElement(readout, 'loop', start="0", end=f"{height - 1}", increment="1", variable="$i")
+        SubElement(loop, 'readoutline', lineindex="0", readoutindex="$i")
+        SubElement(loop, 'lineshift')
+        if sim_separate_ccds:
+            SubElement(loop, 'wait', time=f"{wait_time}")  # Setting this to 0.0 eliminates out of time events
+
+        SubElement(readout, 'newframe')
+
+        tree = ElementTree(instrument)
+        if sim_separate_ccds:
+            xml_path = out_dir / f"ccd{i + 1:02d}.xml"
+            tree.write(xml_path, encoding='UTF-8', xml_declaration=True, pretty_print=True)
+        else:
+            xml_path = out_dir / f"combined.xml"
+            tree.write(xml_path, encoding='UTF-8', xml_declaration=True, pretty_print=True)
+
+        xml_paths.append(xml_path)
+    return xml_paths
+
+
+def get_mos_xml(
+        emos_num: Literal[1, 2],
+        res_mult: int,
+        xmm_filter: Literal["thin", "med", "thick"],
+        sim_separate_ccds: bool,
+) -> List[Path]:
+    instrument_path = Path(os.environ["SIXTE"]) / "share" / "sixte" / "instruments" / "xmm" / "epicmos"
+    root = instrument_path / xmm_filter / f"emos{emos_num}" / f"{res_mult}x"
+
+    glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
+    xml_paths: List[Path] = list(root.glob(glob_pattern))
+
+    if sim_separate_ccds and not len(xml_paths) == 7:
+        xml_paths.clear()
+
+    return xml_paths
 
 
 if __name__ == '__main__':

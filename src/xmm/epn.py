@@ -8,17 +8,17 @@ from src.xmm.xmm_ccf import get_xmm_miscdata
 
 
 def get_img_width_height(res_mult: int = 1) -> Tuple[int, int]:
-    xrval, yrval = get_xyrval()
+    xrval, yrval = np.absolute(get_xyrval())
 
     p_delt = get_pixel_size(res_mult)
 
-    dx = round(float(xrval[5] - xrval[2]), 3)
-    drows = round(float(xrval[0] - xrval[9]), 3)
-    width = np.ceil((dx + 64 * p_delt * res_mult + drows) / p_delt)
-    dy = round(float(yrval[5] - yrval[8]), 3)
-    height = np.ceil((dy + 200 * p_delt * res_mult) / p_delt)
+    max_x = round(float(np.max(xrval)), 3)
+    max_y = round(float(np.max(yrval)), 3)
 
-    return int(width), int(height)
+    size_x = np.ceil((max_x * 2 + 64 * p_delt * res_mult) / p_delt)
+    size_y = np.ceil((max_y * 2 + 200 * p_delt * res_mult) / p_delt)
+
+    return int(size_x), int(size_y)
 
 
 def get_surface(res_mult: int = 1) -> float:
