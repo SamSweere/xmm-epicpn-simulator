@@ -10,7 +10,9 @@
     "verbose": true
   },
   "instrument": {
-    "instrument_name": "epn",
+    "instrument_names": ["epn", "emos1", "emos2"],
+    "energy_list": [500, 1000, 2000],
+    "theta_list": [0, 210, 420, 600, 720, 900, 1200],
     "filter": "thin",
     "res_mults": [1],
     "max_exposure": 100000,
@@ -18,9 +20,10 @@
     "mode": {
       "img":  1,
       "agn":  0,
-      "background":  0,
+      "background": 0,
       "test_grid": 0
     },
-    "sim_separate_ccds": true
+    "sim_separate_ccds": true,
+    "wait_time": 23.04e-6
   }
 }
