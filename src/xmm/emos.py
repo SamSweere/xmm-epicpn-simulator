@@ -3,7 +3,7 @@ from typing import Literal, Tuple
 import numpy as np
 from astropy.io import fits
 
-from src.xmm.xmm_ccf import get_xmm_miscdata, get_emos_lincoord
+from src.xmm.ccf import get_xmm_miscdata, get_emos_lincoord
 
 
 def get_img_width_height(emos_num: Literal[1, 2], res_mult: int = 1) -> Tuple[int, int]:

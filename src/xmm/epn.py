@@ -3,8 +3,8 @@ from typing import Tuple
 import numpy as np
 from astropy.io import fits
 
-from src.xmm.xmm_ccf import get_epn_lincoord
-from src.xmm.xmm_ccf import get_xmm_miscdata
+from src.xmm.ccf import get_epn_lincoord
+from src.xmm.ccf import get_xmm_miscdata
 
 
 def get_img_width_height(res_mult: int = 1) -> Tuple[int, int]:
