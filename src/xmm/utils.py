@@ -1,14 +1,11 @@
 import os
-from contextlib import redirect_stdout
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import List, Literal, Tuple
 
-import heasoftpy as hsp
 import numpy as np
 from astropy.io import fits
-from loguru import logger
-from pysas.wrapper import Wrapper as sas
+
+from src.xmm.ccf import get_xrt_xareaef
 
 available_instruments = ["epn", "emos1", "emos2"]
 instrument_to_sixte_dir = {
@@ -18,7 +15,7 @@ instrument_to_sixte_dir = {
 }
 
 
-def get_fov_for_instrument(
+def get_fov(
         instrument_name: Literal["epn", "emos1", "emos2"]
 ) -> float:
     if instrument_name not in available_instruments:
@@ -37,7 +34,7 @@ def get_fov_for_instrument(
         return get_fov(2)
 
 
-def get_cdelt_for_instrument(
+def get_cdelt(
         instrument_name: Literal["epn", "emos1", "emos2"],
         res_mult: int
 ) -> float:
@@ -57,7 +54,7 @@ def get_cdelt_for_instrument(
         return get_cdelt(2, res_mult)
 
 
-def get_pixel_size_for_instrument(
+def get_pixel_size(
         instrument_name: Literal["epn", "emos1", "emos2"],
         res_mult: int
 ) -> float:
@@ -77,7 +74,7 @@ def get_pixel_size_for_instrument(
         return get_pixel_size(2, res_mult)
 
 
-def get_surface_for_instrument(
+def get_surface(
         instrument_name: Literal["epn", "emos1", "emos2"],
         res_mult: int
 ) -> float:
@@ -97,7 +94,7 @@ def get_surface_for_instrument(
         return get_surface(emos_num=2, res_mult=res_mult)
 
 
-def get_width_height_for_instrument(
+def get_width_height(
         instrument_name: Literal["epn", "emos1", "emos2"],
         res_mult: int
 ) -> Tuple[int, int]:
@@ -109,8 +106,8 @@ def get_width_height_for_instrument(
         raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
     if instrument_name == "epn":
-        from src.xmm.epn import get_img_width_height
-        return get_img_width_height(res_mult=res_mult)
+        from src.xmm.epn import get_max_xy
+        return get_max_xy(res_mult=res_mult)
 
     if instrument_name == "emos1":
         from src.xmm.emos import get_img_width_height
@@ -121,28 +118,24 @@ def get_width_height_for_instrument(
         return get_img_width_height(emos_num=2, res_mult=res_mult)
 
 
-def get_crpix12_for_instrument(
+def get_naxis12(
         instrument_name: Literal["epn", "emos1", "emos2"],
         res_mult: int
-) -> Tuple[float, float]:
-    """
-    Returns:
-        Tuple[float, float]: The pixels corresponding to the focal point on the instrument.
-    """
+) -> Tuple[int, int]:
     if instrument_name not in available_instruments:
         raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
     if instrument_name == "epn":
-        from src.xmm.epn import get_crpix
-        return get_crpix(res_mult=res_mult)
+        from src.xmm.epn import get_naxis12
+        return get_naxis12(res_mult=res_mult)
 
     if instrument_name == "emos1":
-        from src.xmm.emos import get_crpix
-        return get_crpix(emos_num=1, res_mult=res_mult)
+        from src.xmm.emos import get_naxis12
+        return get_naxis12(emos_num=1, res_mult=res_mult)
 
     if instrument_name == "emos2":
-        from src.xmm.emos import get_crpix
-        return get_crpix(emos_num=2, res_mult=res_mult)
+        from src.xmm.emos import get_naxis12
+        return get_naxis12(emos_num=2, res_mult=res_mult)
 
 
 def get_focal_length(
@@ -184,6 +177,118 @@ def get_instrument_files(
     return p
 
 
+def create_vinget_file(
+        out_dir: Path,
+        instrument_name: Literal["epn", "emos1", "emos2"]
+):
+    out_file = out_dir / get_vignet_name(instrument_name)
+    xrt_xareaef = get_xrt_xareaef(instrument_name=instrument_name)
+
+    with fits.open(name=xrt_xareaef, mode="readonly") as file:
+        vignetting = file['VIGNETTING']
+        energy = vignetting.data['ENERGY']
+        theta_stepsize = vignetting.header['D_THETA']
+        theta_bins = vignetting.data['VIGNETTING_FACTOR'].shape[1]
+        ccf_vignet_data = vignetting.data['VIGNETTING_FACTOR']
+
+    # Transform them to the sixte format
+    energy_lo = np.array(energy[:-1] / 1000.0).reshape(1, len(energy[:-1]))  # E to keV
+    energy_hi = np.array(energy[1:] / 1000.0).reshape(1, len(energy[1:]))  # # E to keV
+
+    # Create the theta step_size bins
+    theta = [0.0]
+    for i in range(theta_bins - 1):
+        theta.append(theta[-1] + theta_stepsize)
+
+    theta = np.array(theta).reshape(1, len(theta))
+
+    # We do not have a phi, thus an array of zero
+    phi = np.zeros((1, 1))
+
+    # Create the vignet array
+    vignet = np.zeros((1, theta.shape[1] - 1, energy_lo.shape[1]))
+
+    for i in range(ccf_vignet_data.shape[0] - 1):
+        # i indexes the theta variable
+        for j in range(ccf_vignet_data.shape[1] - 1):
+            # j intexes the energy bin variable
+            # Convert to keV
+            vignet[0][j][i] = ccf_vignet_data[i][j]
+
+    # The format is based on: https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_021/cal_gen_92_021.html
+
+    energy_lo_col = fits.Column('ENERG_LO', format=f'{energy_lo.shape[1]}E', unit='keV', dim=f'{energy_lo.shape[1]}',
+                                array=energy_lo)  # , format=f'{len(energy_lo)}E', unit='keV', dim=f'{energy_lo.shape[0]}'
+    energy_hi_col = fits.Column('ENERG_HI', format=f'{energy_hi.shape[1]}E', unit='keV', dim=f'{energy_hi.shape[1]}',
+                                array=energy_hi)
+    theta_col = fits.Column('THETA', format=f'{theta.shape[1]}E', unit='degree', dim=f'{theta.shape[1]}', array=theta)
+    phi_col = fits.Column('PHI', format=f'{phi.shape[1]}E', unit='degree', dim=f'{phi.shape[1]}', array=phi)
+    vignet_col = fits.Column('VIGNET', format=f'{vignet.shape[0] * vignet.shape[1] * vignet.shape[2]}E',
+                             dim=f'{vignet.shape[::-1]}', array=vignet)
+
+    coldefs = fits.ColDefs([energy_lo_col, energy_hi_col, theta_col, phi_col, vignet_col])
+    vignet_hdr = fits.Header()
+    # Include the required headers
+    vignet_hdr['HDUCLASS'] = 'OGIP'
+    vignet_hdr['HDUCLAS1'] = 'RESPONSE'
+    vignet_hdr['HDUVERS1'] = '1.0.0'
+    vignet_hdr['HDUCLAS2'] = 'VIGNET'
+    vignet_hdr['HDUVERS2'] = '1.1.0'
+    vignet_hdr['VERSION'] = '20171016'
+    vignet_hdr['MISSION'] = 'XMM'
+    vignet_hdr['TELESCOP'] = 'XMM'
+    vignet_hdr['DETNAM'] = 'XMM'
+    vignet_hdr['INSTRUME'] = 'EPN'
+
+    vignet_hdr['TUNIT1'] = 'keV'
+    vignet_hdr['TUNIT2'] = 'keV'
+    vignet_hdr['TUNIT3'] = 'degree'
+    vignet_hdr['TUNIT4'] = 'degree'
+
+    # vignet_hdr['INSTRUME'] = 'EPIC-PN'
+    vignet_hdr.add_history(
+        'Produced by Sam Sweere (ESAC Trainee) according to data from the XMM-PN calibration file XRT3_XAREAEF_0012.CCF')
+    vignet_hdu = fits.BinTableHDU.from_columns(coldefs, header=vignet_hdr)
+    vignet_hdu.name = 'VIGNET'
+
+    # Create the final hdul
+    primary_hdu = fits.PrimaryHDU()
+    hdul = fits.HDUList([primary_hdu, vignet_hdu])
+
+    # Save the new fits file
+    hdul.writeto(out_file, overwrite=True)
+
+
+def create_psf_file(
+        out: Path,
+        instrument_name: Literal["epn", "emos1", "emos2"],
+        # size: int,
+        res_mult: int
+        # energy_list: List[int],
+        # theta_list: List[int]
+) -> None:
+    inst_name_map = {
+        "epn": "pn",
+        "emos1": "mos1",
+        "emos2": "mos2"
+    }
+    # focal_length = get_focal_length(instrument_name)
+    # stretch_factor = 1.0 / res_mult
+
+    # cdelt = stretch_factor / 3600.0 / 180.0 * np.pi * focal_length
+
+    instrument_files = get_instrument_files(instrument_name=instrument_name)
+    psf_file = list(instrument_files.glob(f"*_{inst_name_map[instrument_name]}_psf.fits"))[0]
+
+    with fits.open(psf_file, mode="readonly") as hdu_list:
+        new_hdu_list = fits.HDUList()
+        for primary_hdu in hdu_list:
+            primary_hdu.header["CDELT1"] = primary_hdu.header["CDELT1"] / res_mult
+            primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT1"] / res_mult
+            new_hdu_list.append(primary_hdu)
+        new_hdu_list.writeto(out)
+
+
 def create_xml_files(
         xml_dir: Path,
         instrument_name: Literal["epn", "emos1", "emos2"],
@@ -210,40 +315,51 @@ def create_xml_files(
     psf_file = instrument_dir / psf_name
 
     if instrument_name == "epn":
-        from src.xmm.xml import create_pn_xml
+        from src.xmm.xmm_xml import create_pn_xml
         # Add symbolic links to used instrument_files
         files = ["xmm_pn_vignet.fits", f"pn-{xmm_filter}-10.rmf", f"pn-{xmm_filter}-10.arf"]
         for file in files:
             tmp_link = out_dir / file
+            tmp_link.unlink(missing_ok=True)
             tmp_link.symlink_to(instrument_files / file)
         # Add symbolic link to psf_file
-        (out_dir / psf_name).symlink_to(psf_file)
+        tmp_link = out_dir / psf_name
+        tmp_link.unlink(missing_ok=True)
+        tmp_link.symlink_to(psf_file)
 
         return create_pn_xml(out_dir=out_dir, res_mult=res_mult, xmm_filter=xmm_filter,
                              sim_separate_ccds=sim_separate_ccds,
                              wait_time=wait_time)
 
-    if instrument_name == "emos1" or instrument_name == "emos2":
-        from src.xmm.xml import create_mos_xml
+    if instrument_name == "emos1":
+        from src.xmm.xmm_xml import create_mos_xml
         # Add symbolic links to used instrument_files
         files = [f"mos1-{xmm_filter}-10.rmf", f"mos1-{xmm_filter}-10.arf"]
         for file in files:
             tmp_link = out_dir / file
+            tmp_link.unlink(missing_ok=True)
             tmp_link.symlink_to(instrument_files / file)
         # Add symbolic link to psf_file
-        (out_dir / psf_name).symlink_to(psf_file)
+        tmp_link = out_dir / psf_name
+        tmp_link.unlink(missing_ok=True)
+        tmp_link.symlink_to(psf_file)
+
         return create_mos_xml(out_dir=out_dir, emos_num=1, res_mult=res_mult, xmm_filter=xmm_filter,
                               sim_separate_ccds=sim_separate_ccds, wait_time=wait_time)
 
     if instrument_name == "emos2":
-        from src.xmm.xml import create_mos_xml
+        from src.xmm.xmm_xml import create_mos_xml
         # Add symbolic links to used instrument_files
         files = [f"mos2-{xmm_filter}-10.rmf", f"mos2-{xmm_filter}-10.arf"]
         for file in files:
             tmp_link = out_dir / file
+            tmp_link.unlink(missing_ok=True)
             tmp_link.symlink_to(instrument_files / file)
         # Add symbolic link to psf_file
-        (out_dir / psf_name).symlink_to(psf_file)
+        tmp_link = out_dir / psf_name
+        tmp_link.unlink(missing_ok=True)
+        tmp_link.symlink_to(psf_file)
+
         return create_mos_xml(out_dir=out_dir, emos_num=2, res_mult=res_mult, xmm_filter=xmm_filter,
                               sim_separate_ccds=sim_separate_ccds, wait_time=wait_time)
 
@@ -263,101 +379,16 @@ def get_xml_files(
         raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
     if instrument_name == "epn":
-        from src.xmm.xml import get_pn_xml
+        from src.xmm.xmm_xml import get_pn_xml
         return get_pn_xml(res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
 
     if instrument_name == "emos1":
-        from src.xmm.xml import get_mos_xml
+        from src.xmm.xmm_xml import get_mos_xml
         return get_mos_xml(emos_num=1, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
 
     if instrument_name == "emos2":
-        from src.xmm.xml import get_mos_xml
+        from src.xmm.xmm_xml import get_mos_xml
         return get_mos_xml(emos_num=2, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
-
-
-def create_psf_file(
-        out: Path,
-        instrument_name: Literal["epn", "emos1", "emos2"],
-        res_mult: int,
-        energy_list: List[int],
-        theta_list: List[int]
-) -> None:
-    inst_name_map = {
-        "epn": "EPN",
-        "emos1": "EMOS1",
-        "emos2": "EMOS2"
-    }
-    focal_length = get_focal_length(instrument_name)
-    stretch_factor = 1.0 / res_mult
-
-    cdelt = stretch_factor / 3600.0 / 180.0 * np.pi * focal_length
-
-    new_items = [("HDUCLASS", "OGIP"), ("HDUDOC", "CAL/GEN/92-027"), ("HDUVERS", "1.0.0"),
-                 ("HDUCLAS1", "IMAGE"), ("HDUCLAS2", "PSF"), ("HDUCLAS3", "PREDICTED"), ("HDUCLAS4", "NET"),
-                 ("TELESCOP", "XMM-Newton"), ("INSTRUME", inst_name_map[instrument_name]), ("FILTER", "NONE"),
-                 ("BACKGRND", 0.0), ('CTYPE1', 'DETX'), ('CTYPE2', 'DETY'), ('CUNIT1', 'm '),
-                 ('CUNIT2', 'm'), ('CRPIX1', 61.0), ('CRPIX2', 61.0), ('CRVAL1', 0.0), ('CRVAL2', 0.0),
-                 ('CDELT1', cdelt), ('CDELT2', cdelt), ('ENERG_LO', 1.0), ('ENERG_HI', 1.0), ('CHANMAX', -99),
-                 ('CHANTYPE', 'PI'), ('SUMRCTS', 1.0), ('CCLS0001', 'BCF'), ('CDTP0001', 'DATA'),
-                 ('CCNM0001', '2D_PSF'), ('CVSD0001', '2000-01-01'), ('CVST0001', '00:00:00'),
-                 ('CDES0001', 'ELLBETA model PSF')]
-
-    logger.info(f"Computing XMM PSF (ELLBETA) for instrument {inst_name_map[instrument_name]} in 1.0\" pixels.")
-    logger.info(f"For a radius of 1', images will be 120 pixels wide, with a scale of {cdelt} m/pixel.")
-
-    with TemporaryDirectory() as temp, open(os.devnull, "w") as dn, redirect_stdout(dn):
-        run_dir = Path(temp)
-
-        for energy in energy_list:
-            energy_formatted = f"{energy:3f}"
-
-            for theta in theta_list:
-                for phi in range(0, 360, 4):
-                    output = run_dir / f"PsfImg_{energy}eV_{theta}arcmin_{phi}deg.fits"
-                    phi_sas = 90.0 - phi
-
-                    if phi_sas < 0:
-                        phi_sas = phi_sas + 360.0
-
-                    phi_sas = phi_sas / 180.0 * np.pi
-
-                    inargs = [f"instrument={inst_name_map[instrument_name]}", f"coordtype=TEL", f"x={theta}",
-                              f"y={phi_sas}", f"output={output.resolve()}", f"level=ELLBETA", f"xsize=120",
-                              f"ysize=120",
-                              f"energy={energy}", "-V 0", "-w 0"]
-
-                    psfgen = sas("psfgen", inargs)
-                    psfgen.run()
-
-                    with fits.open(output.resolve(), "update") as file:
-                        data = file[0].data
-                        header = file[0].header
-
-                        data_sum = np.sum(data)
-                        file[0].data = data / data_sum
-
-                        header.remove("COMMENT", ignore_missing=True, remove_all=True)
-
-                        header.extend(new_items)
-
-                        header.insert("HDUCLASS", ("EXTNAME", f"${energy}eVthet${theta}arcsecphi${phi}deg"))
-                        header.insert("BACKGRND", ("ENERGY", f"{energy}", "Energy in eV"), after=True)
-                        header.insert("ENERGY", ("THETA", f"{theta / 60.0:.3f}", "Off-axis angle in arcmin"),
-                                      after=True)
-                        header.insert("THETA", ("PHI", f"{phi}", "Azimuth in degree"), after=True)
-                        header.insert("CUNIT2", ("CRPIX1", 61.), after=True)
-                        header.insert("CRPIX1", ("CRPIX2", 61.), after=True)
-                        header.insert("CCNM0001", ("CBD10001", f"ENERGY( {energy_formatted})kEV"), after=True)
-                        header.insert("CBD10001", ("CBD20001", f"THETA( {theta}.000000)arcsec"), after=True)
-                        header.insert("CBD20001", ("CBD30001", f"PHI( {phi}.000000)deg"), after=True)
-
-                    if out.exists():
-                        with hsp.utils.local_pfiles_context(temp):
-                            hsp.ftappend(infile=f"{output.resolve()}", outfile=f"{out.resolve()}", history="no",
-                                         chatter=0)
-                        output.unlink()
-                    else:
-                        output.rename(out.resolve())
 
 
 def get_psf_name(
@@ -365,6 +396,12 @@ def get_psf_name(
         res_mult: int,
 ) -> str:
     return f"{instrument_name}_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits"
+
+
+def get_vignet_name(
+        instrument_name: Literal["epn", "emos1", "emos2"]
+) -> str:
+    return f"{instrument_name}_vignet.fits"
 
 
 def add_ccdnr_and_xy(hdu, xmm, ccdnr):
@@ -436,8 +473,3 @@ def add_ccdnr_and_xy(hdu, xmm, ccdnr):
     hdu['EVENTS'] = new_hdu
 
     return hdu
-
-
-if __name__ == '__main__':
-    create_psf_file(Path("/home/bojantodorkov/Projects/xmm-epicpn-simulator/test.fits"), "epn", 2, [500, 1000, 2000],
-                    [0, 210, 420, 600, 720, 900, 1200])

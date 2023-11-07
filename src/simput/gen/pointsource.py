@@ -1,14 +1,13 @@
 from pathlib import Path
-from typing import Literal, Tuple, Union
+from typing import Tuple, Union
 
 import numpy as np
 
 from src.sixte import commands
-from src.xmm.utils import get_fov_for_instrument
+from src.xmm.utils import get_fov
 
 
 def simput_ps(
-        instrument_name: Literal["epn", "emos1", "emos2"],
         emin: float,
         emax: float,
         output_file: Path,
@@ -35,7 +34,8 @@ def simput_ps(
     if src_flux == 'random':
         src_flux = rng.uniform(low=1.0e-13, high=1.0e-10)
 
-    fov = get_fov_for_instrument(instrument_name)
+    # The FOV is the same for EPN, EMOS1, and EMOS2
+    fov = get_fov("epn")
 
     # Randomly position the point source within the fov
     if offset == 'random':

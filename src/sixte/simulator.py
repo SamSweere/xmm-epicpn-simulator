@@ -9,10 +9,8 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_xml_files, get_width_height_for_instrument, get_cdelt_for_instrument, \
-    get_crpix12_for_instrument
-from src.xmm_utils.file_utils import decompress_gzip, compress_gzip
-from src.xmm_utils.fits_utils import filter_evt_pattern_type
+from src.xmm.utils import get_xml_files, get_naxis12, get_cdelt
+from src.xmm_utils.file_utils import compress_gzip
 
 
 def handle_error(error):
@@ -55,17 +53,22 @@ def run_simulation(
     else:
         evt_filepath = evt_filepaths[0]
 
-    # Remove everything with pattern type (TYPE) > 4
-    combined_evt_path = filter_evt_pattern_type(evt_filepath, max_pattern_type=4, verbose=verbose)
-
     # split the eventlist
-    split_exposure_evt_files = split_eventlist(run_dir=run_dir, eventlist_path=combined_evt_path, multiples=10000,
+    split_exposure_evt_files = split_eventlist(run_dir=run_dir, eventlist_path=evt_filepath, multiples=10000,
                                                verbose=verbose)
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
-    naxis2, naxis1 = get_width_height_for_instrument(instrument_name=instrument_name, res_mult=res_mult)
-    cdelt1 = cdelt2 = get_cdelt_for_instrument(instrument_name=instrument_name, res_mult=res_mult)
-    crpix2, crpix1 = get_crpix12_for_instrument(instrument_name=instrument_name, res_mult=res_mult)
+    naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
+    cdelt1 = cdelt2 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_shift_xy
+        shift_x, shift_y = get_shift_xy(res_mult=res_mult)
+        crpix1 = round(((naxis1 + 1) / 2.0) - shift_x, 6)
+        crpix2 = round(((naxis2 + 1) / 2.0) + shift_y, 6)
+    else:
+        crpix1 = round(((naxis1 + 1) / 2.0), 6)
+        crpix2 = round(((naxis2 + 1) / 2.0), 6)
 
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
@@ -125,8 +128,6 @@ def run_xmm_simulation(
         # Create the run_dir for this specific resolution
         # We create it here such that if the simulation fails or the file already exists
         # we have no empty run dir
-        # Extract simput file
-        simput_file = decompress_gzip(in_file_path=simput_file, out_file_dir=run_dir)
 
         # Run the simulation
         tmp_split_img_paths_exps = run_simulation(img_name=img_name,

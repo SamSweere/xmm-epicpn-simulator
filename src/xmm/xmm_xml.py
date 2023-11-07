@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Literal, List
 
@@ -28,20 +27,20 @@ def create_pn_xml(
 
     if sim_separate_ccds:
         from src.xmm.epn import get_ccd_width_height, get_xyrval, get_cc12_txy
-        width, height = get_ccd_width_height(res_mult=res_mult)
+        max_x, max_y = get_ccd_width_height(res_mult=res_mult)
         xrval, yrval = get_xyrval()
         cc12tx, cc12ty = get_cc12_txy()
         xrval = (xrval - cc12tx) * 1e-3
         yrval = (yrval - cc12ty) * 1e-3
     else:
-        from src.xmm.epn import get_img_width_height, get_cc12_txy
-        width, height = get_img_width_height(res_mult=res_mult)
+        from src.xmm.epn import get_naxis12, get_cc12_txy
+        max_x, max_y = get_naxis12(res_mult=res_mult)
         xrval, yrval = get_cc12_txy()
-        xrval = np.asarray([xrval * 1e-3])
-        yrval = np.asarray([yrval * 1e-3])
+        xrval = np.asarray([-xrval * 1e-3])
+        yrval = np.asarray([-yrval * 1e-3])
 
-    xrpix = round((width + 1) / 2.0, 6)
-    yrpix = round((height + 1) / 2.0, 6)
+    xrpix = round((max_x + 1) / 2.0, 6)
+    yrpix = round((max_y + 1) / 2.0, 6)
 
     xml_paths: List[Path] = []
     loops = 12 if sim_separate_ccds else 1
@@ -52,10 +51,10 @@ def create_pn_xml(
         # Based on the pixel fov and the biggest axis
         SubElement(telescope, "focallength", value=f"{focallength}")
         SubElement(telescope, "fov", diameter=f"{fov}")
-        SubElement(telescope, "psf", filename=f"pn_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits")
+        SubElement(telescope, "psf", filename=f"epn_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits")
         SubElement(telescope, 'vignetting', filename="xmm_pn_vignet.fits")
         detector = SubElement(instrument, 'detector', type='EPIC-PN')
-        SubElement(detector, 'dimensions', xwidth=f"{width}", ywidth=f"{height}")
+        SubElement(detector, 'dimensions', xwidth=f"{max_x}", ywidth=f"{max_y}")
         # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota
         SubElement(detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}",
                    xrval=np.format_float_positional(xrval[i], 6),
@@ -68,12 +67,12 @@ def create_pn_xml(
         SubElement(detector, 'threshold_readout_lo_keV', value="0.")
         SubElement(detector, 'threshold_event_lo_keV', value="200.e-3")
         SubElement(detector, 'threshold_split_lo_fraction', value="0.01")
-        SubElement(detector, 'threshold_pattern_up_keV', value="12.")
+        SubElement(detector, 'threshold_pattern_up_keV', value="15.")
 
         readout = SubElement(detector, 'readout', mode="time")
         SubElement(readout, 'wait', time="68.75e-3")
 
-        loop = SubElement(readout, 'loop', start="0", end=f"{height - 1}", increment="1", variable="$i")
+        loop = SubElement(readout, 'loop', start="0", end=f"{max_y - 1}", increment="1", variable="$i")
         SubElement(loop, 'readoutline', lineindex="0", readoutindex="$i")
         SubElement(loop, 'lineshift')
         if sim_separate_ccds:
@@ -98,7 +97,8 @@ def get_pn_xml(
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool
 ) -> List[Path]:
-    instrument_path = Path(os.environ["SIXTE"]) / "share" / "sixte" / "instruments" / "xmm" / "epicpn"
+    # TODO Fix path
+    instrument_path = Path("/home") / "bojantodorkov" / "Projects" / "ESA" / "xml" / "epn"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
     glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
@@ -170,7 +170,7 @@ def create_mos_xml(
         # Based on the pixel fov and the biggest axis
         SubElement(telescope, "focallength", value=f"{focallength}")
         SubElement(telescope, "fov", diameter=f"{fov}")
-        SubElement(telescope, "psf", filename=f"mos{emos_num}_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits")
+        SubElement(telescope, "psf", filename=f"emos{emos_num}_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits")
         detector = SubElement(instrument, 'detector', type=f'EPIC-MOS{emos_num}')
         SubElement(detector, 'dimensions', xwidth=f"{width}", ywidth=f"{height}")
         SubElement(detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}",
@@ -184,7 +184,7 @@ def create_mos_xml(
         SubElement(detector, 'threshold_readout_lo_keV', value="0.")
         SubElement(detector, 'threshold_event_lo_keV', value="200.e-3")
         SubElement(detector, 'threshold_split_lo_fraction', value="0.01")
-        SubElement(detector, 'threshold_pattern_up_keV', value="12.")
+        SubElement(detector, 'threshold_pattern_up_keV', value="15.")
 
         readout = SubElement(detector, 'readout', mode="time")
         SubElement(readout, 'wait', time="2.6")
@@ -215,8 +215,9 @@ def get_mos_xml(
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool,
 ) -> List[Path]:
-    instrument_path = Path(os.environ["SIXTE"]) / "share" / "sixte" / "instruments" / "xmm" / "epicmos"
-    root = instrument_path / xmm_filter / f"emos{emos_num}" / f"{res_mult}x"
+    # TODO Fix path
+    instrument_path = Path("/home") / "bojantodorkov" / "Projects" / "ESA" / "xml" / f"emos{emos_num}"
+    root = instrument_path / xmm_filter / f"{res_mult}x"
 
     glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
     xml_paths: List[Path] = list(root.glob(glob_pattern))

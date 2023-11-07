@@ -3,11 +3,10 @@ from typing import Tuple
 import numpy as np
 from astropy.io import fits
 
-from src.xmm.ccf import get_epn_lincoord
-from src.xmm.ccf import get_xmm_miscdata
+from src.xmm.ccf import get_epn_lincoord, get_xmm_miscdata
 
 
-def get_img_width_height(res_mult: int = 1) -> Tuple[int, int]:
+def get_max_xy(res_mult: int = 1) -> Tuple[int, int]:
     xrval, yrval = np.absolute(get_xyrval())
 
     p_delt = get_pixel_size(res_mult)
@@ -21,15 +20,26 @@ def get_img_width_height(res_mult: int = 1) -> Tuple[int, int]:
     return int(size_x), int(size_y)
 
 
+def get_naxis12(res_mult: int = 1) -> Tuple[int, int]:
+    fov_deg = get_fov()
+    arc_mm_x, arc_mm_y = get_plate_scale_xy()
+
+    fov_arcsec = fov_deg * 3600
+    naxis1 = int(np.ceil(fov_arcsec / arc_mm_x))
+    naxis2 = int(np.ceil(fov_arcsec / arc_mm_y))
+
+    return naxis1 * res_mult, naxis2 * res_mult
+
+
 def get_surface(res_mult: int = 1) -> float:
     """
     Returns:
         float: The surface of EPIC-pn in mm²
     """
     pixel_size = get_pixel_size(res_mult=res_mult)
-    width, height = get_img_width_height(res_mult=res_mult)
+    x, y = get_max_xy(res_mult=res_mult)
 
-    return (pixel_size ** 2) * width * height
+    return (pixel_size ** 2) * x * y
 
 
 def get_ccd_width_height(res_mult: int = 1) -> Tuple[int, int]:
@@ -45,13 +55,14 @@ def get_cc12_txy() -> Tuple[float, float]:
     return cc12_tx, cc12_ty
 
 
-def get_arc_mm_xy() -> Tuple[float, float]:
-    epn_lincoord = get_epn_lincoord()
-    with fits.open(name=epn_lincoord, mode="readonly") as file:
-        header = file[1].header
-        arc_mm_x = header["ARC_MM_Y"]
-        arc_mm_y = header["ARC_MM_X"]
-    return arc_mm_x, arc_mm_y
+def get_plate_scale_xy() -> Tuple[float, float]:
+    xmm_miscdata = get_xmm_miscdata()
+    with fits.open(name=xmm_miscdata, mode="readonly") as file:
+        miscdata = file[1].data
+        epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
+        plate_scale_x = epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
+        plate_scale_y = epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].astype(float).item()
+    return plate_scale_x, plate_scale_y
 
 
 def get_xyrval() -> Tuple[np.ndarray, np.ndarray]:
@@ -112,7 +123,7 @@ def get_fov() -> float:
 
 
 def create_detector_mask(res_mult: int = 1) -> np.ndarray:
-    width, height = get_img_width_height(res_mult)
+    width, height = get_max_xy(res_mult)
     pixel_size = get_pixel_size(res_mult)
     xrval, yrval = get_xyrval()
 
@@ -152,12 +163,9 @@ def create_detector_mask(res_mult: int = 1) -> np.ndarray:
 # TODO Add get_bad_pixels
 
 
-def get_crpix(res_mult: int = 1) -> Tuple[float, float]:
-    width, height = get_img_width_height(res_mult)
+def get_shift_xy(res_mult: int = 1) -> Tuple[float, float]:
     cc12tx, cc12ty = get_cc12_txy()
     p_delt = get_pixel_size(res_mult)
     shift_x = cc12tx / p_delt
     shift_y = cc12ty / p_delt
-    xrpix = round(((width + 1) / 2.0) + shift_x, 6)
-    yrpix = round(((height + 1) / 2.0) - shift_y, 6)
-    return xrpix, yrpix
+    return shift_x, shift_y

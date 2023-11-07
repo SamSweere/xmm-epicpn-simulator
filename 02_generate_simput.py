@@ -1,8 +1,9 @@
 import json
 from argparse import ArgumentParser
+from functools import partial
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import numpy as np
 from loguru import logger
@@ -33,8 +34,7 @@ def run(
     log_dir.mkdir(parents=True, exist_ok=True)
     log_level = "DEBUG" if env_cfg["debug"] else "INFO"
     log_file = log_dir / "02_generate_simput.log"
-    logger.add(f"{log_file.resolve()}", enqueue=True,
-               format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level=log_level)
+    logger.add(f"{log_file.resolve()}", enqueue=True, level=log_level)
     log_file.chmod(0o777)
 
     working_directory = Path(env_cfg["working_directory"]).expanduser()
@@ -51,9 +51,6 @@ def run(
     simput_dir = working_directory / "simput"
     simput_dir.mkdir(parents=True, exist_ok=True)
     sim_in_dataset_dir = working_directory / simput_cfg["simput_in_image_dataset"]
-
-    # run_dir = working_directory / "tmp"
-    # run_dir.mkdir(parents=True, exist_ok=True)
 
     emin = simput_cfg["emin"]
     emax = simput_cfg["emax"]
@@ -74,89 +71,120 @@ def run(
         raise ValueError
 
     mode_dict: Dict[str, int] = simput_cfg["mode"]
+    to_del: List[str] = []
+    # Check modes
+    for mode, num in mode_dict.items():
+        if mode not in constants.available_modes:
+            raise ValueError(f"Unknown mode '{mode}'! Available modes: {constants.available_modes}.")
+
+        if num < -1:
+            raise ValueError("num has to be >= -1")
+
+        if num == 0:
+            to_del.append(mode)
+
+    # Delete modes which have num == 0
+    for key in to_del:
+        del mode_dict[key]
+
     with Pool(get_num_processes(mp_conf=mp_cfg)) as pool:
-        for instrument_name in instrument_names:
-            if instrument_name == "epn":
-                spectrum_name = f"pn{xmm_filter}ffg_spectrum.fits"
-            elif instrument_name == "emos1":
-                spectrum_name = f"m1{xmm_filter}ffg_spectrum.fits"
-            elif instrument_name == "emos2":
-                spectrum_name = f"m2{xmm_filter}ffg_spectrum.fits"
-            else:
-                raise ValueError
+        mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
+        for mode, num in mode_dict.items():
+            if mode == "img":
+                mode_dir = simput_dir / mode
+                mode_dir.mkdir(exist_ok=True, parents=True)
+                in_files = list(sim_in_dataset_dir.glob("*.fits"))
+                if not num == -1:
+                    in_files = in_files[:num]
 
-            spectrum_file = spectrum_dir / instrument_name / spectrum_name
-            for mode, num in mode_dict.items():
-                if mode not in constants.available_modes:
-                    raise ValueError(f"Unkown mode '{mode}'! Available modes: {constants.available_modes}.")
+                rng = np.random.default_rng()
 
-                if num < -1:
-                    raise ValueError("num has to be >= -1")
+                for in_file in in_files:
+                    generated_files = len(list(mode_dir.glob(f"{in_file.stem}*")))
+                    to_generate = sample_num - generated_files
 
-                if num == 0:
-                    continue
+                    if to_generate <= 0:
+                        logger.info(f"Won't generate any images for {in_file.name}.")
+                        continue
 
-                mode_dir = simput_dir / instrument_name / mode
-                mode_dir.mkdir(parents=True, exist_ok=True)
+                    logger.info(f"Will generate {to_generate} images for {in_file.name}.")
 
-                if mode == "img":
-                    in_files = list(sim_in_dataset_dir.glob("*.fits"))
-                    if not num == -1:
-                        in_files = in_files[:num]
+                    zoom = np.round(rng.uniform(low=zoom_range[0], high=zoom_range[1], size=to_generate), 2)
+                    sigma_b = np.round(rng.uniform(low=sigma_b_range[0], high=sigma_b_range[1], size=to_generate),
+                                       2)
+                    offset_x = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
+                    offset_y = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
 
-                    rng = np.random.default_rng()
+                    img_settings = {
+                        "img_path": in_file.resolve(),
+                        "zoom": zoom,
+                        "sigma_b": sigma_b,
+                        "offset_x": offset_x,
+                        "offset_y": offset_y
+                    }
 
-                    for in_file in in_files:
-                        generated_files = len(list(mode_dir.glob(f"{in_file.stem}*")))
-                        to_generate = sample_num - generated_files
+                    arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
+                    mp_apply(simput_generate, arguments)
 
-                        if to_generate <= 0:
-                            logger.info(f"Won't generate any images for {in_file.name}.")
-                            continue
+            if mode == "background":
+                from src.xmm.utils import get_fov
+                for instrument_name in instrument_names:
+                    mode_dir = simput_dir / instrument_name / mode
+                    mode_dir.mkdir(exist_ok=True, parents=True)
 
-                        logger.info(f"Will generate {to_generate} images for {in_file.name}.")
-
-                        zoom = np.round(rng.uniform(low=zoom_range[0], high=zoom_range[1], size=to_generate), 2)
-                        sigma_b = np.round(rng.uniform(low=sigma_b_range[0], high=sigma_b_range[1], size=to_generate),
-                                           2)
-                        offset_x = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
-                        offset_y = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
-
-                        img_settings = {
-                            "img_path": in_file.resolve(),
-                            "zoom": zoom,
-                            "sigma_b": sigma_b,
-                            "offset_x": offset_x,
-                            "offset_y": offset_y
-                        }
-
-                        arguments = (instrument_name, emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
-                        if debug:
-                            pool.apply(simput_generate, arguments)
-                        else:
-                            pool.apply_async(simput_generate, arguments, error_callback=handle_error)
-
-                else:
-                    if mode == "agn":
-                        logger.info(f"Will generate {num} AGNs.")
-                        img_settings = {"agn_counts_file": agn_counts_file}
-                    elif mode == "background" or mode == "exposure_map":
-                        logger.info(
-                            f"Will generate {num} {'backgrounds' if mode == 'background' else 'exposure maps'}.")
-                        img_settings = {"spectrum_file": spectrum_file}
+                    mode_str = 'backgrounds' if mode == 'background' else 'exposure maps'
+                    if instrument_name == "epn":
+                        spectrum_name = f"pn{xmm_filter}ffg_spectrum.fits"
+                    elif instrument_name == "emos1":
+                        spectrum_name = f"m1{xmm_filter}ffg_spectrum.fits"
+                    elif instrument_name == "emos2":
+                        spectrum_name = f"m2{xmm_filter}ffg_spectrum.fits"
                     else:
-                        logger.info(f"Will generate {num} {'test grids' if mode == 'test_grid' else 'random sources'}.")
-                        img_settings = {}
+                        raise ValueError
+                    spectrum_file = spectrum_dir / instrument_name / spectrum_name
 
+                    fov = get_fov(instrument_name)
+
+                    logger.info(f"Will generate {num} {mode_str}.")
+                    img_settings = {"spectrum_file": spectrum_file, "fov": fov, "instrument_name": instrument_name}
+
+                    arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
                     if debug:
                         img_settings["num"] = num
-                        arguments = (instrument_name, emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
-                        pool.apply(simput_generate, arguments)
+                        mp_apply(simput_generate, arguments)
                     else:
                         img_settings["num"] = 1
                         for _ in range(num):
-                            arguments = (instrument_name, emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
-                            pool.apply_async(simput_generate, arguments, error_callback=handle_error)
+                            mp_apply(simput_generate, arguments)
+
+            if mode == "agn":
+                mode_dir = simput_dir / mode
+                mode_dir.mkdir(exist_ok=True, parents=True)
+                logger.info(f"Will generate {num} AGNs.")
+                img_settings = {"agn_counts_file": agn_counts_file}
+                arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
+                if debug:
+                    img_settings["num"] = num
+                    mp_apply(simput_generate, arguments)
+                else:
+                    img_settings["num"] = 1
+                    for _ in range(num):
+                        mp_apply(simput_generate, arguments)
+
+            if mode == "random":
+                mode_dir = simput_dir / mode
+                mode_dir.mkdir(exist_ok=True, parents=True)
+                logger.info(f"Will generate {num} random sources.")
+
+                if debug:
+                    img_settings["num"] = num
+                    arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
+                    mp_apply(simput_generate, arguments)
+                else:
+                    img_settings["num"] = 1
+                    arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
+                    for _ in range(num):
+                        mp_apply(simput_generate, arguments)
         pool.close()
         pool.join()
     logger.info("Done!")

@@ -48,17 +48,19 @@ def cutout_to_xray_fits(
 
                             fits_filename = filename + '.fits'
                             fits_path = output_dir / fits_filename
+                            fits_path = fits_path.resolve()
 
                             if fits_path.exists() and not overwrite:
                                 raise FileExistsError(f"{fits_path} already exists and `overwrite` is False")
                             if mode == "proj":
                                 yt_fits = yt.FITSOffAxisProjection(ds, normal=normal,
-                                                                   fields=('gas', 'xray_photon_intensity_0.5_2.0_keV'),
+                                                                   fields=('gas',
+                                                                           f'xray_photon_intensity_{emin}_{emax}_keV'),
                                                                    center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
                                                                    width=(w, "code_length"), image_res=r)
                             else:
                                 yt_fits = yt.FITSSlice(ds, axis=normal,
-                                                       fields=('gas', 'xray_photon_intensity_0.5_2.0_keV'),
+                                                       fields=('gas', f'xray_photon_intensity_{emin}_{emax}_keV'),
                                                        center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
                                                        width=(w, "code_length"), image_res=r)
 
@@ -67,8 +69,7 @@ def cutout_to_xray_fits(
                             yt_fits.update_header(field="all", key="REDSHIFT", value=redshift)
                             yt_fits.update_header(field="all", key="EMIN", value=emin)
                             yt_fits.update_header(field="all", key="EMAX", value=emax)
-
-                            yt_fits.writeto(str(fits_path.resolve()), overwrite=overwrite)
+                            yt_fits.writeto(f"{fits_path}", overwrite=overwrite)
         end = datetime.now()
         logger.info(f"DONE\tProcessing of {cutout} took {end - start}.")
 

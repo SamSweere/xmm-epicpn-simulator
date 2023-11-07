@@ -5,10 +5,9 @@ import numpy as np
 from astropy.io import fits
 from loguru import logger
 
-from src.sixte import commands
 from src.simput.gen.utils import ones_like_xmm, generate_ascii_spectrum
-from src.xmm.utils import get_cdelt_for_instrument, get_surface_for_instrument, get_width_height_for_instrument
-from src.xmm.utils import get_crpix12_for_instrument
+from src.sixte import commands
+from src.xmm.utils import get_cdelt, get_surface, get_naxis12
 
 
 def get_ascii_spectrum(
@@ -28,7 +27,7 @@ def get_ascii_spectrum(
         counts = spectrum.data['COUNTS'].astype(np.float32)
         rates = counts / float(spectrum.header['EXPOSURE'])
 
-    surface = get_surface_for_instrument(instrument_name=instrument_name, res_mult=1) * 1e-2  # cm**2
+    surface = get_surface(instrument_name=instrument_name, res_mult=1) * 1e-2  # cm**2
     cgi_rates = rates / surface  # photon/s/cm**2/keV
 
     ascii_spectrum = generate_ascii_spectrum(run_dir,
@@ -50,11 +49,13 @@ def background(
 ) -> Path:
     suffix = "" if suffix is None else f"_{suffix}"
 
-    cdelt = get_cdelt_for_instrument(instrument_name=instrument_name, res_mult=1)
-    width, height = get_width_height_for_instrument(instrument_name=instrument_name, res_mult=1)
-    crpix1, crpix2 = get_crpix12_for_instrument(instrument_name=instrument_name, res_mult=1)
+    cdelt = get_cdelt(instrument_name=instrument_name, res_mult=1)
+    naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=1)
 
-    image_file = ones_like_xmm(resolution=(width, height),
+    crpix1 = round(((naxis1 + 1) / 2.0), 6)
+    crpix2 = round(((naxis1 + 1) / 2.0), 6)
+
+    image_file = ones_like_xmm(resolution=(naxis1, naxis2),
                                cdelt=cdelt,
                                crpix1=crpix1,
                                crpix2=crpix2,

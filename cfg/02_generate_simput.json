@@ -10,15 +10,12 @@
     "verbose": true
   },
   "simput": {
-    "emin": 0.5,
-    "emax": 2.0,
+    "emin": 0.15,
+    "emax": 15.0,
     "mode": {
       "img":  1,
-      "agn":  0,
-      "background":  0,
-      "test_grid":  0,
-      "exposure_map": 0,
-      "random": 0
+      "agn":  1,
+      "background":  1
     },
     "instrument_names": ["epn", "emos1", "emos2"],
     "filter": "thin",

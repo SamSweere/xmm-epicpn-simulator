@@ -10,18 +10,15 @@
     "verbose": true
   },
   "instrument": {
-    "instrument_names": ["epn", "emos1", "emos2"],
-    "energy_list": [500, 1000, 2000],
-    "theta_list": [0, 210, 420, 600, 720, 900, 1200],
+    "instrument_names": ["epn","emos1", "emos2"],
     "filter": "thin",
     "res_mults": [1],
     "max_exposure": 100000,
     "order": "normal",
     "mode": {
-      "img":  1,
-      "agn":  0,
-      "background": 0,
-      "test_grid": 0
+      "img":  -1,
+      "agn":  1,
+      "background": 1
     },
     "sim_separate_ccds": true,
     "wait_time": 23.04e-6

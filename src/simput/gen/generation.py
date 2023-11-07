@@ -9,10 +9,11 @@ from loguru import logger
 
 from src.simput import constants
 from src.simput.agn import get_fluxes
-from src.simput.gen import background, exposure_map, simput_ps
+from src.simput.gen.background import background
 from src.simput.gen.image import simput_image
+from src.simput.gen.pointsource import simput_ps
 from src.simput.utils import get_spectrumfile, merge_simputs
-from src.xmm.utils import get_fov_for_instrument
+from src.xmm.utils import get_fov
 from src.xmm_utils.file_utils import compress_gzip
 
 
@@ -44,36 +45,7 @@ def create_background(
     return output_files
 
 
-def create_exposure_map(
-        instrument_name: Literal["epn", "emos1", "emos2"],
-        emin: float,
-        emax: float,
-        run_dir: Path,
-        spectrum_file: Path,
-        num: int = 1,
-        verbose: bool = True
-) -> List[Path]:
-    if num == 1:
-        output_files = [exposure_map(run_dir=run_dir,
-                                     spectrum_file=spectrum_file,
-                                     instrument_name=instrument_name,
-                                     emin=emin,
-                                     emax=emax,
-                                     verbose=verbose)]
-    else:
-        output_files = [exposure_map(run_dir=run_dir,
-                                     spectrum_file=spectrum_file,
-                                     instrument_name=instrument_name,
-                                     emin=emin,
-                                     emax=emax,
-                                     suffix=i,
-                                     verbose=verbose) for i in range(num)]
-
-    return output_files
-
-
 def create_random_sources(
-        instrument_name: Literal["epn", "emos1", "emos2"],
         emin: float,
         emax: float,
         run_dir: Path,
@@ -96,8 +68,7 @@ def create_random_sources(
         # Create the point sources
         for i in range(num_sources):
             simput_file = run_dir / f"ps_{i}.simput"
-            simput_ps(instrument_name=instrument_name,
-                      emin=emin,
+            simput_ps(emin=emin,
                       emax=emax,
                       center_point=(0, 0),
                       xspec_file=spectrum_file,
@@ -117,7 +88,6 @@ def create_random_sources(
 
 
 def create_agn_sources(
-        instrument_name: Literal["epn", "emos1", "emos2"],
         emin: float,
         emax: float,
         run_dir: Path,
@@ -142,8 +112,7 @@ def create_agn_sources(
             if verbose:
                 logger.info(f"Creating AGN with flux={flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
-            output_file = simput_ps(instrument_name=instrument_name,
-                                    emin=emin,
+            output_file = simput_ps(emin=emin,
                                     emax=emax,
                                     output_file=output_file,
                                     src_flux=flux,
@@ -160,7 +129,6 @@ def create_agn_sources(
 
 
 def create_test_grid(
-        instrument_name: Literal["epn", "emos1", "emos2"],
         emin: float,
         emax: float,
         run_dir: Path,
@@ -173,7 +141,8 @@ def create_test_grid(
 
     output_files = []
 
-    fov = get_fov_for_instrument(instrument_name=instrument_name)
+    # The FOV is the same for EPN, EMOS1, and EMOS2
+    fov = get_fov(instrument_name="epn")
     loc = list(itertools.product(np.linspace(-fov / 2, fov / 2, step_size), repeat=2))
     loc.append((0.0, 0.0))
     for _ in range(num):
@@ -188,8 +157,7 @@ def create_test_grid(
                 logger.info(f"Generating point source at x={x}, y={y}.")
             ps_simput_file_name = f"ps_{x}_{y}_{unique_id}.simput"
             simput_file_path = run_dir / ps_simput_file_name
-            simput_ps(instrument_name=instrument_name,
-                      emin=emin,
+            simput_ps(emin=emin,
                       emax=emax,
                       xspec_file=spectrum_file,
                       output_file=simput_file_path,
@@ -208,7 +176,6 @@ def create_test_grid(
 
 
 def simput_generate(
-        instrument_name: Literal["epn", "emos1", "emos2"],
         emin: float,
         emax: float,
         mode: str,
@@ -218,24 +185,21 @@ def simput_generate(
         verbose: bool = True
 ) -> None:
     if mode not in constants.available_modes:
-        raise ValueError(f"Unkown mode '{mode}'! Available modes: {constants.available_modes}.")
+        raise ValueError(f"Unknown mode '{mode}'! Available modes: {constants.available_modes}.")
 
     with TemporaryDirectory(dir=tmp_dir) as temp:
         run_dir = Path(temp)
 
-        if mode == "test_grid":
-            file_names = create_test_grid(instrument_name=instrument_name,
-                                          emin=emin,
-                                          emax=emax,
-                                          run_dir=run_dir,
-                                          num=img_settings["num"],
-                                          verbose=verbose)
-
         if mode == "agn":
             if img_settings["agn_counts_file"] is None:
                 raise FileNotFoundError(f"Path to agn_counts.cgi cannot be None!")
-            file_names = create_agn_sources(instrument_name=instrument_name,
-                                            emin=emin,
+
+            agn_counts_file: Path = img_settings["agn_counts_file"]
+
+            if not agn_counts_file.exists():
+                raise FileNotFoundError(f"agn_counts_file at {agn_counts_file.resolve()} does not exist!")
+
+            file_names = create_agn_sources(emin=emin,
                                             emax=emax,
                                             run_dir=run_dir,
                                             agn_counts_file=img_settings["agn_counts_file"],
@@ -243,8 +207,7 @@ def simput_generate(
                                             verbose=verbose)
 
         if mode == "img":
-            file_names = simput_image(instrument_name=instrument_name,
-                                      emin=emin,
+            file_names = simput_image(emin=emin,
                                       emax=emax,
                                       run_dir=run_dir,
                                       img_settings=img_settings,
@@ -252,29 +215,23 @@ def simput_generate(
 
         if mode == "background":
             if img_settings["spectrum_file"] is None:
-                raise FileNotFoundError(f"Path to pnttfg_spectrum.ds cannot be None!")
-            file_names = create_background(instrument_name=instrument_name,
+                raise FileNotFoundError(f"Path to the spectrum file cannot be None!")
+
+            spectrum_file: Path = img_settings["spectrum_file"]
+
+            if not spectrum_file.exists():
+                raise FileNotFoundError(f"Spectrum file at {spectrum_file.resolve()} does not exist!")
+
+            file_names = create_background(instrument_name=img_settings["instrument_name"],
                                            emin=emin,
                                            emax=emax,
                                            run_dir=run_dir,
-                                           spectrum_file=img_settings["spectrum_file"],
+                                           spectrum_file=spectrum_file,
                                            num=img_settings["num"],
                                            verbose=verbose)
 
-        if mode == "exposure_map":
-            if img_settings["spectrum_file"] is None:
-                raise FileNotFoundError(f"Path to pnttfg_spectrum.ds cannot be None!")
-            file_names = create_exposure_map(instrument_name=instrument_name,
-                                             emin=emin,
-                                             emax=emax,
-                                             run_dir=run_dir,
-                                             spectrum_file=img_settings["spectrum_file"],
-                                             num=img_settings["num"],
-                                             verbose=verbose)
-
         if mode == "random":
-            file_names = create_random_sources(instrument_name=instrument_name,
-                                               emin=emin,
+            file_names = create_random_sources(emin=emin,
                                                emax=emax,
                                                run_dir=run_dir,
                                                num=img_settings["num"],
@@ -287,3 +244,4 @@ def simput_generate(
                 logger.warning(f"Simput file {compressed_file.resolve()} already exists, skipping.")
             else:
                 compress_gzip(in_file_path=file_name, out_file_path=compressed_file)
+            file_name.unlink(missing_ok=True)

@@ -39,3 +39,23 @@ def get_xmm_miscdata() -> Path:
         raise FileExistsError(f"Could not find any XMM_MISCDATA*.CCF in '{ccf_path.resolve()}'!")
     xmm_miscdata.sort()
     return xmm_miscdata[-1]
+
+
+def get_xrt_xareaef(
+        instrument_name: Literal["epn", "emos1", "emos2"]
+):
+    if instrument_name == "emos1":
+        telescope_num = 1
+    elif instrument_name == "emos2":
+        telescope_num = 2
+    elif instrument_name == "epn":
+        telescope_num = 3
+    else:
+        raise ValueError
+
+    ccf_path = get_ccf_path()
+    xrt_xareaef = list(ccf_path.glob(f"XRT{telescope_num}_XAREAEF*.CCF"))
+    if not xrt_xareaef:
+        raise FileExistsError(f"Could not find any XRT{telescope_num}_XAREAEF*.CCF in '{ccf_path.resolve()}'!")
+    xrt_xareaef.sort()
+    return xrt_xareaef[-1]

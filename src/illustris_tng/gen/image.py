@@ -31,8 +31,7 @@ def run(
     log_dir.mkdir(parents=True, exist_ok=True)
     log_level = "DEBUG" if env_cfg["debug"] else "INFO"
     log_file = log_dir / "01_download_files.log"
-    logger.add(f"{log_file}", enqueue=True,
-               format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level=log_level)
+    logger.add(f"{log_file}", enqueue=True, level=log_level)
     log_file.chmod(0o777)
 
     if not debug:

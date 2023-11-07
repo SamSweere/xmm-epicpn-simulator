@@ -1,5 +1,6 @@
 import json
 from argparse import ArgumentParser
+from functools import partial
 from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import Dict, Union
@@ -8,7 +9,7 @@ from loguru import logger
 
 from src.simput.utils import get_simputs
 from src.sixte.simulator import run_xmm_simulation
-from src.xmm.utils import create_psf_file, create_xml_files, get_psf_name
+from src.xmm.utils import create_psf_file, create_vinget_file, create_xml_files, get_psf_name
 from src.xmm_utils.multiprocessing import get_num_processes
 
 logger.remove()
@@ -31,8 +32,7 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_level = "DEBUG" if env_cfg["debug"] else "INFO"
     log_file = log_dir / "03_xmm_simulation.log"
-    logger.add(f"{log_file.resolve()}", enqueue=True,
-               format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}", level=log_level)
+    logger.add(f"{log_file.resolve()}", enqueue=True, level=log_level)
     log_file.chmod(0o777)
 
     debug = env_cfg["debug"]
@@ -54,18 +54,14 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
             res_mult_dir = instrument_dir / instrument_cfg["filter"] / f"{res_mult}x"
             res_mult_dir.mkdir(exist_ok=True, parents=True)
 
-    with Pool(len(instrument_cfg["instrument_names"])) as pool:
+    with Pool(len(instrument_names)) as pool:
+        mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
         logger.info("START\tCreating all PSF files.")
         for instrument_name in instrument_names:
-            instrument_dir = xml_dir / instrument_name
             for res_mult in res_mults:
-                psf_file = instrument_dir / get_psf_name(instrument_name, res_mult)
-                arguments = (psf_file, instrument_name, res_mult, instrument_cfg["energy_list"],
-                             instrument_cfg["theta_list"])
-                if debug:
-                    pool.apply(create_psf_file, arguments)
-                else:
-                    pool.apply_async(create_psf_file, arguments, error_callback=handle_error)
+                psf_name = get_psf_name(instrument_name, res_mult)
+                arguments = (xml_dir / instrument_name / psf_name, instrument_name, res_mult)
+                mp_apply(create_psf_file, arguments)
         pool.close()
         pool.join()
         logger.info("DONE\tPSF files have been created.")
@@ -89,15 +85,15 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
 
     with Pool(get_num_processes(mp_conf=mp_cfg)) as pool:
         for instrument_name in instrument_names:
-            simput_path = working_directory / "simput" / instrument_name
+            simput_path = working_directory / "simput"
 
             if not simput_path.exists():
                 raise NotADirectoryError(f"Simput directory '{simput_path.resolve()}' not found! "
                                          f"Please make sure that the simput files have been generated and that "
                                          f"the working directory is set correctly.")
 
-            mode_simput_files = get_simputs(simput_path=simput_path, mode_amount_dict=mode_amount_dict,
-                                            order=instrument_cfg["order"])
+            mode_simput_files = get_simputs(instrument_name=instrument_name, simput_path=simput_path,
+                                            mode_amount_dict=mode_amount_dict, order=instrument_cfg["order"])
             if "background" in mode_simput_files:
                 # Since we only have one background but want multiple simulations of it repeat it
                 mode_simput_files["background"] = mode_simput_files["background"] * mode_amount_dict["background"]
@@ -129,8 +125,8 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
                             pool.apply(run_xmm_simulation, simulation_args)
                         else:
                             pool.apply_async(run_xmm_simulation, simulation_args, error_callback=handle_error)
-            pool.close()
-            pool.join()
+        pool.close()
+        pool.join()
         logger.info("Done!")
 
 

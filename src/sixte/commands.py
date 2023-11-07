@@ -67,15 +67,20 @@ def simputfile(
         history: bool = True
 
 ) -> None:
-    xspec_file = "none" if xspec_file is None else f"XSPECFile={xspec_file.resolve()}"
-    ascii_file = "none" if ascii_file is None else f"ASCIIFile={ascii_file.resolve()}"
-    image_file = "none" if image_file is None else f"ImageFile={image_file.resolve()}"
     params = [f"Simput={simput.resolve()}", f"RA={ra}", f"DEC={dec}", f"Emin={emin}", f"srcFlux={src_flux}",
-              f"Emax={emax}", f"clobber={str(clobber).lower()}", xspec_file, ascii_file, image_file,
-              f"chatter={chatter}", f"history={str(history).lower()}"]
+              f"Emax={emax}", f"clobber={str(clobber).lower()}", f"chatter={chatter}",
+              f"history={str(history).lower()}"]
+
+    if xspec_file is not None:
+        params.append(f"XSPECFile={xspec_file.resolve()}")
+
+    if ascii_file is not None:
+        params.append(f"ASCIIFile={ascii_file.resolve()}")
+
+    if image_file is not None:
+        params.append(f"ImageFile={image_file.resolve()}")
 
     cmd = f"simputfile {' '.join(params)}"
-    cmd = cmd.replace("none ", "")
     run_command(cmd=cmd, verbose=True)
 
 

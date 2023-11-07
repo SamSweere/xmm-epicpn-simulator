@@ -1,7 +1,7 @@
 import random
 import shutil
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Literal, Optional
 
 from loguru import logger
 from xspec import Model, Xset
@@ -48,6 +48,7 @@ def _order(iterable: List, order: str) -> List:
 
 
 def get_simputs(
+        instrument_name: Optional[Literal["epn", "emos1", "emos2"]],
         simput_path: Path,
         mode_amount_dict: Dict[str, int],
         order='normal'
@@ -59,7 +60,10 @@ def get_simputs(
         if amount == 0:
             continue
 
-        mode_path = simput_path / mode
+        if mode == "background":
+            mode_path = simput_path / instrument_name / mode
+        else:
+            mode_path = simput_path / mode
         files = mode_path.glob("*.simput.gz")
 
         if amount == -1:
