@@ -125,7 +125,8 @@ def simput_image(
                                              offset_x=offset_x,
                                              offset_y=offset_y)
 
-        name = f"{img_path_in.stem}"
+        name = f"{img_path_in.stem}_p0_{emin}ev_p1_{emax}ev_sb_{sigma_b}_zoom_{zoom}_offx_{offset_x}_offy_{offset_y}"
+        name = name.replace(".", "_")
         output_file_name = f"{name}.simput"
 
         output_file = run_dir / output_file_name
