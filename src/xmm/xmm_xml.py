@@ -5,6 +5,8 @@ import numpy as np
 from loguru import logger
 from lxml.etree import Element, SubElement, ElementTree
 
+from src.xmm.utils import get_psf_file, get_vignet_file
+
 
 def create_pn_xml(
         out_dir: Path,
@@ -51,8 +53,8 @@ def create_pn_xml(
         # Based on the pixel fov and the biggest axis
         SubElement(telescope, "focallength", value=f"{focallength}")
         SubElement(telescope, "fov", diameter=f"{fov}")
-        SubElement(telescope, "psf", filename=f"epn_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits")
-        SubElement(telescope, 'vignetting', filename="xmm_pn_vignet.fits")
+        SubElement(telescope, "psf", filename=f"{get_psf_file(out_dir, 'epn', res_mult).name}")
+        SubElement(telescope, 'vignetting', filename=f"{get_vignet_file(out_dir, 'epn')}")
         detector = SubElement(instrument, 'detector', type='EPIC-PN')
         SubElement(detector, 'dimensions', xwidth=f"{max_x}", ywidth=f"{max_y}")
         # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota
@@ -93,12 +95,12 @@ def create_pn_xml(
 
 
 def get_pn_xml(
+        xml_dir: Path,
         res_mult: int,
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool
 ) -> List[Path]:
-    # TODO Fix path
-    instrument_path = Path("/home") / "bojantodorkov" / "Projects" / "ESA" / "xml" / "epn"
+    instrument_path = xml_dir / "epn"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
     glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
@@ -170,7 +172,8 @@ def create_mos_xml(
         # Based on the pixel fov and the biggest axis
         SubElement(telescope, "focallength", value=f"{focallength}")
         SubElement(telescope, "fov", diameter=f"{fov}")
-        SubElement(telescope, "psf", filename=f"emos{emos_num}_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits")
+        SubElement(telescope, "psf", filename=f"{get_psf_file(out_dir, f'emos{emos_num}', res_mult)}")
+        SubElement(telescope, 'vignetting', filename=f"{get_vignet_file(out_dir, f'emos{emos_num}')}")
         detector = SubElement(instrument, 'detector', type=f'EPIC-MOS{emos_num}')
         SubElement(detector, 'dimensions', xwidth=f"{width}", ywidth=f"{height}")
         SubElement(detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}",
@@ -210,13 +213,13 @@ def create_mos_xml(
 
 
 def get_mos_xml(
+        xml_dir: Path,
         emos_num: Literal[1, 2],
         res_mult: int,
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool,
 ) -> List[Path]:
-    # TODO Fix path
-    instrument_path = Path("/home") / "bojantodorkov" / "Projects" / "ESA" / "xml" / f"emos{emos_num}"
+    instrument_path = xml_dir / f"emos{emos_num}"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
     glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"

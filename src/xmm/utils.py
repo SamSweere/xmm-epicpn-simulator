@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 from typing import List, Literal, Tuple
 
@@ -178,10 +179,10 @@ def get_instrument_files(
 
 
 def create_vinget_file(
-        out_dir: Path,
+        xml_dir: Path,
         instrument_name: Literal["epn", "emos1", "emos2"]
 ):
-    out_file = out_dir / get_vignet_name(instrument_name)
+    out_file = get_vignet_file(xml_dir=xml_dir.resolve(), instrument_name=instrument_name)
     xrt_xareaef = get_xrt_xareaef(instrument_name=instrument_name)
 
     with fits.open(name=xrt_xareaef, mode="readonly") as file:
@@ -260,33 +261,27 @@ def create_vinget_file(
 
 
 def create_psf_file(
-        out: Path,
+        xml_dir: Path,
         instrument_name: Literal["epn", "emos1", "emos2"],
-        # size: int,
         res_mult: int
-        # energy_list: List[int],
-        # theta_list: List[int]
 ) -> None:
+    out = get_psf_file(xml_dir=xml_dir.resolve(), instrument_name=instrument_name, res_mult=res_mult)
     inst_name_map = {
         "epn": "pn",
         "emos1": "mos1",
         "emos2": "mos2"
     }
-    # focal_length = get_focal_length(instrument_name)
-    # stretch_factor = 1.0 / res_mult
-
-    # cdelt = stretch_factor / 3600.0 / 180.0 * np.pi * focal_length
 
     instrument_files = get_instrument_files(instrument_name=instrument_name)
     psf_file = list(instrument_files.glob(f"*_{inst_name_map[instrument_name]}_psf.fits"))[0]
 
-    with fits.open(psf_file, mode="readonly") as hdu_list:
-        new_hdu_list = fits.HDUList()
-        for primary_hdu in hdu_list:
-            primary_hdu.header["CDELT1"] = primary_hdu.header["CDELT1"] / res_mult
-            primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT1"] / res_mult
-            new_hdu_list.append(primary_hdu)
-        new_hdu_list.writeto(out)
+    shutil.copy(src=psf_file, dst=out)
+
+    if res_mult != 1:
+        with fits.open(out, mode="update") as hdu_list:
+            for primary_hdu in hdu_list:
+                primary_hdu.header["CDELT1"] = primary_hdu.header["CDELT1"] / res_mult
+                primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT2"] / res_mult
 
 
 def create_xml_files(
@@ -311,60 +306,42 @@ def create_xml_files(
     instrument_dir.mkdir(exist_ok=True, parents=True)
     out_dir.mkdir(exist_ok=True, parents=True)
 
-    psf_name = get_psf_name(instrument_name, res_mult)
-    psf_file = instrument_dir / psf_name
+    vignet_file = get_vignet_file(xml_dir=xml_dir, instrument_name=instrument_name)
+    vignet_name = vignet_file.name
+    psf_file = get_psf_file(xml_dir=xml_dir, instrument_name=instrument_name, res_mult=res_mult)
+    psf_name = psf_file.name
+
+    prefix = f"{instrument_name[1:]}"
+    files = {
+        instrument_files / f"{prefix}-{xmm_filter}-10.rmf": out_dir / f"{prefix}-{xmm_filter}-10.rmf",
+        instrument_files / f"{prefix}-{xmm_filter}-10.arf": out_dir / f"{prefix}-{xmm_filter}-10.arf",
+        psf_file: out_dir / psf_name,
+        vignet_file: out_dir / vignet_name
+    }
+    # Add symbolic links
+    for src, dest in files.items():
+        dest.unlink(missing_ok=True)
+        dest.symlink_to(src)
 
     if instrument_name == "epn":
         from src.xmm.xmm_xml import create_pn_xml
-        # Add symbolic links to used instrument_files
-        files = ["xmm_pn_vignet.fits", f"pn-{xmm_filter}-10.rmf", f"pn-{xmm_filter}-10.arf"]
-        for file in files:
-            tmp_link = out_dir / file
-            tmp_link.unlink(missing_ok=True)
-            tmp_link.symlink_to(instrument_files / file)
-        # Add symbolic link to psf_file
-        tmp_link = out_dir / psf_name
-        tmp_link.unlink(missing_ok=True)
-        tmp_link.symlink_to(psf_file)
-
         return create_pn_xml(out_dir=out_dir, res_mult=res_mult, xmm_filter=xmm_filter,
                              sim_separate_ccds=sim_separate_ccds,
                              wait_time=wait_time)
 
     if instrument_name == "emos1":
         from src.xmm.xmm_xml import create_mos_xml
-        # Add symbolic links to used instrument_files
-        files = [f"mos1-{xmm_filter}-10.rmf", f"mos1-{xmm_filter}-10.arf"]
-        for file in files:
-            tmp_link = out_dir / file
-            tmp_link.unlink(missing_ok=True)
-            tmp_link.symlink_to(instrument_files / file)
-        # Add symbolic link to psf_file
-        tmp_link = out_dir / psf_name
-        tmp_link.unlink(missing_ok=True)
-        tmp_link.symlink_to(psf_file)
-
         return create_mos_xml(out_dir=out_dir, emos_num=1, res_mult=res_mult, xmm_filter=xmm_filter,
                               sim_separate_ccds=sim_separate_ccds, wait_time=wait_time)
 
     if instrument_name == "emos2":
         from src.xmm.xmm_xml import create_mos_xml
-        # Add symbolic links to used instrument_files
-        files = [f"mos2-{xmm_filter}-10.rmf", f"mos2-{xmm_filter}-10.arf"]
-        for file in files:
-            tmp_link = out_dir / file
-            tmp_link.unlink(missing_ok=True)
-            tmp_link.symlink_to(instrument_files / file)
-        # Add symbolic link to psf_file
-        tmp_link = out_dir / psf_name
-        tmp_link.unlink(missing_ok=True)
-        tmp_link.symlink_to(psf_file)
-
         return create_mos_xml(out_dir=out_dir, emos_num=2, res_mult=res_mult, xmm_filter=xmm_filter,
                               sim_separate_ccds=sim_separate_ccds, wait_time=wait_time)
 
 
 def get_xml_files(
+        xml_dir: Path,
         instrument_name: Literal["epn", "emos1", "emos2"],
         res_mult: int,
         xmm_filter: Literal["thin", "med", "thick"],
@@ -380,28 +357,30 @@ def get_xml_files(
 
     if instrument_name == "epn":
         from src.xmm.xmm_xml import get_pn_xml
-        return get_pn_xml(res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+        return get_pn_xml(xml_dir=xml_dir, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
 
     if instrument_name == "emos1":
         from src.xmm.xmm_xml import get_mos_xml
-        return get_mos_xml(emos_num=1, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+        return get_mos_xml(xml_dir=xml_dir, emos_num=1, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
 
     if instrument_name == "emos2":
         from src.xmm.xmm_xml import get_mos_xml
-        return get_mos_xml(emos_num=2, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+        return get_mos_xml(xml_dir=xml_dir, emos_num=2, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
 
 
-def get_psf_name(
+def get_psf_file(
+        xml_dir: Path,
         instrument_name: Literal["epn", "emos1", "emos2"],
         res_mult: int,
-) -> str:
-    return f"{instrument_name}_psf_{1.0 / res_mult}x_e_0.5_2.0_kev.fits"
+) -> Path:
+    return xml_dir / f"{instrument_name}_psf_{1.0 / res_mult}x.fits"
 
 
-def get_vignet_name(
+def get_vignet_file(
+        xml_dir: Path,
         instrument_name: Literal["epn", "emos1", "emos2"]
-) -> str:
-    return f"{instrument_name}_vignet.fits"
+) -> Path:
+    return xml_dir / f"{instrument_name}_vignet.fits"
 
 
 def add_ccdnr_and_xy(hdu, xmm, ccdnr):

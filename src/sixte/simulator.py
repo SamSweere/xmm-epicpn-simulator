@@ -18,6 +18,7 @@ def handle_error(error):
 
 
 def run_simulation(
+        xml_dir: Path,
         img_name,
         instrument_name: Literal["epn", "emos1", "emos2"],
         xmm_filter: Literal["thin", "med", "thick"],
@@ -32,8 +33,8 @@ def run_simulation(
         sim_separate_ccds: bool = False,
         verbose: bool = True
 ):
-    xml_paths = get_xml_files(instrument_name=instrument_name, res_mult=res_mult, xmm_filter=xmm_filter,
-                              sim_separate_ccds=sim_separate_ccds)
+    xml_paths = get_xml_files(xml_dir=xml_dir, instrument_name=instrument_name, res_mult=res_mult,
+                              xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
 
     if not xml_paths:
         raise FileNotFoundError(f"It looks like you have not created the corresponding XML files for instrument "
@@ -108,6 +109,7 @@ def run_simulation(
 
 
 def run_xmm_simulation(
+        xml_dir: Path,
         simput_file: Path,
         img_name: str,
         mode: str,
@@ -130,7 +132,8 @@ def run_xmm_simulation(
         # we have no empty run dir
 
         # Run the simulation
-        tmp_split_img_paths_exps = run_simulation(img_name=img_name,
+        tmp_split_img_paths_exps = run_simulation(xml_dir=xml_dir,
+                                                  img_name=img_name,
                                                   instrument_name=instrument_name,
                                                   xmm_filter=xmm_filter,
                                                   simput_path=simput_file,
