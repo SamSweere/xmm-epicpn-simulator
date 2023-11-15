@@ -54,7 +54,7 @@ def create_pn_xml(
         SubElement(telescope, "focallength", value=f"{focallength}")
         SubElement(telescope, "fov", diameter=f"{fov}")
         SubElement(telescope, "psf", filename=f"{get_psf_file(out_dir, 'epn', res_mult).name}")
-        SubElement(telescope, 'vignetting', filename=f"{get_vignet_file(out_dir, 'epn')}")
+        SubElement(telescope, 'vignetting', filename=f"{get_vignet_file(out_dir, 'epn').name}")
         detector = SubElement(instrument, 'detector', type='EPIC-PN')
         SubElement(detector, 'dimensions', xwidth=f"{max_x}", ywidth=f"{max_y}")
         # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota
@@ -172,8 +172,8 @@ def create_mos_xml(
         # Based on the pixel fov and the biggest axis
         SubElement(telescope, "focallength", value=f"{focallength}")
         SubElement(telescope, "fov", diameter=f"{fov}")
-        SubElement(telescope, "psf", filename=f"{get_psf_file(out_dir, f'emos{emos_num}', res_mult)}")
-        SubElement(telescope, 'vignetting', filename=f"{get_vignet_file(out_dir, f'emos{emos_num}')}")
+        SubElement(telescope, "psf", filename=f"{get_psf_file(out_dir, f'emos{emos_num}', res_mult).name}")
+        SubElement(telescope, 'vignetting', filename=f"{get_vignet_file(out_dir, f'emos{emos_num}').name}")
         detector = SubElement(instrument, 'detector', type=f'EPIC-MOS{emos_num}')
         SubElement(detector, 'dimensions', xwidth=f"{width}", ywidth=f"{height}")
         SubElement(detector, 'wcs', xrpix=f"{xrpix}", yrpix=f"{yrpix}",
