@@ -36,6 +36,12 @@ def get_num_processes(mp_conf: Dict[str, float]):
     return num_processes
 
 
+def get_pool(
+        mp_conf: Dict[str, float]
+) -> Pool:
+    return Pool(get_num_processes(mp_conf=mp_conf))
+
+
 def mp_run(func, argument_list, mp_conf: Dict[str, float]) -> None:
     logger.info(f"Running {func.__qualname__}. This may take some time...")
     start = datetime.now()

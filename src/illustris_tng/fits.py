@@ -74,4 +74,4 @@ def cutout_to_xray_fits(
         logger.info(f"DONE\tProcessing of {cutout} took {end - start}.")
 
     except Exception as e:
-        logger.exception(f" ERROR\tFailed to process {cutout.name} with errro: {e}")
+        logger.exception(f"ERROR\tFailed to process {cutout.name} with errro: {e}")
