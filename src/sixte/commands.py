@@ -1,8 +1,5 @@
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Literal, List, Union
-
-import heasoftpy as hsp
 
 from src.xmm_utils.external_run import run_command
 
@@ -31,8 +28,7 @@ def imgev(
               f"chatter={chatter}", f"clobber={str(clobber).lower()}", f"history={str(history).lower()}"]
 
     cmd = f"imgev {' '.join(params)}"
-    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
-        run_command(cmd=cmd, verbose=True)
+    run_command(cmd=cmd, verbose=True)
 
 
 def runsixt(
@@ -53,8 +49,7 @@ def runsixt(
               f"chatter={chatter}", f"clobber={str(clobber).lower()}", f"history={str(history).lower()}"]
 
     cmd = f"runsixt {' '.join(params)}"
-    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
-        run_command(cmd=cmd, verbose=True)
+    run_command(cmd=cmd, verbose=True)
 
 
 def simputfile(
@@ -86,8 +81,7 @@ def simputfile(
         params.append(f"ImageFile={image_file.resolve()}")
 
     cmd = f"simputfile {' '.join(params)}"
-    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
-        run_command(cmd=cmd, verbose=True)
+    run_command(cmd=cmd, verbose=True)
 
 
 def simputmerge(
@@ -104,5 +98,4 @@ def simputmerge(
               f"FetchExtension={'yes' if fetch_extension else 'no'}"]
 
     cmd = f"simputmerge {' '.join(params)}"
-    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
-        run_command(cmd=cmd, verbose=True)
+    run_command(cmd=cmd, verbose=True)
