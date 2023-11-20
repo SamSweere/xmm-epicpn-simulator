@@ -121,8 +121,8 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
                                     # and we can skip its generation
                                     if final_compressed_file_path.exists():
                                         continue
-                            simulation_args = (xml_dir.resolve(), file.resolve(), img_name, mode, sim_dir.resolve(),
-                                               xmm_filter_dir.resolve(), res_mult, max_exposure, instrument_name,
+                            simulation_args = (instrument_name, xml_dir.resolve(), file.resolve(), img_name, mode,
+                                               sim_dir.resolve(), xmm_filter_dir.resolve(), res_mult, max_exposure,
                                                xmm_filter, instrument_cfg["sim_separate_ccds"], debug,
                                                env_cfg["verbose"])
 
