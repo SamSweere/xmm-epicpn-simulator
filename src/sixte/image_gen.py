@@ -5,7 +5,10 @@ import heasoftpy as hsp
 from astropy.io import fits
 from loguru import logger
 
+from src.sixte.commands import with_local_pfiles
 
+
+@with_local_pfiles
 def merge_ccd_eventlists(
         infiles: List[Path],
         out_dir: Path,
@@ -19,8 +22,8 @@ def merge_ccd_eventlists(
         "outfile": f"{outfile.resolve()}",
         "clobber": "yes"
     }
-    with hsp.utils.local_pfiles_context():
-        hsp.ftmerge(params)
+
+    hsp.ftmerge(params)
 
     if verbose:
         logger.info(f"Successfully ran 'ftmerge' with params: {params}")

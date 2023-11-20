@@ -1,7 +1,7 @@
 import os
 import shutil
 from pathlib import Path
-from typing import List, Literal, Tuple
+from typing import List, Literal, Tuple, Callable, Any
 
 import numpy as np
 from astropy.io import fits
@@ -16,12 +16,20 @@ instrument_to_sixte_dir = {
 }
 
 
-def get_fov(
-        instrument_name: Literal["epn", "emos1", "emos2"]
-) -> float:
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+def check_instrument(function: Callable) -> Callable:
+    def inner(instrument_name: Literal["epn", "emos1", "emos2"], *args, **kwargs):
+        if instrument_name not in available_instruments:
+            raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
+        return function(instrument_name, *args, **kwargs)
+
+    return inner
+
+
+@check_instrument
+def get_fov(
+        instrument_name: str
+) -> float:
     if instrument_name == "epn":
         from src.xmm.epn import get_fov
         return get_fov()
@@ -35,13 +43,11 @@ def get_fov(
         return get_fov(2)
 
 
+@check_instrument
 def get_cdelt(
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int
 ) -> float:
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
     if instrument_name == "epn":
         from src.xmm.epn import get_cdelt
         return get_cdelt(res_mult)
@@ -55,13 +61,11 @@ def get_cdelt(
         return get_cdelt(2, res_mult)
 
 
+@check_instrument
 def get_pixel_size(
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int
 ) -> float:
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
     if instrument_name == "epn":
         from src.xmm.epn import get_pixel_size
         return get_pixel_size(res_mult)
@@ -75,13 +79,11 @@ def get_pixel_size(
         return get_pixel_size(2, res_mult)
 
 
+@check_instrument
 def get_surface(
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int
 ) -> float:
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
     if instrument_name == "epn":
         from src.xmm.epn import get_surface
         return get_surface(res_mult=res_mult)
@@ -95,17 +97,15 @@ def get_surface(
         return get_surface(emos_num=2, res_mult=res_mult)
 
 
+@check_instrument
 def get_width_height(
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int
 ) -> Tuple[int, int]:
     """
     Returns:
         Tuple[int, int]: The width and height of the instrument in pixels.
     """
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
     if instrument_name == "epn":
         from src.xmm.epn import get_max_xy
         return get_max_xy(res_mult=res_mult)
@@ -119,13 +119,11 @@ def get_width_height(
         return get_img_width_height(emos_num=2, res_mult=res_mult)
 
 
+@check_instrument
 def get_naxis12(
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int
 ) -> Tuple[int, int]:
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
     if instrument_name == "epn":
         from src.xmm.epn import get_naxis12
         return get_naxis12(res_mult=res_mult)
@@ -139,12 +137,10 @@ def get_naxis12(
         return get_naxis12(emos_num=2, res_mult=res_mult)
 
 
+@check_instrument
 def get_focal_length(
-        instrument_name: Literal["epn", "emos1", "emos2"]
+        instrument_name: str
 ) -> float:
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
     if instrument_name == "epn":
         from src.xmm.epn import get_focal_length
         return get_focal_length()
@@ -158,8 +154,9 @@ def get_focal_length(
         return get_focal_length(emos_num=2)
 
 
+@check_instrument
 def get_instrument_files(
-        instrument_name: Literal["epn", "emos1", "emos2"]
+        instrument_name: str
 ) -> Path:
     """
     Returns:
@@ -178,9 +175,10 @@ def get_instrument_files(
     return p
 
 
+@check_instrument
 def create_vinget_file(
         xml_dir: Path,
-        instrument_name: Literal["epn", "emos1", "emos2"]
+        instrument_name: str
 ):
     out_file = get_vignet_file(xml_dir=xml_dir.resolve(), instrument_name=instrument_name)
     xrt_xareaef = get_xrt_xareaef(instrument_name=instrument_name)
@@ -260,9 +258,10 @@ def create_vinget_file(
     hdul.writeto(out_file, overwrite=True)
 
 
+@check_instrument
 def create_psf_file(
         xml_dir: Path,
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int
 ) -> None:
     out = get_psf_file(xml_dir=xml_dir.resolve(), instrument_name=instrument_name, res_mult=res_mult)
@@ -284,9 +283,10 @@ def create_psf_file(
                 primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT2"] / res_mult
 
 
+@check_instrument
 def create_xml_files(
         xml_dir: Path,
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int,
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool,
@@ -297,9 +297,6 @@ def create_xml_files(
         List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list
             contains a single Path to /path/to/instrument/combined.xml
     """
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
     instrument_files = get_instrument_files(instrument_name=instrument_name)
     instrument_dir = xml_dir / instrument_name
     out_dir = instrument_dir / xmm_filter / f"{res_mult}x"
@@ -340,9 +337,10 @@ def create_xml_files(
                               sim_separate_ccds=sim_separate_ccds, wait_time=wait_time)
 
 
+@check_instrument
 def get_xml_files(
         xml_dir: Path,
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int,
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool
@@ -352,33 +350,35 @@ def get_xml_files(
         List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list
             contains a single Path to /path/to/instrument/combined.xml
     """
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
     if instrument_name == "epn":
         from src.xmm.xmm_xml import get_pn_xml
-        return get_pn_xml(xml_dir=xml_dir, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+        return get_pn_xml(xml_dir=xml_dir, res_mult=res_mult, xmm_filter=xmm_filter,
+                          sim_separate_ccds=sim_separate_ccds)
 
     if instrument_name == "emos1":
         from src.xmm.xmm_xml import get_mos_xml
-        return get_mos_xml(xml_dir=xml_dir, emos_num=1, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+        return get_mos_xml(xml_dir=xml_dir, emos_num=1, res_mult=res_mult, xmm_filter=xmm_filter,
+                           sim_separate_ccds=sim_separate_ccds)
 
     if instrument_name == "emos2":
         from src.xmm.xmm_xml import get_mos_xml
-        return get_mos_xml(xml_dir=xml_dir, emos_num=2, res_mult=res_mult, xmm_filter=xmm_filter, sim_separate_ccds=sim_separate_ccds)
+        return get_mos_xml(xml_dir=xml_dir, emos_num=2, res_mult=res_mult, xmm_filter=xmm_filter,
+                           sim_separate_ccds=sim_separate_ccds)
 
 
+@check_instrument
 def get_psf_file(
         xml_dir: Path,
-        instrument_name: Literal["epn", "emos1", "emos2"],
+        instrument_name: str,
         res_mult: int,
 ) -> Path:
     return xml_dir / f"{instrument_name}_psf_{1.0 / res_mult}x.fits"
 
 
+@check_instrument
 def get_vignet_file(
         xml_dir: Path,
-        instrument_name: Literal["epn", "emos1", "emos2"]
+        instrument_name: str
 ) -> Path:
     return xml_dir / f"{instrument_name}_vignet.fits"
 

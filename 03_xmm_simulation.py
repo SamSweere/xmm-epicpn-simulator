@@ -12,12 +12,10 @@ from src.simput.utils import get_simputs
 from src.sixte.simulator import run_xmm_simulation
 from src.xmm.utils import create_psf_file, create_vinget_file, create_xml_files
 from src.xmm_utils.multiprocessing import get_num_processes
+from src.xmm_utils.run_utils import configure_logger, handle_error
+from datetime import timedelta
 
 logger.remove()
-
-
-def handle_error(error):
-    logger.exception(error)
 
 
 def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
@@ -30,13 +28,11 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
     instrument_cfg = cfg["instrument"]
 
     log_dir = Path(env_cfg["log_directory"]).expanduser()
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_level = "DEBUG" if env_cfg["debug"] else "INFO"
-    log_file = log_dir / "03_xmm_simulation.log"
-    logger.add(f"{log_file.resolve()}", enqueue=True, level=log_level, retention=1)
-    log_file.chmod(0o777)
 
     debug = env_cfg["debug"]
+
+    configure_logger(log_dir=log_dir, log_name="03_xmm_simulation.log", enqueue=True, debug=debug,
+                     rotation=timedelta(hours=1))
 
     if not debug:
         logger.info(f"Since 'debug' is set to 'false' the simulation will be run asynchronously.")

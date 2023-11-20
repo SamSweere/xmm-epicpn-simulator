@@ -241,7 +241,7 @@ def simput_generate(
             # Compress the simput file and move it to the correct output dir
             compressed_file = output_dir / f"{file_name.name}.gz"
             if compressed_file.exists():
-                logger.warning(f"Simput file {compressed_file.resolve()} already exists, skipping.")
+                logger.warning(f"SIMPUT file {compressed_file.resolve()} already exists, skipping.")
             else:
                 compress_gzip(in_file_path=file_name, out_file_path=compressed_file)
             file_name.unlink(missing_ok=True)

@@ -1,5 +1,7 @@
+import os
 import random
 import shutil
+from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 from typing import List, Dict, Literal, Optional
 
@@ -14,8 +16,11 @@ def get_spectrumfile(run_dir: Path, norm=0.01, verbose=True):
     if not spectrum_file.exists():
         if verbose:
             logger.info(f"Spectrum file at {spectrum_file.resolve()} does not exist. Will create a new one.")
-        Model("phabs*power", setPars={1: 0.04, 2: 2.0, 3: norm})
-        Xset.save(f"{spectrum_file.resolve()}")
+
+        with open(os.devnull, "w") as devnull, redirect_stdout(devnull), redirect_stderr(devnull):
+            Model("phabs*power", setPars={1: 0.04, 2: 2.0, 3: norm})
+            Xset.save(f"{spectrum_file.resolve()}")
+
     return spectrum_file
 
 

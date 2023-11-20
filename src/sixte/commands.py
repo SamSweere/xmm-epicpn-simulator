@@ -1,9 +1,21 @@
 from pathlib import Path
-from typing import Literal, List, Union
+from tempfile import TemporaryDirectory
+from typing import Literal, List, Union, Callable
+
+import heasoftpy as hsp
 
 from src.xmm_utils.external_run import run_command
 
 
+def with_local_pfiles(function: Callable) -> Callable:
+    def inner(*args, **kwargs):
+        with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
+            return function(*args, **kwargs)
+
+    return inner
+
+
+@with_local_pfiles
 def imgev(
         evt_file: Path,
         image: Path,
@@ -31,6 +43,7 @@ def imgev(
     run_command(cmd=cmd, verbose=True)
 
 
+@with_local_pfiles
 def runsixt(
         raw_data: Path,
         evt_file: Path,
@@ -52,6 +65,7 @@ def runsixt(
     run_command(cmd=cmd, verbose=True)
 
 
+@with_local_pfiles
 def simputfile(
         simput: Path,
         ra: float = 0.0,
@@ -84,6 +98,7 @@ def simputfile(
     run_command(cmd=cmd, verbose=True)
 
 
+@with_local_pfiles
 def simputmerge(
         infiles: Union[List[Path], Path],
         outfile: Path,

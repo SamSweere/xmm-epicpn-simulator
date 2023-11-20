@@ -229,8 +229,3 @@ def get_mos_xml(
         xml_paths.clear()
 
     return xml_paths
-
-
-if __name__ == '__main__':
-    # create_pn_xml(1, "thin", True)
-    create_mos_xml(2, 1, "thin", True)

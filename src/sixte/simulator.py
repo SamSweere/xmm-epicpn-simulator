@@ -13,10 +13,6 @@ from src.xmm.utils import get_xml_files, get_naxis12, get_cdelt
 from src.xmm_utils.file_utils import compress_gzip
 
 
-def handle_error(error):
-    logger.exception(error)
-
-
 def run_simulation(
         xml_dir: Path,
         img_name,
