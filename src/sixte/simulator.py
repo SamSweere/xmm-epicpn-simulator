@@ -9,7 +9,7 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_xml_files, get_naxis12, get_cdelt, check_instrument
+from src.xmm.utils import get_xml_files, get_naxis12, get_cdelt, available_instruments
 from src.xmm_utils.file_utils import compress_gzip
 
 
@@ -104,7 +104,6 @@ def run_simulation(
     return split_img_paths_exps
 
 
-@check_instrument
 def run_xmm_simulation(
         instrument_name: Literal["epn", "emos1", "emos2"],
         xml_dir: Path,
@@ -120,6 +119,9 @@ def run_xmm_simulation(
         debug: bool = False,
         verbose: bool = True
 ):
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
     logger.info(f"Running simulations for {simput_file.resolve()}")
     with TemporaryDirectory(dir=tmp_dir) as tmp:
         run_dir = Path(tmp)

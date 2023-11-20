@@ -1,14 +1,12 @@
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import List
 
 import heasoftpy as hsp
 from astropy.io import fits
 from loguru import logger
 
-from src.sixte.commands import with_local_pfiles
 
-
-@with_local_pfiles
 def merge_ccd_eventlists(
         infiles: List[Path],
         out_dir: Path,
@@ -23,7 +21,8 @@ def merge_ccd_eventlists(
         "clobber": "yes"
     }
 
-    hsp.ftmerge(params)
+    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
+        hsp.ftmerge(params)
 
     if verbose:
         logger.info(f"Successfully ran 'ftmerge' with params: {params}")

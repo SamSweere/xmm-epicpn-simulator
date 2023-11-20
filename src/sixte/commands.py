@@ -1,21 +1,12 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Literal, List, Union, Callable
+from typing import Literal, List, Union
 
 import heasoftpy as hsp
 
 from src.xmm_utils.external_run import run_command
 
 
-def with_local_pfiles(function: Callable) -> Callable:
-    def inner(*args, **kwargs):
-        with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
-            return function(*args, **kwargs)
-
-    return inner
-
-
-@with_local_pfiles
 def imgev(
         evt_file: Path,
         image: Path,
@@ -40,10 +31,10 @@ def imgev(
               f"chatter={chatter}", f"clobber={str(clobber).lower()}", f"history={str(history).lower()}"]
 
     cmd = f"imgev {' '.join(params)}"
-    run_command(cmd=cmd, verbose=True)
+    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
+        run_command(cmd=cmd, verbose=True)
 
 
-@with_local_pfiles
 def runsixt(
         raw_data: Path,
         evt_file: Path,
@@ -62,10 +53,10 @@ def runsixt(
               f"chatter={chatter}", f"clobber={str(clobber).lower()}", f"history={str(history).lower()}"]
 
     cmd = f"runsixt {' '.join(params)}"
-    run_command(cmd=cmd, verbose=True)
+    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
+        run_command(cmd=cmd, verbose=True)
 
 
-@with_local_pfiles
 def simputfile(
         simput: Path,
         ra: float = 0.0,
@@ -95,10 +86,10 @@ def simputfile(
         params.append(f"ImageFile={image_file.resolve()}")
 
     cmd = f"simputfile {' '.join(params)}"
-    run_command(cmd=cmd, verbose=True)
+    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
+        run_command(cmd=cmd, verbose=True)
 
 
-@with_local_pfiles
 def simputmerge(
         infiles: Union[List[Path], Path],
         outfile: Path,
@@ -113,4 +104,5 @@ def simputmerge(
               f"FetchExtension={'yes' if fetch_extension else 'no'}"]
 
     cmd = f"simputmerge {' '.join(params)}"
-    run_command(cmd=cmd, verbose=True)
+    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
+        run_command(cmd=cmd, verbose=True)
