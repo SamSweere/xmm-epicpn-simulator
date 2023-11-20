@@ -1,7 +1,7 @@
 import os
 import shutil
 from pathlib import Path
-from typing import List, Literal, Tuple, Callable, Any
+from typing import List, Literal, Tuple, Callable
 
 import numpy as np
 from astropy.io import fits
@@ -177,8 +177,8 @@ def get_instrument_files(
 
 @check_instrument
 def create_vinget_file(
-        xml_dir: Path,
-        instrument_name: str
+        instrument_name: str,
+        xml_dir: Path
 ):
     out_file = get_vignet_file(xml_dir=xml_dir.resolve(), instrument_name=instrument_name)
     xrt_xareaef = get_xrt_xareaef(instrument_name=instrument_name)
@@ -260,8 +260,8 @@ def create_vinget_file(
 
 @check_instrument
 def create_psf_file(
-        xml_dir: Path,
         instrument_name: str,
+        xml_dir: Path,
         res_mult: int
 ) -> None:
     out = get_psf_file(xml_dir=xml_dir.resolve(), instrument_name=instrument_name, res_mult=res_mult)
@@ -285,8 +285,8 @@ def create_psf_file(
 
 @check_instrument
 def create_xml_files(
-        xml_dir: Path,
         instrument_name: str,
+        xml_dir: Path,
         res_mult: int,
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool,
@@ -339,8 +339,8 @@ def create_xml_files(
 
 @check_instrument
 def get_xml_files(
-        xml_dir: Path,
         instrument_name: str,
+        xml_dir: Path,
         res_mult: int,
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool
@@ -368,8 +368,8 @@ def get_xml_files(
 
 @check_instrument
 def get_psf_file(
-        xml_dir: Path,
         instrument_name: str,
+        xml_dir: Path,
         res_mult: int,
 ) -> Path:
     return xml_dir / f"{instrument_name}_psf_{1.0 / res_mult}x.fits"
@@ -377,8 +377,8 @@ def get_psf_file(
 
 @check_instrument
 def get_vignet_file(
-        xml_dir: Path,
-        instrument_name: str
+        instrument_name: str,
+        xml_dir: Path
 ) -> Path:
     return xml_dir / f"{instrument_name}_vignet.fits"
 
