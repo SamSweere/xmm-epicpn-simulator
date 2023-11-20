@@ -1,5 +1,6 @@
 import json
 from argparse import ArgumentParser
+from datetime import timedelta
 from functools import partial
 from multiprocessing.pool import Pool
 from pathlib import Path
@@ -13,7 +14,6 @@ from src.sixte.simulator import run_xmm_simulation
 from src.xmm.utils import create_psf_file, create_vinget_file, create_xml_files
 from src.xmm_utils.multiprocessing import get_num_processes
 from src.xmm_utils.run_utils import configure_logger, handle_error
-from datetime import timedelta
 
 logger.remove()
 
@@ -66,7 +66,7 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
             logger.info("START\tCreating all PSF files.")
             for instrument_name in instrument_names:
                 for res_mult in res_mults:
-                    arguments = (xml_dir, instrument_name, res_mult)
+                    arguments = (instrument_name, xml_dir, res_mult)
                     mp_apply(create_psf_file, arguments)
             pool.close()
             pool.join()
@@ -76,7 +76,7 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
             mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
             logger.info("START\tCreating all vignetting files.")
             for instrument_name in instrument_names:
-                arguments = (xml_dir, instrument_name)
+                arguments = (instrument_name, xml_dir)
                 mp_apply(create_vinget_file, arguments)
             pool.close()
             pool.join()
@@ -85,7 +85,7 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
         logger.info("START\tCreating all XML files.")
         for instrument_name in instrument_names:
             for res_mult in res_mults:
-                create_xml_files(xml_dir, instrument_name, res_mult, instrument_cfg["filter"],
+                create_xml_files(instrument_name, xml_dir, res_mult, instrument_cfg["filter"],
                                  instrument_cfg["sim_separate_ccds"], instrument_cfg["wait_time"])
         logger.info("DONE\tXML files have been created.")
 

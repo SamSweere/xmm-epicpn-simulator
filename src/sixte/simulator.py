@@ -9,7 +9,7 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_xml_files, get_naxis12, get_cdelt
+from src.xmm.utils import get_xml_files, get_naxis12, get_cdelt, check_instrument
 from src.xmm_utils.file_utils import compress_gzip
 
 
@@ -104,7 +104,9 @@ def run_simulation(
     return split_img_paths_exps
 
 
+@check_instrument
 def run_xmm_simulation(
+        instrument_name: Literal["epn", "emos1", "emos2"],
         xml_dir: Path,
         simput_file: Path,
         img_name: str,
@@ -113,7 +115,6 @@ def run_xmm_simulation(
         out_dir: Path,
         res_mult: int,
         exposure: int,
-        instrument_name: Literal["epn", "emos1", "emos2"],
         xmm_filter: Literal["thin", "med", "thick"],
         sim_separate_ccds: bool,
         debug: bool = False,
