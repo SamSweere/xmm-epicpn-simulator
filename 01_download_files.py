@@ -57,7 +57,7 @@ def run(
     subhalos = []
     for simulation in filtered_simulations:
         for snapshot_num in illustris_cfg['snapshot_nums']:
-            # request and inspect most massive tpo_n subhalos that are central (primary_flag = 1)
+            # request and inspect most massive top_n subhalos that are central (primary_flag = 1)
             # primary_flag = 1 indicates that this is the central (i.e. most massive, or "primary") subhalo of
             # this FoF halo.
             subhalos.extend(get_subhalos(api_key=api_key,

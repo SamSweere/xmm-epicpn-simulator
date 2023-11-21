@@ -6,8 +6,8 @@ from typing import List
 import requests
 from loguru import logger
 
-_cutout_request = {'gas': 'Coordinates,Density,ElectronAbundance,GFM_Metallicity,'
-                          'InternalEnergy,Masses,NeutralHydrogenAbundance,Velocities'}
+_cutout_request = {'gas': 'Coordinates,Density,ElectronAbundance,GFM_Metallicity,InternalEnergy,Masses,Velocities'}
+#                           'InternalEnergy,Masses,NeutralHydrogenAbundance,Velocities'}
 
 _reg_filename = "reg.json"
 # Matches urls like 'http://www.tng-project.org/api/TNG300-1/snapshots/99/subhalos/538308/cutout.hdf5'
@@ -89,10 +89,11 @@ def get_cutouts(
         cutout_file = cutout_datafolder / f"{filename}.hdf5"
 
         if not cutout_file.exists():
-            r = requests.get(cutout_url, headers={"api-key": api_key}, params=_cutout_request)
-            r.raise_for_status()
-            with open(cutout_file, "wb") as file:
-                file.write(r.content)
+            with requests.get(cutout_url, headers={"api-key": api_key}, params=_cutout_request, stream=True) as r:
+                r.raise_for_status()
+                with open(cutout_file, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=int(1e6)):
+                        f.write(chunk)
 
         cutout_dict = {
             "file": f"{cutout_file.resolve()}",
