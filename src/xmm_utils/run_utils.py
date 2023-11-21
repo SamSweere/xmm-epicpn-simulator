@@ -10,11 +10,12 @@ def configure_logger(
         log_name: str,
         enqueue: bool,
         debug: bool,
+        retention: int,
         rotation: timedelta
 ):
     log_level = "DEBUG" if debug else "INFO"
     log_file = log_dir / log_name
-    logger.add(log_file.resolve(), enqueue=enqueue, level=log_level, rotation=rotation)
+    logger.add(log_file.resolve(), enqueue=enqueue, level=log_level, rotation=rotation, retention=retention)
     log_file.chmod(0o777)
 
 

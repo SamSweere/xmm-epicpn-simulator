@@ -41,7 +41,7 @@ def run(
     create_dirs([log_dir, working_dir, cutout_dir, dataset_dir])
 
     configure_logger(log_dir=log_dir, log_name="01_download_files.log", enqueue=True, debug=debug,
-                     rotation=timedelta(hours=1))
+                     rotation=timedelta(hours=1), retention=2)
 
     if not debug:
         logger.info(f"Since 'debug' is set to 'false' the download will be run asynchronously.")
@@ -57,7 +57,7 @@ def run(
     subhalos = []
     for simulation in filtered_simulations:
         for snapshot_num in illustris_cfg['snapshot_nums']:
-            # request and inspect most massive 100 subhalos that are central (primary_flag = 1)
+            # request and inspect most massive tpo_n subhalos that are central (primary_flag = 1)
             # primary_flag = 1 indicates that this is the central (i.e. most massive, or "primary") subhalo of
             # this FoF halo.
             subhalos.extend(get_subhalos(api_key=api_key,
@@ -69,9 +69,10 @@ def run(
     with get_pool(mp_conf=mp_cfg) as pool:
         mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
         logger.info("START\tDownloading/getting already downloaded cutouts.")
+        apply_results = []
         for subhalo in subhalos:
             arguments = (subhalo, api_key, cutout_dir, env_cfg["fail_on_error"])
-            mp_apply(get_cutouts, arguments)
+            apply_results.append(mp_apply(get_cutouts, arguments))
 
         pool.close()
         pool.join()
@@ -80,18 +81,24 @@ def run(
     with get_pool(mp_conf=mp_cfg) as pool:
         mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
         logger.info("START\tGenerating FITS from cutouts.")
-        cutouts = cutout_dir.glob("*.hdf5")
-        for cutout_path in cutouts:
-            pos_x, pos_yz = cutout_path.stem.split("_x_")[1].split("_y_")
-            pos_y, pos_z = pos_yz.split("_z_")
+        for apply_result in apply_results:
+            cutout_dict = apply_result if isinstance(apply_result, dict) else apply_result.get()
+            cutout_path = Path(cutout_dict["file"])
+            pos_x = cutout_dict["x"]
+            pos_y = cutout_dict["y"]
+            pos_z = cutout_dict["z"]
+
             sub = {
                 "pos_x": float(pos_x),
                 "pos_y": float(pos_y),
                 "pos_z": float(pos_z)
             }
 
+            tng = cutout_path.name.split("_z_")[0]
+            width = illustris_cfg['width'][tng]
+
             arguments = (cutout_path, dataset_dir, sub, illustris_cfg['modes'], cloudy_emissivity_root,
-                         illustris_cfg['emin'], illustris_cfg['emax'], illustris_cfg['width'],
+                         illustris_cfg['emin'], illustris_cfg['emax'], width,
                          illustris_cfg['resolutions'], illustris_cfg['redshift'], illustris_cfg['overwrite'])
             mp_apply(cutout_to_xray_fits, arguments)
         pool.close()

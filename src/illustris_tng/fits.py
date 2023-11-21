@@ -18,13 +18,13 @@ def cutout_to_xray_fits(
         cloudy_emissivity_root: Path,
         emin=0.5,
         emax=2.0,
-        width: List[int] = None,
+        width: List[list] = None,
         resolution: List[int] = None,
         redshift=0.05,
         overwrite=False
 ):
     if width is None:
-        width = [1000]
+        width = [(1.0, "unitary")]
     if resolution is None:
         resolution = [2048]
     try:
@@ -39,12 +39,12 @@ def cutout_to_xray_fits(
 
             yt.add_xray_emissivity_field(ds, emin, emax, redshift, data_dir=cloudy_emissivity_root)
 
-            for mode, normals in mode_dict.items():
-                for normal in normals:
+            for mode, axes in mode_dict.items():
+                for axis in axes:
                     for w in width:
+                        w = tuple(w)
                         for r in resolution:
-                            normal_str = f"{normal[0]}_{normal[1]}_{normal[2]}" if mode == "proj" else normal
-                            filename = f"{cutout.name.replace('.hdf5', '')}_m_{mode}_r_{r}_w_{w}_n_{normal_str}"
+                            filename = f"{cutout.name.replace('.hdf5', '')}_m_{mode}_r_{r}_w_{w[0]}{w[1]}_n_{axis}"
 
                             fits_filename = filename + '.fits'
                             fits_path = output_dir / fits_filename
@@ -53,18 +53,17 @@ def cutout_to_xray_fits(
                             if fits_path.exists() and not overwrite:
                                 raise FileExistsError(f"{fits_path} already exists and `overwrite` is False")
                             if mode == "proj":
-                                yt_fits = yt.FITSOffAxisProjection(ds, normal=normal,
-                                                                   fields=('gas',
-                                                                           f'xray_photon_intensity_{emin}_{emax}_keV'),
-                                                                   center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
-                                                                   width=(w, "code_length"), image_res=r)
+                                yt_fits = yt.FITSProjection(ds, axis=axis,
+                                                            fields=('gas', f'xray_photon_intensity_{emin}_{emax}_keV'),
+                                                            center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
+                                                            width=w, image_res=r)
                             else:
-                                yt_fits = yt.FITSSlice(ds, axis=normal,
+                                yt_fits = yt.FITSSlice(ds, axis=axis,
                                                        fields=('gas', f'xray_photon_intensity_{emin}_{emax}_keV'),
                                                        center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
-                                                       width=(w, "code_length"), image_res=r)
+                                                       width=w, image_res=r)
 
-                            yt_fits.update_header(field="all", key="NORMAL", value=str(normal))
+                            yt_fits.update_header(field="all", key="AXIS", value=axis)
                             yt_fits.update_header(field="all", key="WIDTH", value=w)
                             yt_fits.update_header(field="all", key="REDSHIFT", value=redshift)
                             yt_fits.update_header(field="all", key="EMIN", value=emin)

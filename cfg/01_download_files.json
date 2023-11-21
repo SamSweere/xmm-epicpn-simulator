@@ -1,28 +1,31 @@
 {
   "multiprocessing": {
     "gb_per_process": 0.0,
-    "num_processes": 12
+    "num_processes": 2
   },
   "environment": {
-    "working_directory": "~/Projects/ESA",
-    "log_directory": "~/Projects/ESA/logs",
+    "working_directory": "/a/mm/data/ESA",
+    "log_directory": "/a/mm/logs",
     "debug": false,
     "fail_on_error": false
   },
   "illustris": {
-    "dataset_dir": "tng300_1_2_3_z99_2048",
-    "simulation_names": ["TNG300-1", "TNG300-2", "TNG300-3"],
-    "snapshot_nums": [99],
-    "top_n": 100,
+    "dataset_dir": "illustris_tng",
+    "simulation_names": ["TNG50-1", "TNG100-1", "TNG300-1"],
+    "snapshot_nums": [98],
+    "top_n": 400,
     "emin": 0.15,
     "emax": 15.0,
-    "redshift": 0.05,
+    "redshift": 0.01,
     "overwrite": false,
-    "width": [1000, 4000],
+    "width": {
+      "TNG50-1": [[100, "kpc"], [400, "kpc"]],
+      "TNG100-1": [[400, "kpc"], [1.6, "Mpc"]],
+      "TNG300-1": [[1, "Mpc"], [4, "Mpc"]]
+    },
     "resolutions": [2048],
     "modes": {
-      "proj": [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]],
-      "slice": ["x", "y", "z"]
+      "proj": ["x", "y", "z"]
     }
   }
 }

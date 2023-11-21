@@ -77,18 +77,31 @@ def get_cutouts(
         api_key: str,
         cutout_datafolder: Path,
         fail_on_error: bool = False
-) -> None:
+) -> dict:
     try:
         subhalo = get(subhalo_url, headers={"api-key": api_key})
         cutout_url = f"{subhalo_url}cutout.hdf5"
         filename = _handle_cutout_name(cutout_url=cutout_url)
-        cutout_file = cutout_datafolder / f"{filename}_x_{subhalo['pos_x']}_y_{subhalo['pos_y']}_z_{subhalo['pos_z']}.hdf5"
+        if "TNG" in filename:
+            sub_dir = filename.split("_z_")[0]
+            cutout_datafolder = cutout_datafolder / sub_dir
+            cutout_datafolder.mkdir(parents=True, exist_ok=True)
+        cutout_file = cutout_datafolder / f"{filename}.hdf5"
 
         if not cutout_file.exists():
             r = requests.get(cutout_url, headers={"api-key": api_key}, params=_cutout_request)
             r.raise_for_status()
             with open(cutout_file, "wb") as file:
                 file.write(r.content)
+
+        cutout_dict = {
+            "file": f"{cutout_file.resolve()}",
+            "x": subhalo["pos_x"],
+            "y": subhalo["pos_y"],
+            "z": subhalo["pos_z"]
+        }
+
+        return cutout_dict
 
     except Exception as e:
         if fail_on_error:
