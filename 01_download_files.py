@@ -2,6 +2,7 @@ import json
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 from functools import partial
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -66,7 +67,7 @@ def run(
                                          params={'limit': illustris_cfg['top_n'], 'primary_flag': 1,
                                                  'order_by': '-mass_gas'}))
 
-    with get_pool(mp_conf=mp_cfg) as pool:
+    with Pool(12) as pool:
         mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
         logger.info("START\tDownloading/getting already downloaded cutouts.")
         apply_results = []
@@ -83,6 +84,10 @@ def run(
         logger.info("START\tGenerating FITS from cutouts.")
         for apply_result in apply_results:
             cutout_dict = apply_result if isinstance(apply_result, dict) else apply_result.get()
+
+            if cutout_dict is None:
+                continue
+
             cutout_path = Path(cutout_dict["file"])
             pos_x = cutout_dict["x"]
             pos_y = cutout_dict["y"]
@@ -94,8 +99,7 @@ def run(
                 "pos_z": float(pos_z)
             }
 
-            tng = cutout_path.name.split("_z_")[0]
-            width = illustris_cfg['width'][tng]
+            width = illustris_cfg['width'][cutout_path.parts[-3]]
 
             arguments = (cutout_path, dataset_dir, sub, illustris_cfg['modes'], cloudy_emissivity_root,
                          illustris_cfg['emin'], illustris_cfg['emax'], width,

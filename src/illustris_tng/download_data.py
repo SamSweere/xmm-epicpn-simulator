@@ -1,30 +1,23 @@
 import re
-from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import requests
 from loguru import logger
 
 _cutout_request = {'gas': 'Coordinates,Density,ElectronAbundance,GFM_Metallicity,InternalEnergy,Masses,Velocities'}
-#                           'InternalEnergy,Masses,NeutralHydrogenAbundance,Velocities'}
 
-_reg_filename = "reg.json"
 # Matches urls like 'http://www.tng-project.org/api/TNG300-1/snapshots/99/subhalos/538308/cutout.hdf5'
 _regex = re.compile(r"http://www.tng-project.org/api/.*/snapshots/\d*/\w*/\d*/cutout.hdf5")
 
 
-def _handle_cutout_name(cutout_url: str) -> str:
+def _handle_cutout_name(cutout_url: str) -> Tuple[str, str, str]:
     # Create a unique filename, use the url as base if possible
     if _regex.match(cutout_url):
         parts = cutout_url.split('/')[-6:-1]
-        return f"{parts[0]}_z_{parts[2]}_{parts[3]}_{parts[4]}"  # Skips "snapshot"
+        return parts[0], parts[2], f"{parts[3]}_{parts[4]}"
     else:
-        # The url is not the right format, use the datetime timestamp as name
-        d = datetime.utcnow()
-        epoch = datetime(1970, 1, 1)
-        t = f"{(d - epoch).total_seconds()}"
-        return f"{t.replace('.', '')}"
+        raise ValueError
 
 
 def get_available_simulations(
@@ -82,10 +75,9 @@ def get_cutouts(
         subhalo = get(subhalo_url, headers={"api-key": api_key})
         cutout_url = f"{subhalo_url}cutout.hdf5"
         filename = _handle_cutout_name(cutout_url=cutout_url)
-        if "TNG" in filename:
-            sub_dir = filename.split("_z_")[0]
-            cutout_datafolder = cutout_datafolder / sub_dir
-            cutout_datafolder.mkdir(parents=True, exist_ok=True)
+        cutout_datafolder = cutout_datafolder / filename[0] / filename[1]
+        cutout_datafolder.mkdir(parents=True, exist_ok=True)
+        filename = filename[2]
         cutout_file = cutout_datafolder / f"{filename}.hdf5"
 
         if not cutout_file.exists():
