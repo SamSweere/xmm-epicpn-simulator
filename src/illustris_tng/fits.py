@@ -28,6 +28,9 @@ def cutout_to_xray_fits(
     if resolution is None:
         resolution = [2048]
     try:
+        fits_filename_prefix = cutout.name[-5]  # Remove '.hdf5'
+        output_dir = output_dir / cutout.parts[-3] / cutout.parts[-2]  # Save in output_dir / TNG set / snapshot num
+        output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Processing cutout: {cutout.resolve()}. Arguments: mode={mode_dict}; emin={emin}; emax={emax}; "
                     f"width={width}; resolution={resolution}; redshift={redshift}; overwrite={overwrite}; "
                     f"output_dir={output_dir}; cutout_datafolder={cutout.parent}")
@@ -44,9 +47,8 @@ def cutout_to_xray_fits(
                     for w in width:
                         w = tuple(w)
                         for r in resolution:
-                            filename = f"{cutout.name.replace('.hdf5', '')}_m_{mode}_r_{r}_w_{w[0]}{w[1]}_n_{axis}"
-
-                            fits_filename = filename + '.fits'
+                            fits_filename_suffix = f"_m_{mode}_r_{r}_w_{w[0]}{w[1]}_n_{axis}"
+                            fits_filename = f"{fits_filename_prefix}{fits_filename_suffix}.fits"
                             fits_path = output_dir / fits_filename
                             fits_path = fits_path.resolve()
 
