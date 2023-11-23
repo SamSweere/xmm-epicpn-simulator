@@ -5,9 +5,10 @@ from typing import List
 
 from loguru import logger
 
+os.umask(0)
+
 
 def opener(file, flags):
-    os.umask(0)
     return os.open(file, flags, 0o777)
 
 
