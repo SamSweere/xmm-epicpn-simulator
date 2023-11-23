@@ -7,6 +7,7 @@ from loguru import logger
 
 
 def opener(file, flags):
+    os.umask(0)
     return os.open(file, flags, 0o777)
 
 
