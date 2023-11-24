@@ -5,11 +5,11 @@ from typing import List
 
 from loguru import logger
 
-os.umask(0)
-
 
 def opener(file, flags):
-    return os.open(file, flags, 0o777)
+    fd = os.open(file, flags)
+    os.chmod(fd, 0o777)
+    return fd
 
 
 def configure_logger(
