@@ -22,7 +22,7 @@ def configure_logger(
 ):
     log_level = "DEBUG" if debug else "INFO"
     log_file = log_dir / log_name
-    logger.add(log_file.resolve(), enqueue=enqueue, level=log_level, rotation=rotation, retention=retention,
+    logger.add(f"{log_file.resolve()}", enqueue=enqueue, level=log_level, rotation=rotation, retention=retention,
                opener=opener)
 
 
