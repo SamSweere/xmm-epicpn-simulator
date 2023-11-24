@@ -53,37 +53,30 @@ def cutout_to_xray_fits(
 
                         if fits_path.exists() and not overwrite:
                             raise FileExistsError(f"{fits_path} already exists and `overwrite` is False")
-                        if mode == "proj":
-                            try:
-                                yt_fits = yt.FITSProjection(ds, axis=axis,
-                                                            fields=('gas', f'xray_photon_intensity_{emin}_{emax}_keV'),
-                                                            center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
-                                                            width=w, image_res=r)
-                            except Exception as e1:
-                                try:
-                                    normal = []
-                                    if axis == "x":
-                                        normal = [1, 0, 0]
-                                    if axis == "y":
-                                        normal = [0, 1, 0]
-                                    if axis == "z":
-                                        normal = [0, 0, 1]
-                                    yt_fits = yt.FITSOffAxisProjection(ds, normal=normal,
-                                                                       fields=('gas',
-                                                                               f'xray_photon_intensity_{emin}_{emax}_keV'),
-                                                                       center=(sub['pos_x'],
-                                                                               sub['pos_y'],
-                                                                               sub['pos_z']),
-                                                                       width=w, image_res=r)
-                                except Exception as e2:
-                                    logger.exception(f"ERROR\tFailed to process {cutout.name} with errors:\n"
-                                                     f"{e1}\n"
-                                                     f"{e2}")
-                        else:
-                            yt_fits = yt.FITSSlice(ds, axis=axis,
-                                                   fields=('gas', f'xray_photon_intensity_{emin}_{emax}_keV'),
-                                                   center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
-                                                   width=w, image_res=r)
+                        try:
+                            if mode == "proj":
+                                normal = []
+                                if axis == "x":
+                                    normal = [1, 0, 0]
+                                if axis == "y":
+                                    normal = [0, 1, 0]
+                                if axis == "z":
+                                    normal = [0, 0, 1]
+                                yt_fits = yt.FITSOffAxisProjection(ds, normal=normal,
+                                                                   fields=('gas',
+                                                                           f'xray_photon_intensity_{emin}_{emax}_keV'),
+                                                                   center=(sub['pos_x'],
+                                                                           sub['pos_y'],
+                                                                           sub['pos_z']),
+                                                                   width=w, image_res=r)
+                            else:
+                                yt_fits = yt.FITSSlice(ds, axis=axis,
+                                                       fields=('gas', f'xray_photon_intensity_{emin}_{emax}_keV'),
+                                                       center=(sub['pos_x'], sub['pos_y'], sub['pos_z']),
+                                                       width=w, image_res=r)
+                        except Exception as e:
+                            logger.exception(f"ERROR\tFailed to process {cutout.name} with error:\n"
+                                             f"{e}")
 
                         yt_fits.update_header(field="all", key="AXIS", value=axis)
                         yt_fits.update_header(field="all", key="WIDTH", value=w)
