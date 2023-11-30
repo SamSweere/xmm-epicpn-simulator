@@ -77,6 +77,7 @@ RUN echo "export HOME=$HOME" >> $HOME/.bashrc && \
     echo "export SIXTE=$SIXTE" >> $HOME/.bashrc && \
     echo "export PATH=\"$MINICONDA/bin:$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl:\$PATH\"" >> $HOME/.bashrc && \
     echo "export SAS_DIR=$SAS_DIR/xmmsas_20230412_1735" >> $HOME/.bashrc && \
+    echo "export SAS_CCFPATH=$SAS_CCFPATH" >> $HOME/.bashrc && \
     echo "export SAS_CCF=$SAS_CCFPATH/ccf.cif" >> $HOME/.bashrc && \
     echo "export LD_LIBRARY_PATH=\"$MINICONDA/envs/xmm/lib:\$LD_LIBRARY_PATH\"" >> $HOME/.bashrc&& \
     echo "export HEADAS=`echo $HOME/heasoft-6.32.1/x*`" >> $HOME/.bashrc && \

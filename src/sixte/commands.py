@@ -44,11 +44,11 @@ def runsixt(
         clobber: bool = True,
         history: bool = True
 ) -> None:
-    params = [f"Rawdata={raw_data.resolve()}", f"EvtFile={evt_file.resolve()}", f"XMLFile={xml_file.resolve()}",
-              f"RA={ra}", f"DEC={dec}", f"rollangle={rollangle}", f"Simput={simput.resolve()}", f"Exposure={exposure}",
-              f"chatter={chatter}", f"clobber={str(clobber).lower()}", f"history={str(history).lower()}"]
+    params = (f"Rawdata={raw_data.resolve()} EvtFile={evt_file.resolve()} XMLFile={xml_file.resolve()} RA={ra} "
+              f"DEC={dec} rollangle={rollangle} Simput={simput.resolve()} Exposure={exposure} chatter={chatter} "
+              f"clobber={str(clobber).lower()} history={str(history).lower()}")
 
-    cmd = f"runsixt {' '.join(params)}"
+    cmd = f"runsixt {params}"
     run_command(cmd=cmd, verbose=True)
 
 

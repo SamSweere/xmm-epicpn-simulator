@@ -69,7 +69,7 @@ def get_simputs(
             mode_path = simput_path / instrument_name / mode
         else:
             mode_path = simput_path / mode
-        files = mode_path.glob("*.simput.gz")
+        files = mode_path.rglob("*.simput.gz")
 
         if amount == -1:
             # Do all

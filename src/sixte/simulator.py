@@ -44,15 +44,17 @@ def run_simulation(
                          ra=ra, dec=dec, rollangle=rollangle, simput=simput_path, exposure=exposure)
         evt_filepaths.append(evt_filepath)
 
-    if len(evt_filepaths) > 1:
-        # Merge all the ccd.py eventlists into one eventlist
-        evt_filepath = merge_ccd_eventlists(infiles=evt_filepaths, out_dir=run_dir, verbose=verbose)
-    else:
-        evt_filepath = evt_filepaths[0]
+    # Merge all the ccd.py eventlists into one eventlist
+    merged = merge_ccd_eventlists(infiles=evt_filepaths, out_dir=run_dir, verbose=verbose)
+
+    for evt_filepath in evt_filepaths:
+        evt_filepath.unlink()
 
     # split the eventlist
-    split_exposure_evt_files = split_eventlist(run_dir=run_dir, eventlist_path=evt_filepath, multiples=10000,
+    split_exposure_evt_files = split_eventlist(run_dir=run_dir, eventlist_path=merged, multiples=10000,
                                                verbose=verbose)
+
+    merged.unlink()
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
     naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
@@ -69,7 +71,7 @@ def run_simulation(
 
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
-        split_evt_file = split_dict['outfile']
+        split_evt_file: Path = split_dict['outfile']
         split_name = split_dict['base_name']
         t_start = split_dict['t_start']
         t_stop = split_dict['t_stop']
@@ -83,6 +85,8 @@ def run_simulation(
         commands.imgev(evt_file=split_evt_file, image=final_img_path, coordinate_system=0, cunit1="deg", cunit2="deg",
                        naxis1=naxis1, naxis2=naxis2, crval1=dec, crval2=ra, crpix1=crpix1, crpix2=crpix2, cdelt1=cdelt1,
                        cdelt2=cdelt2)
+
+        split_evt_file.unlink()
 
         split_img_paths_exps.append((final_img_path, split_exposure))
 
@@ -143,10 +147,17 @@ def run_xmm_simulation(
                                                   verbose=verbose)
 
         for i, p in enumerate(tmp_split_img_paths_exps):
-            file_path = p[0]
+            file_path: Path = p[0]
             split_exp = p[1]
 
-            final_img_directory = out_dir / f"{round(split_exp / 1000)}ks" / mode / f"{res_mult}x"
+            final_img_directory = out_dir / f"{round(split_exp / 1000)}ks" / mode
+
+            if mode == "img":
+                tng_name = simput_file.parts[-3]
+                snapshot_num = simput_file.parts[-2]
+                final_img_directory = final_img_directory / tng_name / snapshot_num
+
+            final_img_directory = final_img_directory / f"{res_mult}x"
             final_img_directory.mkdir(parents=True, exist_ok=True)
 
             if mode == "background":
@@ -163,3 +174,4 @@ def run_xmm_simulation(
                 file_path = new_bg_path
             final_compressed_file_path = final_img_directory / f"{file_path.name}.gz"
             compress_gzip(in_file_path=file_path, out_file_path=final_compressed_file_path)
+            file_path.unlink()

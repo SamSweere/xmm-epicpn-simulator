@@ -31,8 +31,9 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
 
     debug = env_cfg["debug"]
 
-    configure_logger(log_dir=log_dir, log_name="03_xmm_simulation.log", enqueue=True, debug=debug,
-                     rotation=timedelta(hours=1))
+    instrument_names = "_".join(instrument_cfg["instrument_names"])
+    configure_logger(log_dir=log_dir, log_name=f"03_xmm_simulation_{instrument_names}.log", enqueue=True, debug=debug,
+                     rotation=timedelta(hours=1), retention=2)
 
     if not debug:
         logger.info(f"Since 'debug' is set to 'false' the simulation will be run asynchronously.")
@@ -50,7 +51,7 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
     instrument_names = instrument_cfg["instrument_names"]
     res_mults = instrument_cfg["res_mults"]
 
-    with TemporaryDirectory(prefix="xml") as xml_dir, TemporaryDirectory(prefix="sim") as sim_dir:
+    with TemporaryDirectory(prefix="xml_") as xml_dir, TemporaryDirectory(prefix="sim_") as sim_dir:
         xml_dir = Path(xml_dir)
         sim_dir = Path(sim_dir)
 
@@ -111,9 +112,15 @@ def run(path_to_cfg: Union[Path, Dict[str, dict]]) -> None:
                     for mode, files in mode_simput_files.items():
                         res_dir = max_exp_dir / mode / res_str
                         for file in files:
+                            if mode == "img":
+                                tng_name = file.parts[-3]
+                                snapshot_num = file.parts[-2]
+                                check_dir = res_dir.parent / tng_name / snapshot_num / res_str
+                            else:
+                                check_dir = res_dir
                             img_name = f"{file.name.replace('.simput.gz', '')}_mult_{res_mult}"
                             final_compressed_img_name = f"{img_name}_{max_exp_str}_p_0-0.fits.gz"
-                            final_compressed_file_path = res_dir / final_compressed_img_name
+                            final_compressed_file_path = check_dir / final_compressed_img_name
                             if not debug:
                                 if mode != "background":
                                     # Check if the max exposure time already exists,

@@ -12,6 +12,9 @@ def merge_ccd_eventlists(
         out_dir: Path,
         verbose: bool = True
 ) -> Path:
+    if len(infiles) == 1:
+        return infiles[0]
+
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
     all_ccds = [f"{infile.resolve()}" for infile in infiles]
     outfile = out_dir / "merged.fits"
