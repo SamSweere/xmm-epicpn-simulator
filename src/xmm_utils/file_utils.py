@@ -7,48 +7,34 @@ from pathlib import Path
 
 # Level 5 is a good balance between speed and compression ratio for my usecase
 def compress_gzip(in_file_path, out_file_path, compresslevel=5):
-    with open(in_file_path, 'rb') as f_in:
-        with gzip.open(out_file_path, 'wb', compresslevel=compresslevel) as f_out:
+    with open(in_file_path, "rb") as f_in:
+        with gzip.open(out_file_path, "wb", compresslevel=compresslevel) as f_out:
             shutil.copyfileobj(f_in, f_out)
 
 
-def decompress_gzip(in_file_path: Path, out_file_dir: Path) -> Path:
-    out_file_path = out_file_dir / in_file_path.name[:-3]  # Remove the last three chars, which are .gz
-    with gzip.open(in_file_path, 'rb') as f_in:
-        with open(out_file_path, 'wb') as f_out:
-            shutil.copyfileobj(f_in, f_out)
-    return out_file_path
-
-
-def compress_targz(in_file_path, out_file_path):
+def compress_targz(in_file_path: Path, out_file_path: Path):
     with tarfile.open(out_file_path, "w:gz") as tar:
-        tar.add(in_file_path, arcname=os.path.basename(in_file_path))
+        tar.add(in_file_path)
 
 
-def decompress_targz(in_file_path, out_file_dir):
-    decompressed_file_paths = []
+def decompress_targz(in_file_path: Path, out_file_dir: Path):
+    out_file_dir.mkdir(parents=True, exist_ok=True)
     with tarfile.open(in_file_path, "r:gz") as tar:
-        def is_within_directory(directory, target):
 
-            abs_directory = os.path.abspath(directory)
-            abs_target = os.path.abspath(target)
+        def is_within_directory(directory: Path, target: Path):
+            abs_directory = directory.absolute()
+            abs_target = target.absolute()
 
-            prefix = os.path.commonprefix([abs_directory, abs_target])
+            prefix = Path(os.path.commonpath([abs_directory, abs_target]))
 
             return prefix == abs_directory
 
-        def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-
+        def safe_extract(tar: tarfile.TarFile, path: Path = Path(".")):
             for member in tar.getmembers():
-                member_path = os.path.join(path, member.name)
+                member_path = path / member.name
                 if not is_within_directory(path, member_path):
                     raise Exception("Attempted Path Traversal in Tar File")
 
-            tar.extractall(path, members, numeric_owner=numeric_owner)
+            tar.extractall(path)
 
         safe_extract(tar, path=out_file_dir)
-        for i in range(len(tar.members)):
-            name = tar.members[i].name
-            decompressed_file_paths.append(os.path.join(out_file_dir, name))
-
-    return decompressed_file_paths

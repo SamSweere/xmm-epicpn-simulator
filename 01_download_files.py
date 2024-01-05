@@ -2,124 +2,217 @@ import json
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 from functools import partial
-from multiprocessing import Pool
 from pathlib import Path
-from typing import Any, Dict, List
+import shutil
+from typing import Dict, List
 
 from loguru import logger
 
-from src.illustris_tng.download_data import get_available_simulations, get_cutouts, get_subhalos
+from src.illustris_tng.download_data import (
+    get_available_simulations,
+    get_cutouts,
+    get_subhalos,
+)
 from src.illustris_tng.fits import cutout_to_xray_fits
-from src.xmm_utils.multiprocessing import get_pool
-from src.xmm_utils.run_utils import configure_logger, create_dirs, handle_error
+from src.xmm_utils.multiprocessing import mp_run
+from src.xmm_utils.run_utils import configure_logger
+from src.xmm_utils.file_utils import compress_targz, decompress_targz
+from src.config import DownloadCfg, EnergySettings, EnvironmentCfg
+
 
 logger.remove()
 
 
-def run(
-        path_to_cfg: Path,
-        api_key: str,
-        cloudy_emissivity_root: Path
-):
+def run(path_to_cfg: Path, api_key: str, cloudy_emissivity_root: Path):
     starttime = datetime.now()
     with open(path_to_cfg, "r") as file:
         cfg: Dict[str, dict] = json.load(file)
-    env_cfg: Dict[str, Any] = cfg["environment"]
-    mp_cfg: Dict[str, Any] = cfg["multiprocessing"]
-    illustris_cfg: Dict[str, Any] = cfg["illustris"]
+    env_cfg = EnvironmentCfg(**cfg.pop("environment"))
 
-    debug = env_cfg["debug"]
+    download_cfg = DownloadCfg(
+        **cfg.pop("download"),
+        cutouts_path=env_cfg.working_dir / "cutouts",
+        cutouts_compressed=env_cfg.output_dir / "cutouts.tar.gz",
+        fits_path=env_cfg.working_dir / "fits",
+        fits_compressed=env_cfg.output_dir / "fits.tar.gz",
+    )
+    energies = EnergySettings(**cfg.pop("energy"))
 
-    for i, mode in enumerate(illustris_cfg["modes"].keys()):
-        if mode not in ("proj", "slice"):
-            raise ValueError(f"Expected either 'proj' or 'slice' at index {i} but got mode '{mode}'!")
+    del cfg
 
-    # Create all directories
-    log_dir = Path(env_cfg["log_directory"]).expanduser()
-    working_dir = Path(env_cfg["working_directory"]).expanduser()
-    cutout_dir = working_dir / "cutout_data"
-    dataset_dir = working_dir / illustris_cfg["dataset_dir"]
-    create_dirs([log_dir, working_dir, cutout_dir, dataset_dir])
+    configure_logger(
+        log_dir=env_cfg.log_dir,
+        log_name="01_download_files.log",
+        enqueue=True,
+        debug=env_cfg.debug,
+        verbose=env_cfg.verbose,
+        rotation=timedelta(hours=1),
+        retention=2,
+    )
 
-    configure_logger(log_dir=log_dir, log_name="01_download_files.log", enqueue=True, debug=debug,
-                     rotation=timedelta(hours=1), retention=2)
+    logger.info("START\tGetting simulations.")
+    simulations: List[str] = []
+    for simulation_name, simulation_url in get_available_simulations(api_key=api_key):
+        if simulation_name in download_cfg.simulations.keys():
+            simulations.append(simulation_url)
 
-    if not debug:
-        logger.info(f"Since 'debug' is set to 'false' the download will be run asynchronously.")
+    if not simulations:
+        raise ValueError(
+            f"No simulations found! Please check your config file ({path_to_cfg})."
+        )
 
-    simulations: List[dict] = get_available_simulations(api_key=api_key)
-    filtered_simulations: List[str] = []
-    for simulation in simulations:
-        if simulation["name"] in illustris_cfg["simulation_names"]:
-            filtered_simulations.append(simulation["url"])
-    logger.info(f"Found {len(filtered_simulations)} available simulations. "
-                f"({[sim for sim in filtered_simulations]})")
+    logger.info(
+        f"DONE\tFound {len(simulations)} available simulations. ({', '.join(simulations)})"
+    )
 
+    logger.info("START\tGetting subhalos.")
     subhalos = []
-    for simulation in filtered_simulations:
-        for snapshot_num in illustris_cfg['snapshot_nums']:
+    for url in simulations:
+        for snapshot_num in download_cfg.snapshots.keys():
             # request and inspect most massive top_n subhalos that are central (primary_flag = 1)
             # primary_flag = 1 indicates that this is the central (i.e. most massive, or "primary") subhalo of
             # this FoF halo.
-            subhalos.extend(get_subhalos(api_key=api_key,
-                                         simulation_url=simulation,
-                                         snapshot_num=snapshot_num,
-                                         params={'limit': illustris_cfg['top_n'], 'primary_flag': 1,
-                                                 'order_by': '-mass_gas'}))
+            # see https://www.tng-project.org/data/docs/specifications/#sec2a
+            urls = get_subhalos(
+                api_key=api_key,
+                simulation_url=url,
+                snapshot_num=snapshot_num,
+                params={
+                    "limit": download_cfg.top_n,
+                    "primary_flag": 1,
+                    "order_by": "-mass_gas",
+                },
+            )
+            for subhalo_url in urls:
+                subhalos.append(subhalo_url)
 
-    with Pool(12) as pool:
-        mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
-        logger.info("START\tDownloading/getting already downloaded cutouts.")
-        apply_results = []
-        for subhalo in subhalos:
-            arguments = (subhalo, api_key, cutout_dir, env_cfg["fail_on_error"])
-            apply_results.append(mp_apply(get_cutouts, arguments))
+    if not subhalos:
+        raise ValueError(
+            f"No subhalos found! Please check your config file ({path_to_cfg})."
+        )
 
-        pool.close()
-        pool.join()
-        logger.info("DONE\tDownloading/getting cutouts.")
+    logger.info(f"DONE\tGot {len(subhalos)} subhalos.")
 
-    with get_pool(mp_conf=mp_cfg) as pool:
-        mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
-        logger.info("START\tGenerating FITS from cutouts.")
-        for apply_result in apply_results:
-            cutout_dict = apply_result if isinstance(apply_result, dict) else apply_result.get()
+    logger.info("START\tDownloading/getting already downloaded cutouts.")
+    if download_cfg.cutouts_compressed.exists():
+        logger.info(
+            f"Found compressed cutouts in {download_cfg.cutouts_compressed.resolve()}. Decompressing..."
+        )
+        decompress_targz(
+            in_file_path=download_cfg.cutouts_compressed,
+            out_file_dir=download_cfg.cutouts_path,
+        )
 
-            if cutout_dict is None:
-                continue
+    to_run = partial(
+        get_cutouts,
+        api_key=api_key,
+        cutout_datafolder=download_cfg.cutouts_path,
+        fail_on_error=env_cfg.fail_on_error,
+        cutouts_compressed=download_cfg.cutouts_compressed,
+    )
 
-            cutout_path = Path(cutout_dict["file"])
-            pos_x = cutout_dict["x"]
-            pos_y = cutout_dict["y"]
-            pos_z = cutout_dict["z"]
+    kwds = ({"subhalo_url": subhalo} for subhalo in subhalos)
+    cutouts, duration = mp_run(to_run, kwds, download_cfg.num_processes, env_cfg.debug)
+    logger.info(f"DONE\tDownloading/getting cutouts. Duration: {duration}")
 
-            sub = {
-                "pos_x": float(pos_x),
-                "pos_y": float(pos_y),
-                "pos_z": float(pos_z)
-            }
+    if env_cfg.working_dir != env_cfg.output_dir:
+        logger.info(
+            f"Downloaded cutouts will be compressed and moved to {download_cfg.cutouts_compressed.resolve()}."
+            f"Existing file will be overwritten."
+        )
+        if download_cfg.cutouts_compressed.exists():
+            download_cfg.cutouts_compressed.unlink()
+        compress_targz(
+            in_file_path=download_cfg.cutouts_path,
+            out_file_path=download_cfg.cutouts_compressed,
+        )
 
-            width = illustris_cfg['width'][cutout_path.parts[-3]]
+    logger.info("START\tGenerating FITS from cutouts.")
+    if download_cfg.fits_compressed.exists():
+        logger.info(
+            f"Found compressed FITS in {download_cfg.fits_compressed.resolve()}. Decompressing..."
+        )
+        decompress_targz(
+            in_file_path=download_cfg.fits_compressed,
+            out_file_dir=download_cfg.fits_path,
+        )
 
-            arguments = (cutout_path, dataset_dir, sub, illustris_cfg['modes'], cloudy_emissivity_root,
-                         illustris_cfg['emin'], illustris_cfg['emax'], width,
-                         illustris_cfg['resolutions'], illustris_cfg['redshift'], illustris_cfg['overwrite'])
-            mp_apply(cutout_to_xray_fits, arguments)
-        pool.close()
-        pool.join()
-        logger.info("DONE\tGeneration of FITS done.")
+    to_run = partial(
+        cutout_to_xray_fits,
+        output_dir=download_cfg.fits_path,
+        mode_dict=download_cfg.modes,
+        cloudy_emissivity_root=cloudy_emissivity_root,
+        emin=energies.emin,
+        emax=energies.emax,
+        resolutions=download_cfg.resolutions,
+        overwrite=env_cfg.overwrite,
+        fail_on_error=env_cfg.fail_on_error,
+        consume_data=env_cfg.consume_data,
+    )
+
+    logger.info(f"FITS images will be generated for {len(cutouts)} cutouts.")
+    kwds = (
+        {
+            "cutout": cutout["file"],
+            "sub": {
+                "pos_x": float(cutout["x"]),
+                "pos_y": float(cutout["y"]),
+                "pos_z": float(cutout["z"]),
+            },
+            "widths": download_cfg.simulations[cutout["file"].parts[-3]],
+            "redshift": download_cfg.snapshots[cutout["file"].parts[-2]],
+        }
+        for cutout in cutouts
+    )
+    _, duration = mp_run(to_run, kwds, download_cfg.num_processes, env_cfg.debug)
+    logger.info(f"DONE\tGenerating FITS from cutouts. Duration: {duration}")
+
+    if env_cfg.working_dir != env_cfg.output_dir:
+        logger.info(
+            f"Generated FITS will be compressed and moved to {download_cfg.fits_compressed.resolve()}."
+            f"Existing file will be overwritten."
+        )
+        if download_cfg.fits_compressed.exists():
+            download_cfg.fits_compressed.unlink()
+        compress_targz(
+            in_file_path=download_cfg.fits_path,
+            out_file_path=download_cfg.fits_compressed,
+        )
+
+        logger.info(
+            f"Deleting {download_cfg.cutouts_path.resolve()} and {download_cfg.fits_path.resolve()}."
+        )
+        shutil.rmtree(download_cfg.cutouts_path)
+        shutil.rmtree(download_cfg.fits_path)
+
     endtime = datetime.now()
     logger.info(f"Duration: {endtime - starttime}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = ArgumentParser(prog="", description="")
-    parser.add_argument("-k", "--api_key", type=str, required=True,
-                        help="IllustrisTNG API key. If you don't have one, create an account at "
-                             "https://www.tng-project.org/data/")
-    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
-    parser.add_argument("-c", "--cloudy_emissivity", type=Path, required=True,
-                        help="Path to root directory of cloudy_emissivity_v2.h5")
+    parser.add_argument(
+        "-k",
+        "--api_key",
+        type=str,
+        required=True,
+        help="IllustrisTNG API key. If you don't have one, create an account at "
+        "https://www.tng-project.org/data/",
+    )
+    parser.add_argument(
+        "-p", "--config_path", type=Path, required=True, help="Path to config file."
+    )
+    parser.add_argument(
+        "-c",
+        "--cloudy_emissivity",
+        type=Path,
+        required=True,
+        help="Path to root directory of cloudy_emissivity_v2.h5",
+    )
 
     args = parser.parse_args()
-    run(path_to_cfg=args.config_path, api_key=args.api_key, cloudy_emissivity_root=args.cloudy_emissivity)
+    run(
+        path_to_cfg=args.config_path,
+        api_key=args.api_key,
+        cloudy_emissivity_root=args.cloudy_emissivity,
+    )

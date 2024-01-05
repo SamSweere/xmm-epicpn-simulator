@@ -1,7 +1,7 @@
 # Added by me:
 *.fits
 .idea/
-illustris_tng/api_key.txt
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

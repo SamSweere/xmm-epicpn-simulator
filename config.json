@@ -1,0 +1,111 @@
+{
+  "environment": {
+    "working_dir": "~/Projects/ESA",
+    "output_dir": "~/Projects/ESA",
+    "log_dir": "~/Projects/ESA/logs",
+    "debug": false,
+    "verbose": false,
+    "fail_on_error": false,
+    "overwrite": true,
+    "consume_data": false
+  },
+  "energy": {
+    "emin": 0.15,
+    "emax": 15.0
+  },
+  "download": {
+    "num_processes": 4,
+    "top_n": 400,
+    "resolutions": [
+      2048
+    ],
+    "snapshots": {
+      "98": 0.01
+    },
+    "simulations": {
+      "TNG50-1": [
+        [
+          100,
+          "kpc"
+        ],
+        [
+          400,
+          "kpc"
+        ]
+      ],
+      "TNG100-1": [
+        [
+          400,
+          "kpc"
+        ],
+        [
+          1.6,
+          "Mpc"
+        ]
+      ],
+      "TNG300-1": [
+        [
+          1,
+          "Mpc"
+        ],
+        [
+          4,
+          "Mpc"
+        ]
+      ]
+    },
+    "modes": {
+      "proj": [
+        "x",
+        "y",
+        "z"
+      ],
+      "slice": []
+    }
+  },
+  "simput": {
+    "num_processes": 8,
+    "filter": "thin",
+    "zoom_range": [
+      1,
+      2
+    ],
+    "sigma_b_range": [
+      5,
+      50
+    ],
+    "offset_std": 0.05,
+    "num_img_sample": 5,
+    "modes": {
+      "img": -1,
+      "agn": 25000,
+      "background": 1
+    },
+    "instruments": [
+      "epn",
+      "emos1",
+      "emos2"
+    ]
+  },
+  "simulation": {
+    "instrument_names": [
+      "epn",
+      "emos1",
+      "emos2"
+    ],
+    "filter": "thin",
+    "res_mults": [
+      1,
+      2,
+      4
+    ],
+    "max_exposure": 100000,
+    "modes": {
+      "img": -1,
+      "agn": -1,
+      "background": 25000
+    },
+    "sim_separate_ccds": true,
+    "wait_time": 23.04e-6
+  }
+}

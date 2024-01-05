@@ -1,200 +1,299 @@
 import json
+import shutil
 from argparse import ArgumentParser
+from datetime import datetime, timedelta
 from functools import partial
-from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Dict, Optional, List
+from tempfile import TemporaryDirectory
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from loguru import logger
 
-from src.simput import constants
+from src.config import EnergySettings, EnvironmentCfg, SimputCfg
+from src.simput.agn import get_fluxes
 from src.simput.gen import simput_generate
-from src.xmm_utils.multiprocessing import get_num_processes
+from src.simput.utils import get_spectrumfile
+from src.xmm_utils.file_utils import compress_targz, decompress_targz
+from src.xmm_utils.run_utils import configure_logger
+from xmm_utils.multiprocessing import mp_run
 
 logger.remove()
 
 
-def handle_error(error):
-    logger.exception(error)
-
-
 def run(
-        path_to_cfg: Path,
-        agn_counts_file: Optional[Path],
-        spectrum_dir: Optional[Path]
+    path_to_cfg: Path, agn_counts_file: Optional[Path], spectrum_dir: Optional[Path]
 ) -> None:
+    starttime = datetime.now()
     with open(path_to_cfg, "r") as f:
         cfg: Dict[str, dict] = json.load(f)
-    env_cfg = cfg["environment"]
-    mp_cfg = cfg["multiprocessing"]
-    simput_cfg = cfg["simput"]
+    env_cfg = EnvironmentCfg(**cfg.pop("environment"))
+    simput_cfg = SimputCfg(
+        **cfg.pop("simput"),
+        simput_dir=env_cfg.working_dir / "simput",
+        fits_dir=env_cfg.working_dir / "fits",
+        fits_compressed=env_cfg.output_dir / "fits.tar.gz",
+    )
+    energies = EnergySettings(**cfg.pop("energy"))
 
-    log_dir = Path(env_cfg["log_directory"]).expanduser()
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_level = "DEBUG" if env_cfg["debug"] else "INFO"
-    log_file = log_dir / "02_generate_simput.log"
-    logger.add(f"{log_file.resolve()}", enqueue=True, level=log_level)
-    log_file.chmod(0o777)
+    del cfg
 
-    working_directory = Path(env_cfg["working_directory"]).expanduser()
+    configure_logger(
+        log_dir=env_cfg.log_dir,
+        log_name="02_generate_simput.log",
+        enqueue=True,
+        debug=env_cfg.debug,
+        verbose=env_cfg.verbose,
+        rotation=timedelta(hours=1),
+        retention=2,
+    )
 
-    tmp_dir = working_directory / "simput_tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix="simput_") as tmp_dir:
+        tmp_dir = Path(tmp_dir)
 
-    debug = env_cfg["debug"]
-    verbose = env_cfg["verbose"]
+        if simput_cfg.modes.img != 0:
+            logger.info(f"START\tGenerating SIMPUT for mode 'img'...")
+            img_path = simput_cfg.simput_dir / "img"
+            img_path.mkdir(parents=True, exist_ok=True)
 
-    if not debug:
-        logger.info(f"Since 'debug' is set to 'false' the generation will be run asynchronously.")
+            if simput_cfg.fits_compressed.exists():
+                logger.info(
+                    f"Found compressed FITS files in {simput_cfg.fits_compressed.resolve()}. Decompressing..."
+                )
+                decompress_targz(
+                    in_file_path=simput_cfg.fits_compressed,
+                    out_file_dir=simput_cfg.fits_dir,
+                )
 
-    simput_dir = working_directory / "simput"
-    simput_dir.mkdir(parents=True, exist_ok=True)
-    sim_in_dataset_dir = working_directory / simput_cfg["simput_in_image_dataset"]
+            to_create: List[Tuple[Path, int]] = []
+            rng = np.random.default_rng()
 
-    emin = simput_cfg["emin"]
-    emax = simput_cfg["emax"]
+            amount_img = simput_cfg.modes.img
+            for in_file in simput_cfg.fits_dir.rglob("*.fits"):
+                if amount_img > 0:
+                    amount_img = amount_img - 1
 
-    sample_num = simput_cfg["num_img_sample"]
-    zoom_range = simput_cfg["zoom_img_range"]
-    sigma_b_range = simput_cfg['sigma_b_img_range']
-    offset_std = simput_cfg['offset_std']
-    instrument_names = simput_cfg["instrument_names"]
-    xmm_filter = simput_cfg["filter"]
-    if xmm_filter == "thin":
-        xmm_filter = "t"
-    elif xmm_filter == "med":
-        xmm_filter = "m"
-    elif xmm_filter == "thick":
-        xmm_filter = "k"
-    else:
-        raise ValueError
+                tng_set, snapshot_num = in_file.parts[-2], in_file.parts[-1]
+                # Check how many files have already been generated and how many are left to generate
+                sample_num = simput_cfg.num_img_sample
+                for _ in (img_path / tng_set / snapshot_num).glob(f"{in_file.stem}*"):
+                    sample_num = sample_num - 1
+                    if sample_num == 0:
+                        break
 
-    mode_dict: Dict[str, int] = simput_cfg["mode"]
-    to_del: List[str] = []
-    # Check modes
-    for mode, num in mode_dict.items():
-        if mode not in constants.available_modes:
-            raise ValueError(f"Unknown mode '{mode}'! Available modes: {constants.available_modes}.")
+                # None are left to be generated => Skip
+                if sample_num == 0:
+                    logger.debug(f"Won't generate any images for {in_file.name}.")
+                    if env_cfg.consume_data:
+                        in_file.unlink()
+                    continue
 
-        if num < -1:
-            raise ValueError("num has to be >= -1")
+                logger.info(f"Will generate {sample_num} images for {in_file.name}.")
+                to_create.append((in_file, sample_num))
 
-        if num == 0:
-            to_del.append(mode)
+                if amount_img == 0:
+                    break
 
-    # Delete modes which have num == 0
-    for key in to_del:
-        del mode_dict[key]
-
-    with Pool(get_num_processes(mp_conf=mp_cfg)) as pool:
-        mp_apply = pool.apply if debug else partial(pool.apply_async, error_callback=handle_error)
-        for mode, num in mode_dict.items():
-            if mode == "img":
-                mode_dir = simput_dir / mode
-                mode_dir.mkdir(exist_ok=True, parents=True)
-                in_files = list(sim_in_dataset_dir.glob("*.fits"))
-                if not num == -1:
-                    in_files = in_files[:num]
-
-                rng = np.random.default_rng()
-
-                for in_file in in_files:
-                    generated_files = len(list(mode_dir.glob(f"{in_file.stem}*")))
-                    to_generate = sample_num - generated_files
-
-                    if to_generate <= 0:
-                        logger.info(f"Won't generate any images for {in_file.name}.")
-                        continue
-
-                    logger.info(f"Will generate {to_generate} images for {in_file.name}.")
-
-                    zoom = np.round(rng.uniform(low=zoom_range[0], high=zoom_range[1], size=to_generate), 2)
-                    sigma_b = np.round(rng.uniform(low=sigma_b_range[0], high=sigma_b_range[1], size=to_generate),
-                                       2)
-                    offset_x = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
-                    offset_y = np.round(rng.normal(loc=-offset_std, scale=offset_std, size=to_generate), 2)
-
-                    img_settings = {
+            kwds = (
+                {
+                    "img_settings": {
                         "img_path": in_file.resolve(),
-                        "zoom": zoom,
-                        "sigma_b": sigma_b,
-                        "offset_x": offset_x,
-                        "offset_y": offset_y
+                        "consume_data": env_cfg.consume_data,
+                        "zoom": np.round(
+                            rng.uniform(
+                                low=simput_cfg.zoom_range[0],
+                                high=simput_cfg.zoom_range[1],
+                                size=num,
+                            ),
+                            2,
+                        ),
+                        "sigma_b": np.round(
+                            rng.uniform(
+                                low=simput_cfg.sigma_b_range[0],
+                                high=simput_cfg.sigma_b_range[1],
+                                size=num,
+                            ),
+                            2,
+                        ),
+                        "offset_x": np.round(
+                            rng.normal(
+                                loc=-simput_cfg.offset_std,
+                                scale=simput_cfg.offset_std,
+                                size=num,
+                            ),
+                            2,
+                        ),
+                        "offset_y": np.round(
+                            rng.normal(
+                                loc=-simput_cfg.offset_std,
+                                scale=simput_cfg.offset_std,
+                                size=num,
+                            ),
+                            2,
+                        ),
                     }
+                }
+                for in_file, num in to_create
+            )
 
-                    arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
-                    mp_apply(simput_generate, arguments)
+            to_run = partial(
+                simput_generate,
+                emin=energies.emin,
+                emax=energies.emax,
+                mode="img",
+                tmp_dir=tmp_dir,
+                output_dir=img_path,
+            )
+            _, duration = mp_run(to_run, kwds, simput_cfg.num_processes, env_cfg.debug)
+            logger.info(f"DONE\tGenerating SIMPUT for mode 'img'. Duration: {duration}")
 
-            if mode == "background":
-                from src.xmm.utils import get_fov
-                for instrument_name in instrument_names:
-                    mode_dir = simput_dir / instrument_name / mode
-                    mode_dir.mkdir(exist_ok=True, parents=True)
+            if env_cfg.working_dir != env_cfg.output_dir:
+                img_compressed = env_cfg.output_dir / "simput" / "img.tar.gz"
+                img_compressed.parent.mkdir(parents=True, exist_ok=True)
+                logger.info(
+                    f"Compressing IMG SIMPUT files and moving them to {img_compressed.resolve()}."
+                    f"Existing file will be overwritten."
+                )
+                if img_compressed.exists():
+                    img_compressed.unlink()
+                compress_targz(in_file_path=img_path, out_file_path=img_compressed)
+                shutil.rmtree(img_path)
 
-                    mode_str = 'backgrounds' if mode == 'background' else 'exposure maps'
-                    if instrument_name == "epn":
-                        spectrum_name = f"pn{xmm_filter}ffg_spectrum.fits"
-                    elif instrument_name == "emos1":
-                        spectrum_name = f"m1{xmm_filter}ffg_spectrum.fits"
-                    elif instrument_name == "emos2":
-                        spectrum_name = f"m2{xmm_filter}ffg_spectrum.fits"
-                    else:
-                        raise ValueError
-                    spectrum_file = spectrum_dir / instrument_name / spectrum_name
+        if simput_cfg.modes.bkg:
+            from src.xmm.utils import get_fov
 
-                    fov = get_fov(instrument_name)
+            if spectrum_dir is None:
+                raise FileNotFoundError(f"{spectrum_dir} does not exist!")
 
-                    logger.info(f"Will generate {num} {mode_str}.")
-                    img_settings = {"spectrum_file": spectrum_file, "fov": fov, "instrument_name": instrument_name}
+            if not spectrum_dir.is_dir():
+                raise NotADirectoryError(f"{spectrum_dir} is not a directory!")
 
-                    arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
-                    if debug:
-                        img_settings["num"] = num
-                        mp_apply(simput_generate, arguments)
-                    else:
-                        img_settings["num"] = 1
-                        for _ in range(num):
-                            mp_apply(simput_generate, arguments)
-
-            if mode == "agn":
-                mode_dir = simput_dir / mode
+            logger.info(f"START\tGenerating SIMPUT for mode 'bkg'...")
+            bkg_path = simput_cfg.simput_dir / "bkg"
+            img_settings = []
+            for instrument_name in simput_cfg.instruments:
+                mode_dir = bkg_path / "bkg"
                 mode_dir.mkdir(exist_ok=True, parents=True)
-                logger.info(f"Will generate {num} AGNs.")
-                img_settings = {"agn_counts_file": agn_counts_file}
-                arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
-                if debug:
-                    img_settings["num"] = num
-                    mp_apply(simput_generate, arguments)
-                else:
-                    img_settings["num"] = 1
-                    for _ in range(num):
-                        mp_apply(simput_generate, arguments)
 
-            if mode == "random":
-                mode_dir = simput_dir / mode
-                mode_dir.mkdir(exist_ok=True, parents=True)
-                logger.info(f"Will generate {num} random sources.")
+                spectrum_name = f"{instrument_name[1]}{instrument_name[-1]}{simput_cfg.filter}ffg_spectrum.fits"
+                spectrum_file = spectrum_dir / instrument_name / spectrum_name
 
-                if debug:
-                    img_settings["num"] = num
-                    arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
-                    mp_apply(simput_generate, arguments)
-                else:
-                    img_settings["num"] = 1
-                    arguments = (emin, emax, mode, img_settings, tmp_dir, mode_dir, verbose)
-                    for _ in range(num):
-                        mp_apply(simput_generate, arguments)
-        pool.close()
-        pool.join()
-    logger.info("Done!")
+                if not spectrum_file.exists():
+                    raise FileNotFoundError(f"{spectrum_file} does not exist!")
+
+                if not spectrum_file.is_file():
+                    raise FileNotFoundError(f"{spectrum_file} is not a file!")
+
+                fov = get_fov(instrument_name)
+
+                img_settings.append(
+                    {
+                        "spectrum_file": spectrum_file,
+                        "fov": fov,
+                        "instrument_name": instrument_name,
+                        "output_dir": mode_dir,
+                    }
+                )
+
+            kwds = (
+                {
+                    "img_settings": img_setting,
+                    "output_dir": img_setting.pop("output_dir"),
+                }
+                for img_setting in img_settings
+            )
+
+            to_run = partial(
+                simput_generate,
+                emin=energies.emin,
+                emax=energies.emax,
+                mode="bkg",
+                tmp_dir=tmp_dir,
+            )
+            _, duration = mp_run(to_run, kwds, simput_cfg.num_processes, env_cfg.debug)
+            logger.info(f"DONE\tGenerating SIMPUT for mode 'bkg'. Duration: {duration}")
+
+            if env_cfg.working_dir != env_cfg.output_dir:
+                bkg_compressed = env_cfg.output_dir / "simput" / "bkg.tar.gz"
+                bkg_compressed.parent.mkdir(parents=True, exist_ok=True)
+                logger.info(
+                    f"Compressing BKG SIMPUT files and moving them to {bkg_compressed.resolve()}."
+                    f"Existing file will be overwritten."
+                )
+                if bkg_compressed.exists():
+                    bkg_compressed.unlink()
+                compress_targz(in_file_path=bkg_path, out_file_path=bkg_compressed)
+                shutil.rmtree(bkg_path)
+
+        if simput_cfg.modes.agn > 0:
+            if agn_counts_file is None:
+                raise FileNotFoundError(f"{agn_counts_file} does not exist!")
+
+            if not agn_counts_file.is_file():
+                raise FileNotFoundError(f"{agn_counts_file} is not a file!")
+
+            logger.info(f"START\tGenerating SIMPUT for mode 'agn'...")
+            agn_path = simput_cfg.simput_dir / "agn"
+            agn_path.mkdir(parents=True, exist_ok=True)
+
+            logger.info(f"Will generate {simput_cfg.modes.agn} AGNs.")
+            # Get the spectrum file
+            spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
+            # Get the fluxes from the agn distribution
+            fluxes = get_fluxes(agn_counts_file)
+            img_settings = {"spectrum_file": spectrum_file, "fluxes": fluxes}
+            if env_cfg.debug:
+                img_settings["num"] = simput_cfg.modes.agn
+                kwds = ({"img_settings": img_settings} for _ in range(1))
+            else:
+                img_settings["num"] = 1
+                kwds = (
+                    {"img_settings": img_settings} for _ in range(simput_cfg.modes.agn)
+                )
+
+            to_run = partial(
+                simput_generate,
+                emin=energies.emin,
+                emax=energies.emax,
+                mode="agn",
+                tmp_dir=tmp_dir,
+                output_dir=agn_path,
+            )
+            _, duration = mp_run(to_run, kwds, simput_cfg.num_processes, env_cfg.debug)
+            logger.info(f"DONE\tGenerating SIMPUT for mode 'agn'. Duration: {duration}")
+
+            if env_cfg.working_dir != env_cfg.output_dir:
+                agn_compressed = env_cfg.output_dir / "simput" / "agn.tar.gz"
+                agn_compressed.parent.mkdir(parents=True, exist_ok=True)
+                logger.info(
+                    f"Compressing AGN SIMPUT files and moving them to {agn_compressed.resolve()}."
+                    f"Existing file will be overwritten."
+                )
+                if agn_compressed.exists():
+                    agn_compressed.unlink()
+                compress_targz(in_file_path=agn_path, out_file_path=agn_compressed)
+                shutil.rmtree(agn_path)
+
+    endtime = datetime.now()
+    logger.info(f"Duration: {endtime - starttime}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = ArgumentParser(prog="", description="")
-    parser.add_argument("-a", "--agn_counts_file", type=Path, help="Path to agn_counts_cgi.")
-    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
-    parser.add_argument("-s", "--spectrum_dir", type=Path, help="Path to spectrum directory.")
+    parser.add_argument(
+        "-a", "--agn_counts_file", type=Path, help="Path to agn_counts_cgi."
+    )
+    parser.add_argument(
+        "-p", "--config_path", type=Path, required=True, help="Path to config file."
+    )
+    parser.add_argument(
+        "-s", "--spectrum_dir", type=Path, help="Path to spectrum directory."
+    )
 
     args = parser.parse_args()
-    run(path_to_cfg=args.config_path, agn_counts_file=args.agn_counts_file, spectrum_dir=args.spectrum_dir)
+
+    run(
+        path_to_cfg=args.config_path,
+        agn_counts_file=args.agn_counts_file,
+        spectrum_dir=args.spectrum_dir,
+    )

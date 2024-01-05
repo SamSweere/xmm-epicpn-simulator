@@ -12,16 +12,16 @@ from src.xmm.utils import get_fov
 
 
 def _prepare_fits_image(
-        run_dir: Path,
-        img_path: Path,
-        zoom: float = 3,
-        sigma_b: float = 10,
-        offset_x: float = 0,
-        offset_y: float = 0
+    run_dir: Path,
+    img_path: Path,
+    zoom: float = 3,
+    sigma_b: float = 10,
+    offset_x: float = 0,
+    offset_y: float = 0,
 ) -> Tuple[Path, float]:
     with fits.open(img_path) as hdu_in:
-        naxis1 = hdu_in[0].header['NAXIS1']
-        naxis2 = hdu_in[0].header['NAXIS2']
+        naxis1 = hdu_in[0].header["NAXIS1"]
+        naxis2 = hdu_in[0].header["NAXIS2"]
         data = hdu_in[0].data
 
     max_offset_x = (naxis1 / 3.0) * (1.0 - 1.0 / zoom)
@@ -46,7 +46,7 @@ def _prepare_fits_image(
         "CTYPE1": "RA---TAN",
         "CTYPE2": "DEC--TAN",
         "MTYPE1": "EQPOS",
-        "MFORM1": "RA,DEC"
+        "MFORM1": "RA,DEC",
     }
 
     header = fits.Header(header)
@@ -74,7 +74,7 @@ def _prepare_fits_image(
     sum_inner = np.sum(center_cutout)
     sum_all = np.sum(data)
     p_counts = sum_inner / sum_all
-    p_area = box_size_perc ** 2
+    p_area = box_size_perc**2
     scaling = p_area / p_counts
     # We ceil limit the scaling to max 1. Such that if in the unexpected event that the source is not centered
     # at the center the flux will not reach an extreme level and make the SIXTE simulation take an extreme amount of
@@ -103,27 +103,28 @@ def _prepare_fits_image(
 
 
 def simput_image(
-        emin: float,
-        emax: float,
-        run_dir: Path,
-        img_settings: dict,
-        verbose: bool = True
+    emin: float, emax: float, run_dir: Path, img_settings: dict
 ) -> List[Path]:
-    img_path_in: Path = img_settings['img_path']
-    zooms = img_settings['zoom']
-    sigmas_b = img_settings['sigma_b']
-    offsets_x = img_settings['offset_x']
-    offsets_y = img_settings['offset_y']
+    img_path_in: Path = img_settings["img_path"]
+    zooms = img_settings["zoom"]
+    sigmas_b = img_settings["sigma_b"]
+    offsets_x = img_settings["offset_x"]
+    offsets_y = img_settings["offset_y"]
 
     # Get the spectrum file
-    spectrum_file = get_spectrumfile(run_dir=run_dir, verbose=verbose)
+    spectrum_file = get_spectrumfile(run_dir=run_dir)
 
     output_files = []
 
     for zoom, sigma_b, offset_x, offset_y in zip(zooms, sigmas_b, offsets_x, offsets_y):
-        img_path, flux = _prepare_fits_image(run_dir, img_path_in, zoom=zoom, sigma_b=sigma_b,
-                                             offset_x=offset_x,
-                                             offset_y=offset_y)
+        img_path, flux = _prepare_fits_image(
+            run_dir,
+            img_path_in,
+            zoom=zoom,
+            sigma_b=sigma_b,
+            offset_x=offset_x,
+            offset_y=offset_y,
+        )
 
         name = f"{img_path_in.stem}_p0_{emin}ev_p1_{emax}ev_sb_{sigma_b}_zoom_{zoom}_offx_{offset_x}_offy_{offset_y}"
         name = name.replace(".", "_")
@@ -131,26 +132,44 @@ def simput_image(
 
         output_file = run_dir / output_file_name
 
-        commands.simputfile(simput=output_file, ra=0.0, dec=0.0, src_flux=flux, emin=emin, emax=emax,
-                            xspec_file=spectrum_file, image_file=img_path)
+        commands.simputfile(
+            simput=output_file,
+            ra=0.0,
+            dec=0.0,
+            src_flux=flux,
+            emin=emin,
+            emax=emax,
+            xspec_file=spectrum_file,
+            image_file=img_path,
+        )
 
         # Add specifics to the simput file
         with fits.open(output_file.resolve(), mode="update") as hdu:
-            primary_header = hdu['PRIMARY'].header
-            primary_header['INPUT'] = (img_path_in.name, "The image file used as input")
-            primary_header['ZOOM'] = (zoom, "The amount the image is enlarged")
-            primary_header['SIMGMA_B'] = (sigma_b, "Brightness based on the std of 50ks background.")
-            primary_header['FLUX'] = (flux, "The flux of the whole image.")
-            primary_header['OFFSET_X'] = (offset_x, "Percentage offset of x")
-            primary_header['OFFSET_Y'] = (offset_y, "Percentage offset of y")
-            primary_header['P0'] = (emin, "Emin")
-            primary_header['P1'] = (emax, "Emax")
+            primary_header = hdu["PRIMARY"].header
+            primary_header["INPUT"] = (img_path_in.name, "The image file used as input")
+            primary_header["ZOOM"] = (zoom, "The amount the image is enlarged")
+            primary_header["SIMGMA_B"] = (
+                sigma_b,
+                "Brightness based on the std of 50ks background.",
+            )
+            primary_header["FLUX"] = (flux, "The flux of the whole image.")
+            primary_header["OFFSET_X"] = (offset_x, "Percentage offset of x")
+            primary_header["OFFSET_Y"] = (offset_y, "Percentage offset of y")
+            primary_header["P0"] = (emin, "Emin")
+            primary_header["P1"] = (emax, "Emax")
 
-            primary_header['COMMENT'] = "The image is used as a distribution map for this flux."
-            primary_header['COMMENT'] = "All the calibration is done on 50ks."
-            primary_header['COMMENT'] = f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at " \
-                                        f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+            primary_header[
+                "COMMENT"
+            ] = "The image is used as a distribution map for this flux."
+            primary_header["COMMENT"] = "All the calibration is done on 50ks."
+            primary_header["COMMENT"] = (
+                f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at "
+                f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+            )
 
         output_files.append(output_file.resolve())
+
+    if img_settings["consume_data"]:
+        img_path_in.unlink()
 
     return output_files

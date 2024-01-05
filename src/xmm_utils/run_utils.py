@@ -1,37 +1,37 @@
 import os
 from datetime import timedelta
 from pathlib import Path
-from typing import List
 
 from loguru import logger
 
 
-def opener(file, flags):
+def _opener(file, flags):
     fd = os.open(file, flags)
     os.chmod(fd, 0o777)
     return fd
 
 
 def configure_logger(
-        log_dir: Path,
-        log_name: str,
-        enqueue: bool,
-        debug: bool,
-        retention: int,
-        rotation: timedelta
+    log_dir: Path,
+    log_name: str,
+    enqueue: bool,
+    debug: bool,
+    verbose: bool,
+    retention: int,
+    rotation: timedelta,
 ):
-    log_level = "DEBUG" if debug else "INFO"
+    if debug:
+        log_level = "DEBUG"
+    elif verbose:
+        log_level = "INFO"
+    else:
+        log_level = "SUCCESS"
     log_file = log_dir / log_name
-    logger.add(f"{log_file.resolve()}", enqueue=enqueue, level=log_level, rotation=rotation, retention=retention,
-               opener=opener)
-
-
-def handle_error(error):
-    logger.exception(error)
-
-
-def create_dirs(
-        list_of_paths: List[Path]
-) -> None:
-    for path in list_of_paths:
-        path.mkdir(parents=True, exist_ok=True)
+    logger.add(
+        f"{log_file.resolve()}",
+        enqueue=enqueue,
+        level=log_level,
+        rotation=rotation,
+        retention=retention,
+        opener=_opener,
+    )
