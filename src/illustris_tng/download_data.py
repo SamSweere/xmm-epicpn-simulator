@@ -65,9 +65,7 @@ def get_cutouts(
     api_key: str,
     cutout_datafolder: Path,
     fail_on_error: bool = False,
-    cutouts_compressed: Optional[Path] = None,
 ) -> Optional[dict]:
-    try:
         subhalo = get(subhalo_url, headers={"api-key": api_key})
         cutout_url = f"{subhalo_url}cutout.hdf5"
         filename = _handle_cutout_name(cutout_url=cutout_url)
@@ -77,16 +75,28 @@ def get_cutouts(
         cutout_file = cutout_datafolder / f"{filename}.hdf5"
 
         if not cutout_file.exists():
-            with requests.get(
-                cutout_url,
-                headers={"api-key": api_key},
-                params=_cutout_request,
-                stream=True,
-            ) as r:
-                r.raise_for_status()
-                with open(cutout_file, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=int(1e6)):
-                        f.write(chunk)
+            retries = 3
+            while retries > 0:
+                try:
+                    with requests.get(
+                        cutout_url,
+                        headers={"api-key": api_key},
+                        params=_cutout_request,
+                        stream=True,
+                    ) as r:
+                        r.raise_for_status()
+                        with open(cutout_file, "wb") as f:
+                            for chunk in r.iter_content(chunk_size=int(1e6)):
+                                f.write(chunk)
+                    retries = 0
+                except:
+                    retries = retries - 1
+
+            if not cutout_file.exists():
+                if fail_on_error:
+                    raise FileNotFoundError(f"Failed to load sub {subhalo_url}!")
+                else:
+                    logger.warning(f"Failed to load sub {subhalo_url}!")
 
         cutout_dict = {
             "file": cutout_file.resolve(),
@@ -96,10 +106,3 @@ def get_cutouts(
         }
 
         return cutout_dict
-
-    except Exception as e:
-        if fail_on_error:
-            logger.exception(f"Failed to load sub {subhalo_url}!")
-            raise
-        else:
-            logger.warning(f"Failed to load sub {subhalo_url} due to error {e}")

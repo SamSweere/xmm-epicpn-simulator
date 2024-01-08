@@ -108,7 +108,6 @@ def run(path_to_cfg: Path, api_key: str, cloudy_emissivity_root: Path):
         api_key=api_key,
         cutout_datafolder=download_cfg.cutouts_path,
         fail_on_error=env_cfg.fail_on_error,
-        cutouts_compressed=download_cfg.cutouts_compressed,
     )
 
     kwds = ({"subhalo_url": subhalo} for subhalo in subhalos)
@@ -160,7 +159,7 @@ def run(path_to_cfg: Path, api_key: str, cloudy_emissivity_root: Path):
                 "pos_z": float(cutout["z"]),
             },
             "widths": download_cfg.simulations[cutout["file"].parts[-3]],
-            "redshift": download_cfg.snapshots[cutout["file"].parts[-2]],
+            "redshift": download_cfg.snapshots[int(cutout["file"].parts[-2])],
         }
         for cutout in cutouts
     )

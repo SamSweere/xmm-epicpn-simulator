@@ -27,18 +27,18 @@ def _get_num_processes(v: int) -> int:
     return v
 
 
-def _check_modes(v: Dict[str, List[str]]) -> Dict[str, List[str]]:
+def _check_modes(v: Dict[str, list]) -> Dict[str, list]:
     available_modes = ("proj", "slice")
     for mode in v.keys():
         if mode not in available_modes:
             raise ValueError(
-                f"Unkown mode '{mode}'! Available modes: {available_modes}"
+                f"Unknown mode '{mode}'! Available modes: {available_modes}"
             )
 
         axes = v[mode]
         for axis in axes:
             if axis not in ("x", "y", "z"):
-                raise ValueError(f"Unkown axis '{axis}'! Available axes: x, y, z")
+                raise ValueError(f"Unknown axis '{axis}'! Available axes: x, y, z")
 
         if mode == "proj":
             new_axes = []
@@ -67,7 +67,7 @@ class DownloadCfg(BaseModel):
     snapshots: Dict[Annotated[NonNegativeInt, Field(le=99)], PositiveFloat]
     simulations: Dict[str, List[Tuple[PositiveFloat, str]]]
     modes: Annotated[
-        Dict[str, List[str]],
+        Dict[str, list],
         AfterValidator(_check_modes),
     ]
     cutouts_path: CfgPath

@@ -10,9 +10,8 @@ from yt.fields.xray_emission_fields import add_xray_emissivity_field
 from yt.visualization.fits_image import FITSOffAxisProjection, FITSSlice
 from loguru import logger
 
-set_log_level(
-    50
-)  # Turn of logging to console since it could lead to a deadlock when using multiprocessing
+# Turn of logging to console since it could lead to a deadlock when using multiprocessing
+set_log_level(50)
 
 
 def cutout_to_xray_fits(
@@ -76,7 +75,7 @@ def cutout_to_xray_fits(
                             if mode == "proj":
                                 yt_fits = FITSOffAxisProjection(
                                     ds,
-                                    normal=w,
+                                    normal=axis,
                                     fields=(
                                         "gas",
                                         f"xray_photon_intensity_{emin}_{emax}_keV",
@@ -98,7 +97,7 @@ def cutout_to_xray_fits(
                                     image_res=r,
                                 )
 
-                            yt_fits.update_header(field="all", key="AXIS", value=axis)
+                            yt_fits.update_header(field="all", key="AXIS", value=f"{axis}")
                             yt_fits.update_header(field="all", key="WIDTH", value=w)
                             yt_fits.update_header(
                                 field="all", key="REDSHIFT", value=redshift
@@ -109,13 +108,13 @@ def cutout_to_xray_fits(
                         except Exception as e:
                             if fail_on_error:
                                 logger.exception(
-                                    f"Failed to process {cutout.name} with error:\n"
+                                    f"Failed to process {cutout.resolve()} with error:\n"
                                     f"{e}"
                                 )
                                 raise
                             else:
                                 logger.warning(
-                                    f"Failed to process {cutout.name} with error:\n"
+                                    f"Failed to process {cutout.resolve()} with error:\n"
                                     f"{e}"
                                 )
     if consume_data:

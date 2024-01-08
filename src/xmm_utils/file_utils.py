@@ -6,14 +6,14 @@ from pathlib import Path
 
 
 # Level 5 is a good balance between speed and compression ratio for my usecase
-def compress_gzip(in_file_path, out_file_path, compresslevel=5):
+def compress_gzip(in_file_path, out_file_path, compresslevel=6):
     with open(in_file_path, "rb") as f_in:
         with gzip.open(out_file_path, "wb", compresslevel=compresslevel) as f_out:
             shutil.copyfileobj(f_in, f_out)
 
 
 def compress_targz(in_file_path: Path, out_file_path: Path):
-    with tarfile.open(out_file_path, "w:gz") as tar:
+    with tarfile.open(out_file_path, "w:gz", compresslevel=6) as tar:
         tar.add(in_file_path)
 
 
