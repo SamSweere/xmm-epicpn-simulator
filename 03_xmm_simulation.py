@@ -91,11 +91,16 @@ def run(path_to_cfg: Path) -> None:
         to_run = partial(
             create_xml_files,
             xml_dir=xml_dir,
+            xmm_filter=sim_cfg.filter,
             sim_separate_ccds=sim_cfg.sim_separate_ccds,
             wait_time=sim_cfg.wait_time,
         )
         kwds = (
-            {"instrument_name": instrument_name}
+            {
+                "instrument_name": instrument_name,
+                "res_mult": res_mult,
+            }
+            for res_mult in sim_cfg.res_mults
             for instrument_name in sim_cfg.instruments
         )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
