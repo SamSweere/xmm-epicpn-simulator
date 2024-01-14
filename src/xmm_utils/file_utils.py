@@ -1,18 +1,27 @@
-import gzip
-import shutil
 from pathlib import Path
 from src.xmm_utils.external_run import run_command
 
 
-# Level 5 is a good balance between speed and compression ratio for my usecase
-def compress_gzip(in_file_path, out_file_path, compresslevel=6):
-    with open(in_file_path, "rb") as f_in:
-        with gzip.open(out_file_path, "wb", compresslevel=compresslevel) as f_out:
-            shutil.copyfileobj(f_in, f_out)
+def compress_gzip(
+    in_file_path: Path, out_file_path: Path, compresslevel=6, remove_file: bool = False
+):
+    run_command(
+        f"gzip -{compresslevel} -c {in_file_path.resolve()} > {out_file_path.resolve()}"
+    )
+    if remove_file:
+        in_file_path.unlink()
 
 
-def compress_targz(in_file_path: Path, out_file_path: Path):
-    run_command(f"tar -czf {out_file_path.resolve()} {in_file_path.resolve()}")
+def compress_targz(in_path: Path, out_file_path: Path, remove_files: bool = False):
+    if not out_file_path.name.endswith(".tar.gz"):
+        raise ValueError(
+            f"Output file path {out_file_path.resolve()} does not end with '.tar.gz'"
+        )
+    out_file_path.parent.mkdir(parents=True, exist_ok=True)
+    suffix = " --remove-files" if remove_files else ""
+    run_command(
+        f"tar -czf {out_file_path.resolve()} {in_path.resolve()} --overwrite{suffix}"
+    )
 
 
 def decompress_targz(in_file_path: Path, out_file_dir: Path):

@@ -3,7 +3,6 @@ from argparse import ArgumentParser
 from datetime import timedelta
 from functools import partial
 from pathlib import Path
-import shutil
 from tempfile import TemporaryDirectory
 from typing import Dict
 
@@ -16,6 +15,7 @@ from src.xmm_utils.run_utils import configure_logger
 from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.config import EnvironmentCfg, SimulationCfg
 from datetime import datetime
+import shutil
 
 logger.remove()
 
@@ -67,6 +67,7 @@ def run(path_to_cfg: Path) -> None:
                     in_file_path=simput_compressed,
                     out_file_dir=sim_cfg.simput_dir,
                 )
+                logger.success("DONE\tDecompressing SIMPUT files.")
 
         logger.info("START\tCreating all PSF files.")
         to_run = partial(create_psf_file, xml_dir=xml_dir)
@@ -76,7 +77,7 @@ def run(path_to_cfg: Path) -> None:
             for res_mult in sim_cfg.res_mults
         )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-        logger.info(f"DONE\tPSF files have been created. Duration: {duration}")
+        logger.success(f"DONE\tPSF files have been created. Duration: {duration}")
 
         logger.info("START\tCreating all vignetting files.")
         to_run = partial(create_vinget_file, xml_dir=xml_dir)
@@ -85,7 +86,9 @@ def run(path_to_cfg: Path) -> None:
             for instrument_name in sim_cfg.instruments
         )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-        logger.info(f"DONE\tVignetting files have been created. Duration: {duration}")
+        logger.success(
+            f"DONE\tVignetting files have been created. Duration: {duration}"
+        )
 
         logger.info("START\tCreating all XML files.")
         to_run = partial(
@@ -104,36 +107,35 @@ def run(path_to_cfg: Path) -> None:
             for instrument_name in sim_cfg.instruments
         )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-        logger.info(f"DONE\tXML files have been created. Duration: {duration}")
+        logger.success(f"DONE\tXML files have been created. Duration: {duration}")
 
         for instrument_name in sim_cfg.instruments:
             xmm_filter_dir = sim_cfg.out_dir / instrument_name / sim_cfg.filter
             xmm_filter_dir.mkdir(exist_ok=True, parents=True)
             if sim_cfg.modes.img != 0:
                 logger.info(f"START\tSimulating {instrument_name} for IMG.")
-                for res_mult in sim_cfg.res_mults:
-                    simputs = (sim_cfg.simput_dir / "img").rglob("*.simput.gz")
-                    to_run = partial(
-                        run_xmm_simulation,
-                        instrument_name=instrument_name,
-                        xml_dir=xml_dir.resolve(),
-                        mode="img",
-                        tmp_dir=sim_dir.resolve(),
-                        out_dir=xmm_filter_dir.resolve(),
-                        res_mult=res_mult,
-                        exposure=sim_cfg.max_exposure,
-                        xmm_filter=sim_cfg.filter,
-                        sim_separate_ccds=sim_cfg.sim_separate_ccds,
-                        consume_data=env_cfg.consume_data,
-                    )
-                    kwds = ({"simput_file": simput.resolve()} for simput in simputs)
-                    _, duration = mp_run(
-                        to_run, kwds, sim_cfg.num_processes, env_cfg.debug
-                    )
-                    logger.info(
-                        f"DONE\tSimulating {instrument_name} for IMG with res_mult {res_mult}. Duration: {duration}"
-                    )
-                logger.info(f"DONE\tSimulating {instrument_name} for IMG.")
+                simputs = (sim_cfg.simput_dir / "img").rglob("*.simput.gz")
+                to_run = partial(
+                    run_xmm_simulation,
+                    instrument_name=instrument_name,
+                    xml_dir=xml_dir.resolve(),
+                    mode="img",
+                    tmp_dir=sim_dir.resolve(),
+                    out_dir=xmm_filter_dir.resolve(),
+                    exposure=sim_cfg.max_exposure,
+                    xmm_filter=sim_cfg.filter,
+                    sim_separate_ccds=sim_cfg.sim_separate_ccds,
+                    consume_data=env_cfg.consume_data,
+                )
+                kwds = (
+                    {"simput_file": simput.resolve(), "res_mult": res_mult}
+                    for res_mult in sim_cfg.res_mults
+                    for simput in simputs
+                )
+                _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
+                logger.success(
+                    f"DONE\tSimulating {instrument_name} for IMG. Duration: {duration}"
+                )
                 if env_cfg.working_dir != env_cfg.output_dir:
                     img_compressed = (
                         env_cfg.output_dir
@@ -142,45 +144,46 @@ def run(path_to_cfg: Path) -> None:
                         / sim_cfg.filter
                         / "img.tar.gz"
                     )
-                    img_compressed.parent.mkdir(exist_ok=True, parents=True)
+                    img_compressed.parent.mkdir(parents=True, exist_ok=True)
 
                     logger.info(
                         f"Simulated IMG will be compressed and moved to {img_compressed.resolve()}."
                         "Existing file will be overwritten."
                     )
-                    if img_compressed.exists():
-                        img_compressed.unlink()
+
                     compress_targz(
-                        in_file_path=xmm_filter_dir / "img",
-                        out_file_path=img_compressed,
+                        in_path=xmm_filter_dir / "img",
+                        out_file_path=sim_dir / "img.tar.gz",
+                        remove_files=True,
                     )
-                    shutil.rmtree(xmm_filter_dir / "img")
+                    shutil.move(src=sim_dir / "img.tar.gz", dst=img_compressed)
 
                 if sim_cfg.modes.agn != 0:
                     logger.info(f"START\tSimulating {instrument_name} for AGN.")
-                    for res_mult in sim_cfg.res_mults:
-                        simputs = (sim_cfg.simput_dir / "agn").rglob("*.simput.gz")
-                        to_run = partial(
-                            run_xmm_simulation,
-                            instrument_name=instrument_name,
-                            xml_dir=xml_dir.resolve(),
-                            mode="agn",
-                            tmp_dir=sim_dir.resolve(),
-                            out_dir=xmm_filter_dir.resolve(),
-                            res_mult=res_mult,
-                            exposure=sim_cfg.max_exposure,
-                            xmm_filter=sim_cfg.filter,
-                            sim_separate_ccds=sim_cfg.sim_separate_ccds,
-                            consume_data=env_cfg.consume_data,
-                        )
-                        kwds = ({"simput_file": simput.resolve()} for simput in simputs)
-                        _, duration = mp_run(
-                            to_run, kwds, sim_cfg.num_processes, env_cfg.debug
-                        )
-                        logger.info(
-                            f"DONE\tSimulating {instrument_name} for AGN with res_mult {res_mult}. Duration: {duration}"
-                        )
-                    logger.info(f"DONE\tSimulating {instrument_name} for AGN.")
+                    simputs = (sim_cfg.simput_dir / "agn").rglob("*.simput.gz")
+                    to_run = partial(
+                        run_xmm_simulation,
+                        instrument_name=instrument_name,
+                        xml_dir=xml_dir.resolve(),
+                        mode="agn",
+                        tmp_dir=sim_dir.resolve(),
+                        out_dir=xmm_filter_dir.resolve(),
+                        exposure=sim_cfg.max_exposure,
+                        xmm_filter=sim_cfg.filter,
+                        sim_separate_ccds=sim_cfg.sim_separate_ccds,
+                        consume_data=env_cfg.consume_data,
+                    )
+                    kwds = (
+                        {"simput_file": simput.resolve(), "res_mult": res_mult}
+                        for res_mult in sim_cfg.res_mults
+                        for simput in simputs
+                    )
+                    _, duration = mp_run(
+                        to_run, kwds, sim_cfg.num_processes, env_cfg.debug
+                    )
+                    logger.success(
+                        f"DONE\tSimulating {instrument_name} for AGN. Duration: {duration}"
+                    )
                     if env_cfg.working_dir != env_cfg.output_dir:
                         agn_compressed = (
                             env_cfg.output_dir
@@ -189,19 +192,19 @@ def run(path_to_cfg: Path) -> None:
                             / sim_cfg.filter
                             / "agn.tar.gz"
                         )
-                        agn_compressed.parent.mkdir(exist_ok=True, parents=True)
+                        agn_compressed.parent.mkdir(parents=True, exist_ok=True)
 
                         logger.info(
                             f"Simulated AGN will be compressed and moved to {agn_compressed.resolve()}."
                             "Existing file will be overwritten."
                         )
-                        if agn_compressed.exists():
-                            agn_compressed.unlink()
+
                         compress_targz(
-                            in_file_path=xmm_filter_dir / "agn",
-                            out_file_path=agn_compressed,
+                            in_path=xmm_filter_dir / "agn",
+                            out_file_path=sim_dir / "agn.tar.gz",
+                            remove_files=True,
                         )
-                        shutil.rmtree(xmm_filter_dir / "agn")
+                        shutil.move(src=sim_dir / "agn.tar.gz", dst=agn_compressed)
 
                 if sim_cfg.modes.bkg != 0:
                     simput = next(
@@ -210,31 +213,29 @@ def run(path_to_cfg: Path) -> None:
                         )
                     )
                     logger.info(f"START\tSimulating {instrument_name} for BKG.")
-                    for res_mult in sim_cfg.res_mults:
-                        to_run = partial(
-                            run_xmm_simulation,
-                            instrument_name=instrument_name,
-                            xml_dir=xml_dir.resolve(),
-                            mode="agn",
-                            tmp_dir=sim_dir.resolve(),
-                            out_dir=xmm_filter_dir.resolve(),
-                            res_mult=res_mult,
-                            exposure=sim_cfg.max_exposure,
-                            xmm_filter=sim_cfg.filter,
-                            sim_separate_ccds=sim_cfg.sim_separate_ccds,
-                            consume_data=env_cfg.consume_data,
-                        )
-                        kwds = (
-                            {"simput_file": simput.resolve()}
-                            for _ in range(sim_cfg.modes.bkg)
-                        )
-                        _, duration = mp_run(
-                            to_run, kwds, sim_cfg.num_processes, env_cfg.debug
-                        )
-                        logger.info(
-                            f"DONE\tSimulating {instrument_name} for BKG with res_mult {res_mult}. Duration: {duration}"
-                        )
-                    logger.info(f"DONE\tSimulating {instrument_name} for BKG.")
+                    to_run = partial(
+                        run_xmm_simulation,
+                        instrument_name=instrument_name,
+                        xml_dir=xml_dir.resolve(),
+                        mode="bkg",
+                        tmp_dir=sim_dir.resolve(),
+                        out_dir=xmm_filter_dir.resolve(),
+                        exposure=sim_cfg.max_exposure,
+                        xmm_filter=sim_cfg.filter,
+                        sim_separate_ccds=sim_cfg.sim_separate_ccds,
+                        consume_data=env_cfg.consume_data,
+                    )
+                    kwds = (
+                        {"simput_file": simput.resolve(), "res_mult": res_mult}
+                        for res_mult in sim_cfg.res_mults
+                        for _ in range(sim_cfg.modes.bkg)
+                    )
+                    _, duration = mp_run(
+                        to_run, kwds, sim_cfg.num_processes, env_cfg.debug
+                    )
+                    logger.success(
+                        f"DONE\tSimulating {instrument_name} for BKG. Duration: {duration}"
+                    )
                     if env_cfg.working_dir != env_cfg.output_dir:
                         bkg_compressed = (
                             env_cfg.output_dir
@@ -243,19 +244,20 @@ def run(path_to_cfg: Path) -> None:
                             / sim_cfg.filter
                             / "bkg.tar.gz"
                         )
-                        bkg_compressed.parent.mkdir(exist_ok=True, parents=True)
+                        bkg_compressed.parent.mkdir(parents=True, exist_ok=True)
 
                         logger.info(
                             f"Simulated BKG will be compressed and moved to {bkg_compressed.resolve()}."
                             "Existing file will be overwritten."
                         )
-                        if bkg_compressed.exists():
-                            bkg_compressed.unlink()
+
                         compress_targz(
-                            in_file_path=xmm_filter_dir / "bkg",
-                            out_file_path=bkg_compressed,
+                            in_path=xmm_filter_dir / "bkg",
+                            out_file_path=sim_dir / "bkg.tar.gz",
+                            remove_files=True,
                         )
-                        shutil.rmtree(xmm_filter_dir / "bkg")
+                        shutil.move(src=sim_dir / "bkg.tar.gz", dst=bkg_compressed)
+
     endtime = datetime.now()
     logger.info(f"Duration: {endtime - starttime}")
 

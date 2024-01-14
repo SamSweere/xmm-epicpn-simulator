@@ -1,4 +1,3 @@
-import time
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -6,6 +5,7 @@ from typing import Literal, List
 
 from astropy.io import fits
 from loguru import logger
+from uuid import uuid4
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
@@ -187,14 +187,13 @@ def run_xmm_simulation(
             final_img_directory = final_img_directory / f"{res_mult}x"
             final_img_directory.mkdir(parents=True, exist_ok=True)
 
-            if mode == "background":
+            if mode == "bkg":
                 # Remove the part numbers since they do not matter for the background
                 # Split on the part numbering
                 bg_filename = file_path.name
                 bg_filename = f"{bg_filename.split('ks_p')[0]}ks"
                 # Since we want different backgrounds we need to add an unique identifier
-                # in this case the current time
-                bg_filename = f"{bg_filename}_{str(time.time()).replace('.', '').ljust(17, '0')}.fits"
+                bg_filename = f"{bg_filename}_{uuid4().int}.fits"
                 new_bg_path = file_path.parent / bg_filename
                 # Rename the file
                 file_path.rename(new_bg_path)
