@@ -6,7 +6,6 @@ from pathlib import Path
 import shutil
 from typing import Dict, List
 import requests
-
 from loguru import logger
 
 from src.illustris_tng.download_data import (
@@ -129,26 +128,29 @@ def run(path_to_cfg: Path, api_key: str):
 
     logger.info("START\tGenerating FITS from cutouts.")
     cloudy_emissivity = env_cfg.working_dir / "cloudy_emissivity_v2.h5"
-    logger.info(f"Downloading cloudy_emissivity_v2.h5 to {cloudy_emissivity.resolve()}")
-    retries = 3
-    while retries > 0:
-        try:
-            with requests.get(
-                "http://yt-project.org/data/cloudy_emissivity_v2.h5",
-                stream=True,
-            ) as r:
-                r.raise_for_status()
-                with open(cloudy_emissivity, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=int(1e6)):
-                        f.write(chunk)
-            retries = 0
-        except:
-            retries = retries - 1
-
     if not cloudy_emissivity.exists():
-        raise FileNotFoundError(
-            f"Failed to load cloudy_emissivity_v2.h5 {cloudy_emissivity}!"
+        logger.info(
+            f"Downloading cloudy_emissivity_v2.h5 to {cloudy_emissivity.resolve()}"
         )
+        retries = 3
+        while retries > 0:
+            try:
+                with requests.get(
+                    "http://yt-project.org/data/cloudy_emissivity_v2.h5",
+                    stream=True,
+                ) as r:
+                    r.raise_for_status()
+                    with open(cloudy_emissivity, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=int(1e6)):
+                            f.write(chunk)
+                retries = 0
+            except:
+                retries = retries - 1
+
+        if not cloudy_emissivity.exists():
+            raise FileNotFoundError(
+                f"Failed to load cloudy_emissivity_v2.h5 {cloudy_emissivity}!"
+            )
 
     if download_cfg.fits_compressed.exists():
         logger.info(
