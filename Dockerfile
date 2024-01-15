@@ -1,94 +1,104 @@
-FROM ubuntu:latest
+FROM ubuntu:22.04
 
-SHELL ["/bin/bash", "-c"]
+ENV HOME=/home/studtodorkov
+RUN adduser studtodorkov --uid 1194 --disabled-password --gecos "" --home $HOME
 
-ENV HOME=/xmm
-WORKDIR $HOME
-ENV SIMPUT=$HOME/simput SIXTE=$HOME/simput SAS_DIR=$HOME/sas SAS_CCFPATH=$HOME/ccf MINICONDA=$HOME/miniconda3
+ENV SIMPUT=$HOME/simput SAS_ROOT=$HOME/sas SAS_CCFPATH=$HOME/ccf MINICONDA=$HOME/miniconda3
+ENV SAS_DIR=$SAS_ROOT/xmmsas_20230412_1735 SAS_CCF=$SAS_CCFPATH/ccf.cif HEADAS=$HOME/headas SIXTE=$SIMPUT
 
 # Update everything and install required packages
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
 RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     apt-get install software-properties-common -y &&  \
-    apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
-    apt-get install -y git libtool autoconf wget rsync perl perlbrew libreadline-dev libncurses5-dev ncurses-dev curl \
+    apt-get install -y git libtool autoconf wget rsync perl libreadline-dev libncurses5-dev ncurses-dev curl \
     libcurl4 libcurl4-gnutls-dev xorg-dev make gcc g++ gfortran perl-modules libncurses-dev libexpat1-dev libgsl0-dev \
     libboost-dev libcmocka-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Download everything
-RUN git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ && \
-    git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ && \
-    wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz && \
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
-    wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz && \
-    rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF $SAS_CCFPATH && \
-    wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-6.32.1src.tar.gz
-    
-# Instal SIMPUT and SIXTE
-RUN cd $HOME/simput && autoreconf --install --force && \
-    ./configure --prefix=$SIMPUT && make && make install && \
-    cd $HOME/sixt && autoreconf --install --force && \
-    ./configure --prefix=$SIXTE && make && make install && cd ~ && \
-    # Add the SIXTE instrument files
-    mv instruments_xmm-1.2.1.tar.gz $SIXTE &&  \
-    cd $SIXTE && \
-    tar zxf instruments_xmm-1.2.1.tar.gz &&  \
-    rm instruments_xmm-1.2.1.tar.gz
-
+USER 1194
+WORKDIR $HOME
+COPY --chown=studtodorkov: --chmod=777 entrypoint.sh $HOME/
 # Install miniconda and initialize it
-RUN bash miniconda.sh -b -u -p $MINICONDA && rm miniconda.sh
+COPY --chown=studtodorkov: --chmod=777 downloads/miniconda.sh $HOME/
+RUN /bin/bash miniconda.sh -b -u -p ${MINICONDA} && rm miniconda.sh
 ENV PATH="$MINICONDA/bin:$PATH"
-RUN conda init bash
-RUN conda config --add channels conda-forge
 
-# Create the conda environment
-RUN conda create -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery \
-    lxml yt h5py loguru
+RUN conda init bash
+RUN conda create -c conda-forge -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy  \
+    pypdf notebook astroquery lxml yt h5py loguru pydantic jsonschema
 
 # Install perl-5.36.1 and the required modules
-RUN mkdir -p $HOME/perl5/perlbrew/dists &&  \
-    perlbrew --notest install perl-5.36.1 &&  \
-    perlbrew switch perl-5.36.1 && \
-    curl -L https://cpanmin.us | perl - App::cpanminus && \
-    cpanm Switch && cpanm Shell && cpanm CGI
+RUN curl -L https://install.perlbrew.pl | bash
+ENV PERLBREW_ROOT=$HOME/perl5/perlbrew
+RUN $HOME/perl5/perlbrew/bin/perlbrew init && $HOME/perl5/perlbrew/bin/perlbrew install-cpanm
+RUN mkdir -p ${HOME}/perl5/perlbrew/dists
+RUN source ${HOME}/perl5/perlbrew/etc/bashrc && \
+    $HOME/perl5/perlbrew/bin/perlbrew install -n -f perl-5.36.1
+RUN $HOME/perl5/perlbrew/bin/perlbrew switch perl-5.36.1 && \
+    $HOME/perl5/perlbrew/bin/cpanm -n Switch && $HOME/perl5/perlbrew/bin/cpanm -n Shell && $HOME/perl5/perlbrew/bin/cpanm -n CGI
 
-# Install XMM-SAS
+COPY --chown=studtodorkov: --chmod=777 downloads/simput $HOME/simput_git/
+RUN cd ${HOME}/simput_git && \
+    echo "Initializing simput..." && autoreconf --install --force > /dev/null 2>&1 && \
+    echo "Configuring simput..." && ./configure --prefix=${SIMPUT} > /dev/null 2>&1 &&  \
+    echo "Building simput..." && make > /dev/null 2>&1 &&  \
+    echo "Installing simput..." && make install > /dev/null 2>&1 && \
+    echo "Cleaning simput..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/simput_git
+
+COPY --chown=studtodorkov: --chmod=777 downloads/sixt $HOME/sixte_git/
+RUN cd ${HOME}/sixte_git && \
+    echo "Initializing sixte..." && autoreconf --install --force > /dev/null 2>&1 && \
+    echo "Configuring sixte..." && ./configure --prefix=${SIXTE} > /dev/null 2>&1 &&  \
+    echo "Building sixte..." && make > /dev/null 2>&1 &&  \
+    echo "Installing sixte..." && make install > /dev/null 2>&1 && \
+    echo "Cleaning sixte..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/sixte_git
+
+WORKDIR $SIXTE
+COPY --chown=studtodorkov: --chmod=777 downloads/instruments_xmm-1.2.1.tar.gz $SIXTE/
+RUN tar zxf instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz
+
+WORKDIR $SAS_ROOT
 ENV SAS_PERL=$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl SAS_PYTHON=$MINICONDA/envs/xmm/bin/python
-RUN mkdir $SAS_DIR && mv sas_21.0.0-Ubuntu22.04.tgz $SAS_DIR && cd $SAS_DIR && \
-    tar zxf sas_21.0.0-Ubuntu22.04.tgz && \
-    rm sas_21.0.0-Ubuntu22.04.tgz && \
-    ./install.sh
+COPY --chown=studtodorkov: --chmod=777 downloads/sas_21.0.0-Ubuntu22.04.tgz $SAS_ROOT/
+USER 0
+RUN tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz
+RUN chown -R studtodorkov: $SAS_ROOT && chmod -R 777 $SAS_ROOT
+USER 1194
+RUN ./install.sh
 
-# Install heasoft
+COPY --chown=studtodorkov: --chmod=777 downloads/ccf $SAS_CCFPATH/
+
+WORKDIR $HOME
 ENV CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=$SAS_PERL PYTHON=$MINICONDA/envs/xmm/bin/python
-RUN tar zxf heasoft-6.32.1src.tar.gz && \
-    rm heasoft-6.32.1src.tar.gz && \
-    unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
+COPY --chown=studtodorkov: --chmod=777 downloads/heasoft-6.32.1src.tar.gz $HOME/
+RUN tar zxf heasoft-6.32.1src.tar.gz && rm heasoft-6.32.1src.tar.gz
+RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
     cd heasoft-6.32.1/BUILD_DIR/ && \
-    ./configure && \
-    make && \
-    make install
+    echo "Configuring heasoft..." && ./configure --prefix=${HEADAS} > /dev/null 2>&1 && \
+    echo "Building heasoft..." && make > /dev/null 2>&1 && \
+    echo "Installing heasoft..." && make install > /dev/null 2>&1 && \
+    echo "Cleaning heasoft..." && make clean > /dev/null 2>&1 && \
+    /bin/bash -c 'cd /home/studtodorkov/headas; for loop in x86_64*/*; do ln -sf $loop; done' \
+    cd ${HOME}/heasoft-6.32.1 \
+    cp -p Xspec/BUILD_DIR/hmakerc ${HEADAS}/bin/ \
+    cp -p Xspec/BUILD_DIR/Makefile-std ${HEADAS}/bin/ \
+    rm -rf Xspec/src/spectral
+
 
 # Set the environment variables for the image
-RUN echo "export HOME=$HOME" >> $HOME/.bashrc && \
-    echo "export SIMPUT=$SIMPUT" >> $HOME/.bashrc && \
-    echo "export SIXTE=$SIXTE" >> $HOME/.bashrc && \
-    echo "export PATH=\"$MINICONDA/bin:$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl:\$PATH\"" >> $HOME/.bashrc && \
-    echo "export SAS_DIR=$SAS_DIR/xmmsas_20230412_1735" >> $HOME/.bashrc && \
-    echo "export SAS_CCFPATH=$SAS_CCFPATH" >> $HOME/.bashrc && \
-    echo "export SAS_CCF=$SAS_CCFPATH/ccf.cif" >> $HOME/.bashrc && \
-    echo "export LD_LIBRARY_PATH=\"$MINICONDA/envs/xmm/lib:\$LD_LIBRARY_PATH\"" >> $HOME/.bashrc&& \
-    echo "export HEADAS=`echo $HOME/heasoft-6.32.1/x*`" >> $HOME/.bashrc && \
-    echo "export PYTHONPATH=\"\$SAS_DIR/lib/python:\$HEADAS/lib/python:\$PYTHONPATH\"" >> $HOME/.bashrc && \
-    echo "export HEADASNOQUERY=" >> $HOME/.bashrc && \
-    echo "export HEADASPROMPT=/dev/null" >> $HOME/.bashrc
+ENV HEADASPROMPT=/dev/null HEADASNOQUERY="" PATH=$MINICONDA/bin:$PERL:$PATH
+ENV LD_LIBRARY_PATH=$MINICONDA/envs/xmm/lib:$LD_LIBRARY_PATH
+ENV PYTHONPATH=$SAS_DIR/lib/python:$HEADAS/lib/python:$PYTHONPATH
+
 
 # Start all installed software to make sure that everthing went fine and create ccf.cif
-RUN . $HOME/.bashrc && \
-    . $HEADAS/headas-init.sh && \
-    . $SAS_DIR/setsas.sh && \
-    . $SIXTE/bin/sixte-install.sh && \
-    cd $SAS_CCFPATH && \
+RUN . ${HEADAS}/headas-init.sh && \
+    . ${SAS_DIR}/setsas.sh && \
+    . ${SIXTE}/bin/sixte-install.sh && \
+    cd ${SAS_CCFPATH} && \
     cifbuild withobservationdate=yes
+
+ENTRYPOINT ["/bin/bash", "${HOME}/entrypoint.sh"]
