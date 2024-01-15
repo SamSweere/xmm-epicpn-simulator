@@ -5,6 +5,7 @@ from functools import partial
 from pathlib import Path
 import shutil
 from typing import Dict, List
+import requests
 
 from loguru import logger
 
@@ -23,7 +24,7 @@ from src.config import DownloadCfg, EnergySettings, EnvironmentCfg
 logger.remove()
 
 
-def run(path_to_cfg: Path, api_key: str, cloudy_emissivity_root: Path):
+def run(path_to_cfg: Path, api_key: str):
     starttime = datetime.now()
     with open(path_to_cfg, "r") as file:
         cfg: Dict[str, dict] = json.load(file)
@@ -122,11 +123,33 @@ def run(path_to_cfg: Path, api_key: str, cloudy_emissivity_root: Path):
         if download_cfg.cutouts_compressed.exists():
             download_cfg.cutouts_compressed.unlink()
         compress_targz(
-            in_file_path=download_cfg.cutouts_path,
+            in_path=download_cfg.cutouts_path,
             out_file_path=download_cfg.cutouts_compressed,
         )
 
     logger.info("START\tGenerating FITS from cutouts.")
+    cloudy_emissivity = env_cfg.working_dir / "cloudy_emissivity_v2.h5"
+    logger.info(f"Downloading cloudy_emissivity_v2.h5 to {cloudy_emissivity.resolve()}")
+    retries = 3
+    while retries > 0:
+        try:
+            with requests.get(
+                "http://yt-project.org/data/cloudy_emissivity_v2.h5",
+                stream=True,
+            ) as r:
+                r.raise_for_status()
+                with open(cloudy_emissivity, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=int(1e6)):
+                        f.write(chunk)
+            retries = 0
+        except:
+            retries = retries - 1
+
+    if not cloudy_emissivity.exists():
+        raise FileNotFoundError(
+            f"Failed to load cloudy_emissivity_v2.h5 {cloudy_emissivity}!"
+        )
+
     if download_cfg.fits_compressed.exists():
         logger.info(
             f"Found compressed FITS in {download_cfg.fits_compressed.resolve()}. Decompressing..."
@@ -140,7 +163,7 @@ def run(path_to_cfg: Path, api_key: str, cloudy_emissivity_root: Path):
         cutout_to_xray_fits,
         output_dir=download_cfg.fits_path,
         mode_dict=download_cfg.modes,
-        cloudy_emissivity_root=cloudy_emissivity_root,
+        cloudy_emissivity_root=cloudy_emissivity.parent,
         emin=energies.emin,
         emax=energies.emax,
         resolutions=download_cfg.resolutions,
@@ -174,7 +197,7 @@ def run(path_to_cfg: Path, api_key: str, cloudy_emissivity_root: Path):
         if download_cfg.fits_compressed.exists():
             download_cfg.fits_compressed.unlink()
         compress_targz(
-            in_file_path=download_cfg.fits_path,
+            in_path=download_cfg.fits_path,
             out_file_path=download_cfg.fits_compressed,
         )
 
@@ -201,17 +224,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p", "--config_path", type=Path, required=True, help="Path to config file."
     )
-    parser.add_argument(
-        "-c",
-        "--cloudy_emissivity",
-        type=Path,
-        required=True,
-        help="Path to root directory of cloudy_emissivity_v2.h5",
-    )
 
     args = parser.parse_args()
     run(
         path_to_cfg=args.config_path,
         api_key=args.api_key,
-        cloudy_emissivity_root=args.cloudy_emissivity,
     )
