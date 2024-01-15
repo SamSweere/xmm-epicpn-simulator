@@ -156,7 +156,7 @@ def run(
                 )
                 if img_compressed.exists():
                     img_compressed.unlink()
-                compress_targz(in_file_path=img_path, out_file_path=img_compressed)
+                compress_targz(in_path=img_path, out_file_path=img_compressed)
                 shutil.rmtree(img_path)
 
         if simput_cfg.modes.bkg:
@@ -222,7 +222,7 @@ def run(
                 )
                 if bkg_compressed.exists():
                     bkg_compressed.unlink()
-                compress_targz(in_file_path=bkg_path, out_file_path=bkg_compressed)
+                compress_targz(in_path=bkg_path, out_file_path=bkg_compressed)
                 shutil.rmtree(bkg_path)
 
         if simput_cfg.modes.agn > 0:
@@ -271,7 +271,7 @@ def run(
                 )
                 if agn_compressed.exists():
                     agn_compressed.unlink()
-                compress_targz(in_file_path=agn_path, out_file_path=agn_compressed)
+                compress_targz(in_path=agn_path, out_file_path=agn_compressed)
                 shutil.rmtree(agn_path)
 
     endtime = datetime.now()

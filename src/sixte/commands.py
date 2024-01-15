@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal, List, Union
+from typing import Literal, List, Optional
 
 from src.xmm_utils.external_run import run_command
 
@@ -22,27 +22,13 @@ def imgev(
     chatter: int = 0,
     history: bool = True,
 ) -> None:
-    params = [
-        f"EvtFile={evt_file.resolve()}",
-        f"Image={image.resolve()}",
-        f"CoordinateSystem={coordinate_system}",
-        f"NAXIS1={naxis1}",
-        f"NAXIS2={naxis2}",
-        f"CUNIT1={cunit1}",
-        f"CUNIT2={cunit2}",
-        f"CRVAL1={crval1}",
-        f"CRVAL2={crval2}",
-        f"CRPIX1={crpix1}",
-        f"CRPIX2={crpix2}",
-        f"CDELT1={cdelt1}",
-        f"CDELT2={cdelt2}",
-        f"chatter={chatter}",
-        f"clobber={str(clobber).lower()}",
-        f"history={str(history).lower()}",
-    ]
-
-    cmd = f"imgev {' '.join(params)}"
-    run_command(cmd=cmd)
+    imgev = (
+        f"imgev EvtFile={evt_file.resolve()} Image={image.resolve()} CoordinateSystem={coordinate_system} "
+        f"NAXIS1={naxis1} NAXIS2={naxis2} CUNIT1={cunit1} CUNIT2={cunit2} CRVAL1={crval1} CRVAL2={crval2} "
+        f"CRPIX1={crpix1} CRPIX2={crpix2} CDELT1={cdelt1} CDELT2={cdelt2} chatter={chatter} "
+        f"clobber={str(clobber).lower()} history={str(history).lower()}"
+    )
+    run_command(cmd=imgev)
 
 
 def runsixt(
@@ -58,14 +44,12 @@ def runsixt(
     clobber: bool = True,
     history: bool = True,
 ) -> None:
-    params = (
-        f"Rawdata={raw_data.resolve()} EvtFile={evt_file.resolve()} XMLFile={xml_file.resolve()} RA={ra} "
-        f"DEC={dec} rollangle={rollangle} Simput={simput.resolve()} Exposure={exposure} chatter={chatter} "
-        f"clobber={str(clobber).lower()} history={str(history).lower()}"
+    runsixt = (
+        f"runsixt Rawdata={raw_data.resolve()} EvtFile={evt_file.resolve()} XMLFile={xml_file.resolve()} "
+        f"RA={ra} DEC={dec} rollangle={rollangle} Simput={simput.resolve()} Exposure={exposure} "
+        f"chatter={chatter} clobber={str(clobber).lower()} history={str(history).lower()}"
     )
-
-    cmd = f"runsixt {params}"
-    run_command(cmd=cmd)
+    run_command(cmd=runsixt)
 
 
 def simputfile(
@@ -75,51 +59,40 @@ def simputfile(
     src_flux: float = 0.0,
     emin: float = 1.0,
     emax: float = 10.0,
-    xspec_file: Path = None,
-    ascii_file: Path = None,
-    image_file: Path = None,
+    xspec_file: Optional[Path] = None,
+    ascii_file: Optional[Path] = None,
+    image_file: Optional[Path] = None,
     clobber: bool = True,
     chatter: int = 0,
     history: bool = True,
 ) -> None:
-    params = [
-        f"Simput={simput.resolve()}",
-        f"RA={ra}",
-        f"DEC={dec}",
-        f"Emin={emin}",
-        f"srcFlux={src_flux}",
-        f"Emax={emax}",
-        f"clobber={str(clobber).lower()}",
-        f"chatter={chatter}",
-        f"history={str(history).lower()}",
-    ]
+    simputfile = (
+        f"simputfile Simput={simput.resolve()} RA={ra} DEC={dec} srcFlux={src_flux} Emin={emin} "
+        f"Emax={emax} clobber={str(clobber).lower()} chatter={chatter} "
+        f"history={str(history).lower()}"
+    )
 
     if xspec_file is not None:
-        params.append(f"XSPECFile={xspec_file.resolve()}")
+        simputfile = f"{simputfile} XSPECFile={xspec_file.resolve()}"
 
     if ascii_file is not None:
-        params.append(f"ASCIIFile={ascii_file.resolve()}")
+        simputfile = f"{simputfile} ASCIIFile={ascii_file.resolve()}"
 
     if image_file is not None:
-        params.append(f"ImageFile={image_file.resolve()}")
+        simputfile = f"{simputfile} ImageFile={image_file.resolve()}"
 
-    cmd = f"simputfile {' '.join(params)}"
-    run_command(cmd=cmd)
+    run_command(cmd=simputfile)
 
 
 def simputmerge(
-    infiles: Union[List[Path], Path], outfile: Path, fetch_extension: bool = True
+    infiles: List[Path], outfile: Path, fetch_extension: bool = True
 ) -> None:
-    if isinstance(infiles, list):
-        infiles = [str(f.resolve()) for f in infiles]
-        infiles = ",".join(infiles)
-    else:
-        infiles = f"{infiles.resolve()}"
-    params = [
-        f"Infiles={infiles}",
-        f"Outfile={outfile.resolve()}",
-        f"FetchExtension={'yes' if fetch_extension else 'no'}",
-    ]
+    ins = [str(f.resolve()) for f in infiles]
+    ins = ",".join(ins)
 
-    cmd = f"simputmerge {' '.join(params)}"
-    run_command(cmd=cmd)
+    simputmerge = (
+        f"simputmerge Infiles={ins} Outfile={outfile.resolve()} "
+        f"FetchExtension={'yes' if fetch_extension else 'no'}"
+    )
+
+    run_command(cmd=simputmerge)

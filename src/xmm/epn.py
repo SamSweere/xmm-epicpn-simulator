@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 from astropy.io import fits
 
-from src.xmm.ccf import get_epn_lincoord, get_xmm_miscdata
+from src.xmm.ccf import get_epn_lincoord, get_xmm_miscdata, get_telescope
 
 
 def get_max_xy(res_mult: int = 1) -> Tuple[int, int]:
@@ -39,7 +39,7 @@ def get_surface(res_mult: int = 1) -> float:
     pixel_size = get_pixel_size(res_mult=res_mult)
     x, y = get_max_xy(res_mult=res_mult)
 
-    return (pixel_size ** 2) * x * y
+    return (pixel_size**2) * x * y
 
 
 def get_ccd_width_height(res_mult: int = 1) -> Tuple[int, int]:
@@ -60,8 +60,12 @@ def get_plate_scale_xy() -> Tuple[float, float]:
     with fits.open(name=xmm_miscdata, mode="readonly") as file:
         miscdata = file[1].data
         epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
-        plate_scale_x = epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
-        plate_scale_y = epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].astype(float).item()
+        plate_scale_x = (
+            epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
+        )
+        plate_scale_y = (
+            epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].astype(float).item()
+        )
     return plate_scale_x, plate_scale_y
 
 
@@ -79,9 +83,13 @@ def get_pixel_size(res_mult: int = 1) -> float:
     xmm_miscdata = get_xmm_miscdata()
 
     with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        miscdata = file[1].data  # First entry is a PrimaryHDU, which is irrelevant for us
+        # First entry is a PrimaryHDU, which is irrelevant for us
+        miscdata = file[1].data
         epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
-        p_delt = epn[epn["PARM_ID"] == "MM_PER_PIXEL_X"]["PARM_VAL"].astype(float).item()  # Size of one pixel
+        # Size of one pixel
+        p_delt = (
+            epn[epn["PARM_ID"] == "MM_PER_PIXEL_X"]["PARM_VAL"].astype(float).item()
+        )
 
     return round(p_delt / res_mult, 3)
 
@@ -104,9 +112,13 @@ def get_focal_length() -> float:
     xmm_miscdata = get_xmm_miscdata()
 
     with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        miscdata = file[1].data  # First entry is a PrimaryHDU, which is irrelevant for us
-        xrt3 = miscdata[miscdata["INSTRUMENT_ID"] == "XRT3"]  # XRT3 is the telescope, where EPN is located
-        focallength = xrt3[xrt3["PARM_ID"] == "FOCAL_LENGTH"]["PARM_VAL"].astype(float).item()
+        # First entry is a PrimaryHDU, which is irrelevant for us
+        miscdata = file[1].data
+        telescope = get_telescope("epn")
+        xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
+        focallength = (
+            xrt[xrt["PARM_ID"] == "FOCAL_LENGTH"]["PARM_VAL"].astype(float).item()
+        )
 
     return focallength
 
@@ -115,9 +127,12 @@ def get_fov() -> float:
     xmm_miscdata = get_xmm_miscdata()
 
     with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        miscdata = file[1].data  # First entry is a PrimaryHDU, which is irrelevant for us
-        xrt3 = miscdata[miscdata["INSTRUMENT_ID"] == "XRT3"]  # XRT3 is the telescope, where EPN is located
-        fov = xrt3[xrt3["PARM_ID"] == "FOV_RADIUS"]["PARM_VAL"].astype(float).item() * 2  # Notice the 'RADIUS'
+        # First entry is a PrimaryHDU, which is irrelevant for us
+        miscdata = file[1].data
+        telescope = get_telescope("epn")
+        xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
+        # Notice the 'RADIUS'
+        fov = xrt[xrt["PARM_ID"] == "FOV_RADIUS"]["PARM_VAL"].astype(float).item() * 2
 
     return fov
 
@@ -129,9 +144,24 @@ def create_detector_mask(res_mult: int = 1) -> np.ndarray:
 
     mask = np.zeros((width, height))
 
-    small_gap = int(np.ceil((round(float(yrval[1] - yrval[0]), 3) - (64 * pixel_size * res_mult)) / pixel_size))
-    large_gap = int(np.ceil((round(float(yrval[0] - yrval[3]), 3) - (64 * pixel_size * res_mult)) / pixel_size))
-    vertical_gap = int(np.ceil((round(float(xrval[0] - xrval[9]), 3) - (200 * pixel_size * res_mult)) / pixel_size))
+    small_gap = int(
+        np.ceil(
+            (round(float(yrval[1] - yrval[0]), 3) - (64 * pixel_size * res_mult))
+            / pixel_size
+        )
+    )
+    large_gap = int(
+        np.ceil(
+            (round(float(yrval[0] - yrval[3]), 3) - (64 * pixel_size * res_mult))
+            / pixel_size
+        )
+    )
+    vertical_gap = int(
+        np.ceil(
+            (round(float(xrval[0] - xrval[9]), 3) - (200 * pixel_size * res_mult))
+            / pixel_size
+        )
+    )
 
     drows = int(np.ceil((round(float(yrval[9] - yrval[0]), 3) / pixel_size)))
 
@@ -139,7 +169,7 @@ def create_detector_mask(res_mult: int = 1) -> np.ndarray:
     start = drows
     end = start + 64 * res_mult
     for i in range(6):
-        mask[start:end + 1, :(200 * res_mult + 1)] = 1
+        mask[start : end + 1, : (200 * res_mult + 1)] = 1
         gap = small_gap if i != 2 else large_gap
         start = end + gap
         end = start + 64 * res_mult
@@ -148,7 +178,7 @@ def create_detector_mask(res_mult: int = 1) -> np.ndarray:
     start = 0
     end = start + 64 * res_mult
     for i in range(6):
-        mask[start:end + 1, (200 * res_mult + vertical_gap):] = 1
+        mask[start : end + 1, (200 * res_mult + vertical_gap) :] = 1
         gap = small_gap if i != 2 else large_gap
         start = end + gap
         end = start + 64 * res_mult
