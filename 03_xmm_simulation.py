@@ -152,11 +152,13 @@ def run(path_to_cfg: Path) -> None:
                     )
 
                     compress_targz(
-                        in_path=xmm_filter_dir / "img",
+                        in_path=xmm_filter_dir,
                         out_file_path=sim_dir / "img.tar.gz",
                         remove_files=True,
                     )
                     shutil.move(src=sim_dir / "img.tar.gz", dst=img_compressed)
+                    for img_dir in xmm_filter_dir.rglob("img"):
+                        shutil.rmtree(img_dir)
 
                 if sim_cfg.modes.agn != 0:
                     logger.info(f"START\tSimulating {instrument_name} for AGN.")
@@ -200,11 +202,13 @@ def run(path_to_cfg: Path) -> None:
                         )
 
                         compress_targz(
-                            in_path=xmm_filter_dir / "agn",
+                            in_path=xmm_filter_dir,
                             out_file_path=sim_dir / "agn.tar.gz",
                             remove_files=True,
                         )
                         shutil.move(src=sim_dir / "agn.tar.gz", dst=agn_compressed)
+                        for agn_dir in xmm_filter_dir.rglob("agn"):
+                            shutil.rmtree(agn_dir)
 
                 if sim_cfg.modes.bkg != 0:
                     simput = next(
@@ -252,11 +256,13 @@ def run(path_to_cfg: Path) -> None:
                         )
 
                         compress_targz(
-                            in_path=xmm_filter_dir / "bkg",
+                            in_path=xmm_filter_dir,
                             out_file_path=sim_dir / "bkg.tar.gz",
                             remove_files=True,
                         )
                         shutil.move(src=sim_dir / "bkg.tar.gz", dst=bkg_compressed)
+                        for bkg_dir in xmm_filter_dir.rglob("bkg"):
+                            shutil.rmtree(bkg_dir)
 
     endtime = datetime.now()
     logger.info(f"Duration: {endtime - starttime}")
