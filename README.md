@@ -1,48 +1,206 @@
 # XMM EPIC-pn Simulator
-The easiest way to run this code is to use the accompanying docker container. All the dependencies and filepaths are already pre-installed and set.
+You can run this code either locally or via Docker. My main case for the latter is to run the code on a [Kubernetes](https://kubernetes.io) (aka K8s) cluster, which uses [CephFS](https://docs.ceph.com/en/nautilus/cephfs/). Therefore, my focus on optimization lies on utilising multiprocessing and handling of large amounts of small files.
 
+The use cases do not differ much: The `Dockerfile` is a summary of steps to be taken to set everything up locally. 
 
-## Setup (non docker):
- - Install Heasoft (if not presently installed): https://heasarc.gsfc.nasa.gov/lheasoft/install.html
- - Install SIXTE: https://www.sternwarte.uni-erlangen.de/research/sixte/simulation.php
- - Add SIXTE to the path: `export PATH=${PATH}:/path_to_sixte_bin`
- - Download xmm instrument files: http://vospace.esac.esa.int/vospace/sh/adfa36d39939809c41fab0c6bdf3049661f6dba?dl=1 (MD5 Hash: 8018ae18bcfe0ddaa8edd353f8a5bd34)
- - Make the instruments dicrectory at: `sixte/share/sixte/instruments/`
- - Unpack the instrument files in: `sixte/share/sixte/instruments/`
- - Clone the code repository: `git clone https://github.com/SamSweere/xmm_simulation.git`
- - Open the repository: `cd xmm_simulation`
- - Create a virtual environment: `python3 -m venv xmm_simulation_venv`
- - Activate the environment: `source xmm_simulation_venv/bin/activate`
- - Install the requirements: `pip3 install -r requirements.txt`
- 
-## Setup Docker:
+## Docker Setup
 Docker is a containerised system which makes it possible create and run a whole operation system in a container.
-This way all the programs are already installed. You only need to download and run the docker. 
-Docker works on Linux, Windows and Mac.
-- Download the docker software: 
-- If not already installed, install docker: https://www.docker.com/
-- Download the docker file: http://vospace.esac.esa.int/vospace/sh/a6314f6fcdeb447e4cdeb5351126df26d6aa032?dl=1 (MD5 Hash: 8018ae18bcfe0ddaa8edd353f8a5bd34)
-- Load the docker file: `docker load --input xmm_sim_docker.tar`
-- Create an external volume where the data is being saved: `mkdir {path_to_your_data_directory}`
-- Give the folder read write access for all (docker runs as another user): `chmod a+w {path_to_your_data_directory}`
-- Run the docker, to be able to acess the data we also mount an external volume: `docker run -it --mount type=bind,source={path_to_your_data_directory},target=/home/heasoft/data samsweere/sixte_xmm_heasoft:latest bash`
-- Switch to the heasoft user: `su -l heasoft`
-- Enable autocomplete with bash: `bash`
-- Navigate to the xmm_simulation: `cd xmm_simulation`
-- Run the desired files: `python {the_desired_python_file.py}`
-- You can change the parameters of the files by using nano: `nano {the_desired_python_file.py}`
-- Once the changes have been made in nano you can save them with `CTRL + o` followed with `enter` and exit nano with `CTRL + x`
+If not already done, you need to [install](https://docs.docker.com/engine/install/) the Docker engine. If you want a GUI, you can instead install [Docker Desktop](https://docs.docker.com/desktop/).
 
-## Data workflow
-This repository contains all the code to create simulated XMM images containing extended sources, agns and background. 
-All the parts can be run separately, however they might need data from previous steps. 
-Every step is more elaborately explained in further sections of this readme. 
-All parameters represent what I used for my research. These can be changed to test different things but might break next steps.
-The workflow:
-- Download and process Illustris TNG simulations: `illustris_tng_image_gen.py`
-- Create simput (simulation input) files: `simput_gen.py`
-- Run XMM SIXTE simulations: `xmm_simulation.py`
-- (Optional) Combine simulation outputs to create an XMM like observation: `combine_simulations.py`
+_Download everything beforehand_
+
+1. If not already done, pull this repo, open a terminal and switch directory into the root directory of the repo.
+2. Build the image given by the `Dockerfile` in this repo: `docker build -t {your_own_tag} .` This will take an hour or two.
+3. If needed, login into the image registries used by your cluster via `docker login {image_registry_url}` and push the image via `docker push {your_own_tag}`
+
+## Local setup
+A word of warning: The following steps and the code run on Ubuntu 22.04. I haven't tested (nor do I intend to) other operating systems. If you're using Windows you'll probably run into problems, because of the logging library ([`Loguru`](https://github.com/Delgan/loguru)) I'm using. For more information see e. g. [this GitHub issue](https://github.com/Delgan/loguru/issues/1064).   
+
+The local setup is basically a step-by-step reproduction of the Dockerfile:
+### 1. Setup your Ubuntu:
+```shell
+sudo apt-get install software-properties-common && \
+sudo add-apt-repository ppa:ubuntu-toolchain-r/test && \
+sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y && \
+sudo apt-get install -y git libtool autoconf wget rsync perl libreadline-dev \
+libncurses5-dev ncurses-dev curl libcurl4 libcurl4-gnutls-dev xorg-dev make gcc \
+g++ gfortran perl-modules libncurses-dev libexpat1-dev libgsl0-dev libboost-dev \
+libcmocka-dev
+```
+Setup environment variables _permanentely_. Please research how you can do that for your shell (see e. g. [here](https://unix.stackexchange.com/questions/117467/how-to-permanently-set-environmental-variables)). If you're using `bash` add following lines to e. g. `${HOME}/.bashrc`:
+
+```shell
+# You can adjust these values as you like. These are my preferred paths.
+export SIMPUT=${HOME}/simput
+export SIXTE=${SIMPUT} # This path has to be the same as SIMPUT!
+export MINICONDA=${HOME}/miniconda3
+
+# SAS variables
+export SAS_ROOT=${HOME}/sas
+export SAS_DIR=${SAS_ROOT}/xmmsas_20230412_1735 # xmmsas_20230412_1735 is mandatory!
+export SAS_CCFPATH=${HOME}/ccf
+export SAS_CCF=${SAS_CCFPATH}/ccf.cif
+export SAS_PERL=${HOME}/perl5/perlbrew/perls/perl-5.36.1/bin/perl
+export SAS_PYTHON=${MINICONDA}/envs/xmm/bin/python
+
+# HEADAS variables
+export HEADAS=${HOME}/headas
+export HEADASPROMPT=/dev/null 
+export HEADASNOQUERY=""
+export LD_LIBRARY_PATH=${MINICONDA}/envs/xmm/lib:${LD_LIBRARY_PATH}
+
+# General
+export PATH=${MINICONDA}/bin:${PERL}:${PATH}
+export PYTHONPATH=${SAS_DIR}/lib/python:${HEADAS}/lib/python:${PYTHONPATH}
+```
+Make sure that these variables are loaded. If you want to make sure you can restart your PC.
+
+### 2. Download everything
+This will take some time...
+```shell
+mkdir -p ${MINICONDA} \
+mkdir -p ${HOME}/simput_git/ && cd ${HOME}/simput_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ . \
+mkdir -p ${HOME}/sixte_git/ && cd ${HOME}/sixte_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ . \
+cd ${HOME} \
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${MINICONDA}/miniconda.sh \
+wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz \
+wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz \
+rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF $SAS_CCFPATH \
+wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-6.32.1src.tar.gz
+```
+### 3. Setup `miniconda`
+Install `miniconda`:
+```shell
+. ${MINICONDA}/miniconda.sh -b -u -p ${MINICONDA} && rm -rf ${MINICONDA}/miniconda.sh
+```
+Initialise `conda`:
+```shell
+conda init bash
+```
+_Restart your terminal._
+
+Create an conda environment:
+```shell
+conda create -c conda-forge -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery lxml yt h5py loguru pydantic
+```
+### 4. Setup Perl
+Install [`perlbrew`](https://perlbrew.pl):
+```shell
+\curl -L https://install.perlbrew.pl | bash
+```
+Initialise `perlbrew` and install `cpanm`:
+```shell
+perlbrew init && perlbrew install-cpanm
+```
+_Restart your terminal._
+
+Install `perl-5.36.1` and needed modules
+```shell
+perlbrew install --switch -n -f perl-5.36.1 && cpanm -n Switch && cpanm -n Shell && cpanm -n CGI
+```
+
+### 5. Setup SIMPUT and SIXTE
+Install `SIMPUT`:
+```shell
+cd ${HOME}/simput_git/ \
+echo "Initializing simput..." && autoreconf --install --force > /dev/null 2>&1 && \
+echo "Configuring simput..." && ./configure --prefix=${SIMPUT} > /dev/null 2>&1 &&  \
+echo "Building simput..." && make > /dev/null 2>&1 &&  \
+echo "Installing simput..." && make install > /dev/null 2>&1 && \
+echo "Cleaning simput..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/simput_git/ \
+cd ${HOME}
+```
+Install `SIXTE`:
+```shell
+cd ${HOME}/sixte_git/ \
+echo "Initializing sixte..." && autoreconf --install --force > /dev/null 2>&1 && \
+echo "Configuring sixte..." && ./configure --prefix=${SIMPUT} > /dev/null 2>&1 &&  \
+echo "Building sixte..." && make > /dev/null 2>&1 &&  \
+echo "Installing sixte..." && make install > /dev/null 2>&1 && \
+echo "Cleaning sixte..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/sixte_git/ \
+cd ${HOME}
+```
+Get the needed instrument files:
+```shell
+mv instruments_xmm-1.2.1.tar.gz ${SIXTE}/ && cd ${SIXTE} \
+tar zxf instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz \
+cd ${HOME}
+```
+### 6. Setup `SAS`
+Install `SAS`:
+```shell
+mkdir -p ${SAS_ROOT} && mv sas_21.0.0-Ubuntu22.04.tgz ${SAS_ROOT}/ && cd ${SAS_ROOT} \
+tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz && ./install.sh \
+cd ${HOME}
+```
+### 7. Setup `headas`
+```shell
+tar zxf heasoft-6.32.1src.tar.gz && rm heasoft-6.32.1src.tar.gz && \
+unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
+CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=${SAS_PERL} PYTHON=${MINICONDA}/envs/xmm/bin/python && \
+cd heasoft-6.32.1/BUILD_DIR/ && \
+echo "Configuring heasoft..." && ./configure --prefix=${HEADAS} > /dev/null 2>&1 && \
+echo "Building heasoft..." && make > /dev/null 2>&1 && \
+echo "Installing heasoft..." && make install > /dev/null 2>&1 && \
+echo "Cleaning heasoft..." && make clean > /dev/null 2>&1 && \
+/bin/bash -c 'cd ${HEADAS}; for loop in x86_64*/*; do ln -sf $loop; done' \
+cd ${HOME}/heasoft-6.32.1 \
+cp -p Xspec/BUILD_DIR/hmakerc ${HEADAS}/bin/ \
+cp -p Xspec/BUILD_DIR/Makefile-std ${HEADAS}/bin/ \
+rm -rf Xspec/src/spectral
+```
+
+### 8. Check if everything works fine
+_Restart your terminal_ and run:
+```shell
+. ${HEADAS}/headas-init.sh && \
+. ${SAS_DIR}/setsas.sh && \
+. ${SIXTE}/bin/sixte-install.sh && \
+cd ${SAS_CCFPATH} && \
+cifbuild withobservationdate=yes
+```
+If that runs fine, you're ready to go!
+
+## Running the code
+The code is split up into different steps, represented by different scripts. If you want to go through the whole process, then you _must_ execute the steps in the correct order. They are numbered accordingly. There are following steps:
+
+1. `01_download_files.py`: Download files from the [Illustris Project](https://www.tng-project.org). Before you can do that you'll need an API key. For this check out their [registration page](https://www.tng-project.org/users/register/). After your request has been approved, you'll see your personal API key after you login. Please keep this key to yourself!
+
+2. `02_generate_simput.py`: Create SIMPUT files based on the previously downloaded files.
+
+3. `03_xmm_simulation.py`: Simulate XMM-Newton for the previously created SIMPUT files. TBD: I will add at least one other satellite to choose from.
+
+4. `04_combine_simulations.py`: **Not used right now!** I will rewrite this step to merge images from different satellites/different sensors.
+
+### Configuring the process
+The good thing: You'll need to fill out `config.json` only once! Every step relies on this configuration file and everything will be done accordingly. This file is divided into `environment`, `energy`, `download`, `simput` and `simulation`:
+
+#### environment
+This gives paths and some general information to the code:
+- `working_dir`: Directory where the files will be saved to, while there are being worked on
+- `output_dir`: If you're not running the code on a K8s cluster as I am, you can set this directory to the same value as `working_dir`. If `output_dir` and `working_dir` are not the same, the code will create a [tarball](https://manpages.ubuntu.com/manpages/focal/en/man1/tar.1.html) from the data in `working_dir` and move it to `output_dir`. This way the slow transfer speed of CephFS for small files is circumvented.
+- `log_dir`: Directory where all the logs will be created. The code rotates the files every hour and keeps at most three files.
+- `debug`: Switches of multiprocessing and gives more logs.
+- `verbose`: Controls how much should be logged.
+- `fail_on_error`: Sometimes errors may happen, which are not necessarily critical. For example: The download of one file from the Illustris Project could file, but everything else might work fine. If `fail_on_error` is `true`, then this will crash the program.
+- `overwrite`: Controls if already existing files will be overwritten. Setting this to `false` could be useful if you want to avoid overwriting data that you have created previously. I would recommend to keep this to `true` and move any previously created files to some other directory.
+- `consume_data`: Leave this at `false` if `working_dir == output_dir`! Otherwise files will be deleted to soon. This is mainly for my use case of running the code on K8s.
+
+#### energy
+Set the energy boundaries in `keV`:
+- `emin`
+- `emax`
+
+#### download
+- `num_processes`: How many processes should be run asynchrounosly. My recommendation: Your available RAM divided by 4, i. e., if you have 32GB of RAM: $32 / 4 = 8$
+- `top_n`: How many cutouts to download for given simulations.
+- `resolutions`: For every downloaded cutout, create images in these given resolutions
+
+Executing the code is same for both setups:
+
+1. Set your configuration parameters as needed (see below)
+2. Choose what step you want to run (see below)
+2. Run `conda run -n xmm --no-capture-output python /path/to/script -p /home/studtodorkov/simulator/config.json`
 
 ## Illustris TNG simulations `illustris_tng_image_gen.py`
 For our XMM simulations we need sources to simulate (simulation input). 
@@ -54,27 +212,6 @@ x-ray projections and x-ray slices (less realistic but contains more clearly def
 Note that cutout files are relatively large (100-1000 mb) and can take a while to download, it will first download all 
 the relevant cutouts before generating the images.
 
-#### API-key
-In order to download the Illustris TNG simulations one needs an api key. This is not included in the project.
-The api key can be requested at: https://www.tng-project.org/users/register/ <br>
-Once you have an api key put it in a text file at: `illustris_tng/api_key.txt`. This only has to be done once.
-
-#### Some parameters to consider:
-- `home`: Change this to the location to where you want the files to be stored
-- `simulation_names`: Select which TNG simulations to use. For a quick test set this to one simulation.
-- `top_n`: How many images to select from the simulations, change to a small number for testing
-- `modes`: Select if you want projections, slices or both 
-
-The code will take generate images with all the combinations of parameters. 
-Thus, one TNG simulation cutout will by default generate multiple images.
-
-## Simulation Input (simput) generation `simput_gen.py`
-In order to run the XMM SIXTE simulations we need input for these simulations. 
-In this project we focus on:
- - Extended sources, provided in the form of fits images, such as the Illustris TNG images
- - AGN's, generated based on real xmm observed agn distributions 
- - Background, generated based on real xmm background
- - (Optional) Test grid, a grid containing sources of the same brightness and a source on the bore-axis. Intended for use in development and testing. 
 
 #### Notes on extended sources (images as simput)
 To create the simput for extended sources we use fits image files. In order to have a realistic distribution we augment these images using:
@@ -100,22 +237,4 @@ All the elements that make up a XMM observation are simulated separately: extend
 These can then in the future be combined with a detector-mask to create a realistic XMM observation.
 Since this is a simulation we can also simulate observations where XMM has a higher resolution (both spatial and psf wise).
 
-#### Some parameters to consider:
- - `home`: Change this to the data location, make sure this is the same path as used in `simput_gen.py` in order to use the generated simputs.
- - `instrument_dir`: SIXTE instrument location
- - `exposure`: The exposure time to simulate. The final observation will also be split into shorter observation images in steps of 10ks
- - `res_mult`: The resolution (both spatial and psf) multiplier. `1` matches real xmm observations, `2` and `4` increase the spatial resolution by 2 and 4 and decrease the psf by 2 and 4 respectively.
- - `amount`: The amount of simulations to do per mode. `-1` will run the simulation on all the simputs of the mode
-
-## Combine Simulations `combine_observations.py`
-The simulator will produce all separate parts of the xmm observation. To create a realistic xmm observation we need to combine these simulated parts.
-We have the option to select the separate parts, finally the image is multiplied with the detector mask
-
-#### Some parameters to consider:
-- `home`: Change this to the data location, make sure this is the same path as used in `xmm_simulation.py` in order to use the simulated observation parts.
-- `num`: The number of images to combine from this mode, `-1` will combine everything image in this mode
-- `agn`: Option to add AGNS
-- `background`: Option to add background
-- `sample_n`: The number of agns and backgrounds to sample for one observation
-- `res_mult`: The resolution multiples to use. It will find the same simput simulation files for the multiple resolutions
-- `exposure`: The exposures to combine
+## Acknowledgements
