@@ -15,7 +15,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     apt-get install -y git libtool autoconf wget rsync perl libreadline-dev libncurses5-dev ncurses-dev curl \
     libcurl4 libcurl4-gnutls-dev xorg-dev make gcc g++ gfortran perl-modules libncurses-dev libexpat1-dev libgsl0-dev \
-    libboost-dev libcmocka-dev && \
+    libboost-dev libcmocka-dev vim && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 USER 1194
