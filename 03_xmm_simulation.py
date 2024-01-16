@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from typing import Dict
 
 from loguru import logger
+import os
 
 from src.sixte.simulator import run_xmm_simulation
 from src.xmm.utils import create_psf_file, create_vinget_file, create_xml_files
@@ -157,7 +158,7 @@ def run(path_to_cfg: Path) -> None:
                         remove_files=True,
                     )
                     shutil.move(src=sim_dir / "img.tar.gz", dst=img_compressed)
-                    for img_dir in xmm_filter_dir.rglob("img"):
+                    for img_dir in xmm_filter_dir.rglob(f"img{os.sep}"):
                         shutil.rmtree(img_dir)
 
                 if sim_cfg.modes.agn != 0:
@@ -207,7 +208,7 @@ def run(path_to_cfg: Path) -> None:
                             remove_files=True,
                         )
                         shutil.move(src=sim_dir / "agn.tar.gz", dst=agn_compressed)
-                        for agn_dir in xmm_filter_dir.rglob("agn"):
+                        for agn_dir in xmm_filter_dir.rglob(f"agn{os.sep}"):
                             shutil.rmtree(agn_dir)
 
                 if sim_cfg.modes.bkg != 0:
@@ -261,7 +262,7 @@ def run(path_to_cfg: Path) -> None:
                             remove_files=True,
                         )
                         shutil.move(src=sim_dir / "bkg.tar.gz", dst=bkg_compressed)
-                        for bkg_dir in xmm_filter_dir.rglob("bkg"):
+                        for bkg_dir in xmm_filter_dir.rglob(f"bkg{os.sep}"):
                             shutil.rmtree(bkg_dir)
 
     endtime = datetime.now()
