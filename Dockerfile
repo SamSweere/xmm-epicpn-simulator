@@ -28,7 +28,7 @@ ENV PATH="$MINICONDA/bin:$PATH"
 
 RUN conda init bash
 RUN conda create -c conda-forge -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy  \
-    pypdf notebook astroquery lxml yt h5py loguru pydantic jsonschema
+    pypdf notebook astroquery lxml yt h5py loguru pydantic
 
 # Install perl-5.36.1 and the required modules
 RUN curl -L https://install.perlbrew.pl | bash
