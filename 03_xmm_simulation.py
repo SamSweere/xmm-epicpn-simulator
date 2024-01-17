@@ -115,7 +115,7 @@ def run(path_to_cfg: Path) -> None:
             xmm_filter_dir.mkdir(exist_ok=True, parents=True)
             if sim_cfg.modes.img != 0:
                 logger.info(f"START\tSimulating {instrument_name} for IMG.")
-                simputs = (sim_cfg.simput_dir / "img").rglob("*.simput.gz")
+                simputs = list((sim_cfg.simput_dir / "img").rglob("*.simput.gz"))
                 to_run = partial(
                     run_xmm_simulation,
                     instrument_name=instrument_name,
@@ -163,7 +163,7 @@ def run(path_to_cfg: Path) -> None:
 
                 if sim_cfg.modes.agn != 0:
                     logger.info(f"START\tSimulating {instrument_name} for AGN.")
-                    simputs = (sim_cfg.simput_dir / "agn").rglob("*.simput.gz")
+                    simputs = list((sim_cfg.simput_dir / "agn").rglob("*.simput.gz"))
                     to_run = partial(
                         run_xmm_simulation,
                         instrument_name=instrument_name,
