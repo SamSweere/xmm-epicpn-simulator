@@ -1,5 +1,6 @@
 from pathlib import Path
 from src.xmm_utils.external_run import run_command
+import os
 
 
 def compress_gzip(
@@ -20,7 +21,7 @@ def compress_targz(in_path: Path, out_file_path: Path, remove_files: bool = Fals
     out_file_path.parent.mkdir(parents=True, exist_ok=True)
     suffix = " --remove-files" if remove_files else ""
     run_command(
-        f"tar -czf {out_file_path.resolve()} {in_path.resolve()} --overwrite{suffix}"
+        f"cd {in_path.parent.resolve()} && tar -czf {out_file_path.resolve()} {in_path.name}{os.sep} --overwrite{suffix}"
     )
 
 
