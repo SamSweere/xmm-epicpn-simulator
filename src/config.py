@@ -100,9 +100,6 @@ class SimputCfg(BaseModel):
     simput_dir: CfgPath
     fits_dir: CfgPath
     fits_compressed: Path
-    agn_dir: CfgPath
-    bkg_dir: CfgPath
-    img_dir: CfgPath
 
 
 class EnergySettings(BaseModel):
