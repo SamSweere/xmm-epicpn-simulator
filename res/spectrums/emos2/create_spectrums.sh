@@ -1,3 +1,5 @@
+#!/bin/bash
+
 wget https://xmm-tools.cosmos.esa.int/external/xmm_calibration/background/bs_repository/m2tffg_events.fits
 wget https://xmm-tools.cosmos.esa.int/external/xmm_calibration/background/bs_repository/m2mffg_events.fits
 wget https://xmm-tools.cosmos.esa.int/external/xmm_calibration/background/bs_repository/m2kffg_events.fits
