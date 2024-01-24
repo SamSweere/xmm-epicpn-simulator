@@ -16,6 +16,7 @@ from src.simput.gen import simput_generate
 from src.simput.utils import get_spectrumfile
 from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.run_utils import configure_logger
+from xmm_utils.external_run import run_command
 from xmm_utils.multiprocessing import mp_run
 
 logger.remove()
@@ -179,10 +180,15 @@ def run(
                 spectrum_file = spectrum_dir / instrument_name / spectrum_name
 
                 if not spectrum_file.exists():
-                    raise FileNotFoundError(f"{spectrum_file} does not exist!")
-
-                if not spectrum_file.is_file():
-                    raise FileNotFoundError(f"{spectrum_file} is not a file!")
+                    logger.info(
+                        f"Could not find {spectrum_file.resolve()}. Creating it..."
+                    )
+                    run_command(
+                        f"cd {spectrum_file.parent.resolve()} && ./create_spectrums.sh"
+                    )
+                    logger.success(
+                        f"Created {spectrum_file.resolve()}. This will be done only once as long as the file exists."
+                    )
 
                 fov = get_fov(instrument_name)
 
