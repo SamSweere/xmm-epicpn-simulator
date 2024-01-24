@@ -7,11 +7,22 @@ The use cases do not differ much: The `Dockerfile` is a summary of steps to be t
 Docker is a containerised system which makes it possible create and run a whole operation system in a container.
 If not already done, you need to [install](https://docs.docker.com/engine/install/) the Docker engine. If you want a GUI, you can instead install [Docker Desktop](https://docs.docker.com/desktop/).
 
-_Download everything beforehand_
-
 1. If not already done, pull this repo, open a terminal and switch directory into the root directory of the repo.
-2. Build the image given by the `Dockerfile` in this repo: `docker build -t {your_own_tag} .` This will take an hour or two.
-3. If needed, login into the image registries used by your cluster via `docker login {image_registry_url}` and push the image via `docker push {your_own_tag}`
+2. Download everything beforehand to reduce the image build time:
+
+```shell
+mkdir downloads/ && cd downloads/ && \
+mkdir simput_git/ && cd simput_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ . && cd ../ \
+mkdir sixte_git/ && cd sixte_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ . && cd ../ \
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh \
+wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz \
+wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz \
+rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF ccf/ \
+wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-6.32.1src.tar.gz
+```
+
+3. Build the image given by the `Dockerfile` in this repo: `docker build -t {your_own_tag} .` This will take an hour or two.
+4. If needed, login into the image registries used by your cluster via `docker login {image_registry_url}` and push the image via `docker push {your_own_tag}`
 
 ## Local setup
 A word of warning: The following steps and the code run on Ubuntu 22.04. I haven't tested (nor do I intend to) other operating systems. If you're using Windows you'll probably run into problems, because of the logging library ([`Loguru`](https://github.com/Delgan/loguru)) I'm using. For more information see e. g. [this GitHub issue](https://github.com/Delgan/loguru/issues/1064).   
@@ -161,18 +172,7 @@ cifbuild withobservationdate=yes
 ```
 If that runs fine, you're ready to go!
 
-## Running the code
-The code is split up into different steps, represented by different scripts. If you want to go through the whole process, then you _must_ execute the steps in the correct order. They are numbered accordingly. There are following steps:
-
-1. `01_download_files.py`: Download files from the [Illustris Project](https://www.tng-project.org). Before you can do that you'll need an API key. For this check out their [registration page](https://www.tng-project.org/users/register/). After your request has been approved, you'll see your personal API key after you login. Please keep this key to yourself!
-
-2. `02_generate_simput.py`: Create SIMPUT files based on the previously downloaded files.
-
-3. `03_xmm_simulation.py`: Simulate XMM-Newton for the previously created SIMPUT files. TBD: I will add at least one other satellite to choose from.
-
-4. `04_combine_simulations.py`: **Not used right now!** I will rewrite this step to merge images from different satellites/different sensors.
-
-### Configuring the process
+## Configuring the code
 The good thing: You'll need to fill out `config.json` only once! Every step relies on this configuration file and everything will be done accordingly. This file is divided into `environment`, `energy`, `download`, `simput` and `simulation`:
 
 #### environment
@@ -192,46 +192,85 @@ Set the energy boundaries in `keV`:
 - `emax`
 
 #### download
-- `num_processes`: How many processes should be run asynchrounosly. My recommendation: Your available RAM divided by 4, i. e., if you have 32GB of RAM: $32 / 4 = 8$
+- `num_processes`: How many processes should be run asynchrounosly.
 - `top_n`: How many cutouts to download for given simulations.
 - `resolutions`: For every downloaded cutout, create images in these given resolutions
+- `snapshots`: A dictionary of to-be-used snapshots with the corresponding redshift (see e.g. [TNG100-1](https://www.tng-project.org/data/downloads/TNG100-1/)). The IllustrisTNG project has snapshots 0 - 99.
+- `simulations`: What simulations to consider with which width. Available are (with all of their sub-resolutions): `TNG50`, `TNG100`, and `TNG300`. The width is given as a tuple of `int` and `str`. If you don't want to use one simulation, then just delete it out of `config.json`.
+- `modes`: There are two modes to create [`FITS`](https://heasarc.gsfc.nasa.gov/docs/heasarc/fits.html): projection and slice. The values given in the list are the axis for which the projection/slicing should be done. Both support the same values (`x`, `y`, `z`). If you want to use only one of the modes, then leave the list of the other empty.
 
-Executing the code is same for both setups:
+#### simput
+- `num_processes`: How many processes should be run asynchrounosly.
+- `filter`: What XMM filter to use. Available: `thin`, `thick`, `med`. Only relevant for mode `bkg` (see below)
+- `zoom_range`: From what range to randomly chose a zoom factor.
+- `sigma_b_range`: The brightness sample range. This is based on the std of 50ks background. I.e. `sigma_b = 10` will result in a brightness of 10 times the background at 50ks.
+- `offset_std`: The standard deviation of the normal distribution of the offset location around the bore-sight
+- `num_img_sample`: How many simputs to create for previously downloaded files.
+- `modes`: For what modes to create simputs. Available modes: `img`, `agn`, `bkg` (short for background). Set the value to `0` if none should be created. The mode `img` supports `-1`, which will create simputs for _all_ of the previously downloaded files. The mode `bkg` only supports a boolean value (or 0 and 1 accordingly).
+- `instruments`: Only relevant for the mode `bkg`: For what instruments should a background simput be created. Available instruments: `epn`, `emos1`, `emos2`.
 
-1. Set your configuration parameters as needed (see below)
-2. Choose what step you want to run (see below)
-2. Run `conda run -n xmm --no-capture-output python /path/to/script -p /home/studtodorkov/simulator/config.json`
+#### simulation
+- `num_processes`: How many processes should be run asynchrounosly.
+- `instrument_names`: What instruments should be simulated. Available instruments: `epn`, `emos1`, `emos2`.
+- `filter`: What XMM filter to use. Available: `thin`, `thick`, `med`.
+- `res_mults`: What resolution multiplication to simulate, e.g., 1x, 2x, 4x, etc.
+- `max_exposure`: Max exposure to be simulated.
+- `modes`: For what modes to run the instrument simulations. Available modes: `img`, `agn`, `bkg` (short for background). Set the value to `0` if none should be created. The modes `img` and `agn` support `-1`, which will run the simulation for _all_ of the previously created simputs for that mode.
+- `sim_separate_ccds`: If the individual CCDs of XMM should be simulated or if they should be considered as "one big CCD".
+- `wait_time`: If not 0, then Out-Of-Time events will be simulated.
 
-## Illustris TNG simulations `illustris_tng_image_gen.py`
+## Running the code
+The code is split up into different steps, represented by different scripts. If you want to go through the whole process, then you _must_ execute the steps in the correct order. They are numbered accordingly. There are following steps:
+
+1. `01_download_files.py`: Download files from the [Illustris Project](https://www.tng-project.org). Before you can do that you'll need an API key. For this check out their [registration page](https://www.tng-project.org/users/register/). After your request has been approved, you'll see your personal API key after you login. Please keep this key to yourself!
+
+2. `02_generate_simput.py`: Create SIMPUT files based on the previously downloaded files.
+
+3. `03_xmm_simulation.py`: Simulate XMM-Newton for the previously created SIMPUT files. TBD: I will add at least one other satellite to choose from.
+
+4. `04_combine_simulations.py`: **Not used right now!** I will rewrite this step to merge images from different satellites/different sensors.
+
+Executing any of the scripts is same for both setups:
+
+1. Set your configuration parameters as needed (see above)
+2. Initialise external tools:
+
+```shell
+. ${HEADAS}/headas-init.sh && . ${SAS_DIR}/setsas.sh && . ${SIXTE}/bin/sixte-install.sh
+```
+
+3. Choose what step you want to run
+4. Run `conda run -n xmm --no-capture-output python /path/to/script` with the needed command line arguments:
+   
+   1. `01_download_files.py` requires two arguments: 
+   
+       1. `-k` followed by your personal Illustris API key (see below)
+       2. `-p` followed by the path to the `config.json`
+   2. `02_generate_simput.py` requires three arguments: 
+       1. `-a` followed by the path to the `agn_counts.cgi` file in `res`
+       2. `-p` followed by the path to the `config.json`
+       3. `-s` followed by the path to `res/spectrums`
+    3. `03_xmm_simulation.py` requires one argument:
+       1. `-p` followed by the path to the `config.json` 
+
+## IllustrisTNG simulations
 For our XMM simulations we need sources to simulate (simulation input). 
 In our project we are especially interested in extended sources. 
 We take these extended sources from the Illustris TNG project (https://www.tng-project.org/).
 This is a large cosmological hydrodynamical simulation of galaxy formation containing hundreds
 of terabytes of simulated data. From this we take the most massive objects and take 
 x-ray projections and x-ray slices (less realistic but contains more clearly defined structure).
-Note that cutout files are relatively large (100-1000 mb) and can take a while to download, it will first download all 
-the relevant cutouts before generating the images.
-
+Note that cutout files are relatively large (100-1000 mb) and can take a while to download, it will first download all the relevant cutouts before generating the images.
 
 #### Notes on extended sources (images as simput)
 To create the simput for extended sources we use fits image files. In order to have a realistic distribution we augment these images using:
 - Brightness: The brightness of the source is internally defined as sigma_b. This is based on the std of 50ks background. I.e. `sigma_b = 10` will result in a brightness of 10 times the background at 50ks.
 The images are used as a distribution of a given brightness. 
-We determine the final brightness by taking a center cutout of the image and set this to the brightness defined by sigma_b. This behaviour can be changed in `simput/img_simputgen.py`
+We determine the final brightness by taking a center cutout of the image and set this to the brightness defined by sigma_b.
 - Location: We augment to location by offsetting the image from the bore-axis. Since real xmm observation are usually focussed on the center of extended sources we by default offcenter the images by a small amount around the bore-sight based on a normal distribution.
 - Size (zoom): We augment the size of the extended source by artificially zooming in or out.
 
-#### Some parameters to consider:
-- `home`: Change this to the data location, make sure this is the same path as used in `illustris_tng_image_gen.py` in order to use the illustris tng generated images.
-- `simput_in_image_dataset`: The name of the directory containing fits images used in the image mode. By in the default workflow these will be the illustris tng images.
-- `num`: The number of simputs to generate of a certain mode. For the `img` mode, if set to `-1` it will process every image
-- `num_img_sample`: How many variations to generate of one image. These variations consist out of the brightness, location and zoom
-- `zoom_img_range`: This the size of the object by zooming into the object.
-- `sigma_b_img_range`: The brightness sample range. This is based on the std of 50ks background. 
-I.e. `sigma_b = 10` will result in a brightness of 10 times the background at 50ks.
-- `offset_std`: The standard deviation of the normal distribution of the offset location around the bore-sight
-
-## XMM Simulation `xmm_simulation.py`
+## XMM Simulation
 The XMM simulations are done using SIXTE X-ray simulation software (https://www.sternwarte.uni-erlangen.de/research/sixte/).
 All the elements that make up a XMM observation are simulated separately: extended source, agn and background.
 These can then in the future be combined with a detector-mask to create a realistic XMM observation.
