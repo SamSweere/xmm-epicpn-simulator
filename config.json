@@ -79,7 +79,7 @@
     "modes": {
       "img": -1,
       "agn": 25000,
-      "background": 1
+      "bkg": 1
     },
     "instruments": [
       "epn",
@@ -88,6 +88,7 @@
     ]
   },
   "simulation": {
+    "num_processes": 8,
     "instrument_names": [
       "epn",
       "emos1",
@@ -103,7 +104,7 @@
     "modes": {
       "img": -1,
       "agn": -1,
-      "background": 25000
+      "bkg": 25000
     },
     "sim_separate_ccds": true,
     "wait_time": 23.04e-6
