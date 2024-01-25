@@ -89,7 +89,7 @@
   },
   "simulation": {
     "num_processes": 8,
-    "instrument_names": [
+    "instruments": [
       "epn",
       "emos1",
       "emos2"
