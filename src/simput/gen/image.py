@@ -6,7 +6,6 @@ from uuid import uuid4
 import numpy as np
 from astropy.io import fits
 
-from src.simput.utils import get_spectrumfile
 from src.sixte import commands
 from src.xmm.utils import get_fov
 
@@ -103,16 +102,13 @@ def _prepare_fits_image(
 
 
 def simput_image(
-    emin: float, emax: float, run_dir: Path, img_settings: dict
+    emin: float, emax: float, run_dir: Path, img_settings: dict, xspec_file: Path
 ) -> List[Path]:
     img_path_in: Path = img_settings["img_path"]
     zooms = img_settings["zoom"]
     sigmas_b = img_settings["sigma_b"]
     offsets_x = img_settings["offset_x"]
     offsets_y = img_settings["offset_y"]
-
-    # Get the spectrum file
-    spectrum_file = get_spectrumfile(run_dir=run_dir)
 
     output_files = []
 
@@ -139,7 +135,7 @@ def simput_image(
             src_flux=flux,
             emin=emin,
             emax=emax,
-            xspec_file=spectrum_file,
+            xspec_file=xspec_file,
             image_file=img_path,
         )
 

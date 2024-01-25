@@ -37,6 +37,7 @@ def create_agn_sources(
     emax: float,
     run_dir: Path,
     img_settings: dict,
+    xspec_file: Path,
 ):
     output_files = []
 
@@ -54,7 +55,7 @@ def create_agn_sources(
                 emax=emax,
                 output_file=output_file,
                 src_flux=flux,
-                xspec_file=img_settings["spectrum_file"],
+                xspec_file=xspec_file,
                 offset="random",
             )
             simput_files.append(output_file)
@@ -76,6 +77,7 @@ def simput_generate(
     img_settings: dict,
     tmp_dir: Path,
     output_dir: Path,
+    spectrum_file: Path,
 ) -> None:
     with TemporaryDirectory(dir=tmp_dir) as temp:
         run_dir = Path(temp)
@@ -88,6 +90,7 @@ def simput_generate(
                 emax=emax,
                 run_dir=run_dir,
                 img_settings=img_settings,
+                xspec_file=spectrum_file,
             )
 
         if mode == "img":
@@ -96,6 +99,7 @@ def simput_generate(
                 emax=emax,
                 run_dir=run_dir,
                 img_settings=img_settings,
+                xspec_file=spectrum_file,
             )
 
         if mode == "bkg":
@@ -104,7 +108,7 @@ def simput_generate(
                 emin=emin,
                 emax=emax,
                 run_dir=run_dir,
-                spectrum_file=img_settings["spectrum_file"],
+                spectrum_file=spectrum_file,
             )
 
         for file_name in file_names:

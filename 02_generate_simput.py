@@ -16,8 +16,8 @@ from src.simput.gen import simput_generate
 from src.simput.utils import get_spectrumfile
 from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.run_utils import configure_logger
-from xmm_utils.external_run import run_command
-from xmm_utils.multiprocessing import mp_run
+from src.xmm_utils.external_run import run_command
+from src.xmm_utils.multiprocessing import mp_run
 
 logger.remove()
 
@@ -137,6 +137,8 @@ def run(
                 for in_file, num in to_create
             )
 
+            xspec_file = get_spectrumfile(run_dir=tmp_dir)
+
             to_run = partial(
                 simput_generate,
                 emin=energies.emin,
@@ -144,6 +146,7 @@ def run(
                 mode="img",
                 tmp_dir=tmp_dir,
                 output_dir=img_path,
+                spectrum_file=xspec_file,
             )
             _, duration = mp_run(to_run, kwds, simput_cfg.num_processes, env_cfg.debug)
             logger.info(f"DONE\tGenerating SIMPUT for mode 'img'. Duration: {duration}")
@@ -205,6 +208,7 @@ def run(
                 {
                     "img_settings": img_setting,
                     "output_dir": img_setting.pop("output_dir"),
+                    "spectrum_file": img_setting.pop("spectrum_file"),
                 }
                 for img_setting in img_settings
             )
@@ -243,11 +247,10 @@ def run(
             agn_path.mkdir(parents=True, exist_ok=True)
 
             logger.info(f"Will generate {simput_cfg.modes.agn} AGNs.")
-            # Get the spectrum file
-            spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
+
             # Get the fluxes from the agn distribution
             fluxes = get_fluxes(agn_counts_file)
-            img_settings = {"spectrum_file": spectrum_file, "fluxes": fluxes}
+            img_settings: dict = {"fluxes": fluxes}
             if env_cfg.debug:
                 img_settings["num"] = simput_cfg.modes.agn
                 kwds = ({"img_settings": img_settings} for _ in range(1))
@@ -257,6 +260,9 @@ def run(
                     {"img_settings": img_settings} for _ in range(simput_cfg.modes.agn)
                 )
 
+            # Get the spectrum file
+            spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
+
             to_run = partial(
                 simput_generate,
                 emin=energies.emin,
@@ -264,6 +270,7 @@ def run(
                 mode="agn",
                 tmp_dir=tmp_dir,
                 output_dir=agn_path,
+                spectrum_file=spectrum_file,
             )
             _, duration = mp_run(to_run, kwds, simput_cfg.num_processes, env_cfg.debug)
             logger.info(f"DONE\tGenerating SIMPUT for mode 'agn'. Duration: {duration}")
