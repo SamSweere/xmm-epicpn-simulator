@@ -82,7 +82,7 @@ wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-
 ### 3. Setup `miniconda`
 Install `miniconda`:
 ```shell
-. ${MINICONDA}/miniconda.sh -b -u -p ${MINICONDA} && rm -rf ${MINICONDA}/miniconda.sh
+bash ${MINICONDA}/miniconda.sh -b -u -p ${MINICONDA} && rm -rf ${MINICONDA}/miniconda.sh
 ```
 Initialise `conda`:
 ```shell
@@ -93,6 +93,10 @@ _Restart your terminal._
 Create an conda environment:
 ```shell
 conda create -c conda-forge -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy pypdf notebook astroquery lxml yt h5py loguru pydantic
+```
+Activate our new conda environment:
+```shell
+conda activate xmm
 ```
 ### 4. Setup Perl
 Install [`perlbrew`](https://perlbrew.pl):
@@ -158,7 +162,8 @@ echo "Cleaning heasoft..." && make clean > /dev/null 2>&1 && \
 cd ${HOME}/heasoft-6.32.1 && \
 cp -p Xspec/BUILD_DIR/hmakerc ${HEADAS}/bin/ && \
 cp -p Xspec/BUILD_DIR/Makefile-std ${HEADAS}/bin/ && \
-rm -rf Xspec/src/spectral
+rm -rf Xspec/src/spectral && \
+cd ${HOME}
 ```
 
 ### 8. Check if everything works fine
@@ -168,7 +173,8 @@ _Restart your terminal_ and run:
 . ${SAS_DIR}/setsas.sh && \
 . ${SIXTE}/bin/sixte-install.sh && \
 cd ${SAS_CCFPATH} && \
-cifbuild withobservationdate=yes
+cifbuild withobservationdate=yes && \
+cd ${HOME}
 ```
 If that runs fine, you're ready to go!
 
@@ -192,7 +198,7 @@ Set the energy boundaries in `keV`:
 - `emax`
 
 #### download
-- `num_processes`: How many processes should be run asynchrounosly.
+- `num_processes`: How many processes should be run asynchrounosly. Recommended: As many CPUs as you have.
 - `top_n`: How many cutouts to download for given simulations.
 - `resolutions`: For every downloaded cutout, create images in these given resolutions
 - `snapshots`: A dictionary of to-be-used snapshots with the corresponding redshift (see e.g. [TNG100-1](https://www.tng-project.org/data/downloads/TNG100-1/)). The IllustrisTNG project has snapshots 0 - 99.
