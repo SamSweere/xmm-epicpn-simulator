@@ -73,13 +73,13 @@ def simputfile(
     )
 
     if xspec_file is not None:
-        simputfile = f"{simputfile} XSPECFile={xspec_file.resolve()}"
+        simputfile += f" XSPECFile={xspec_file.resolve()}"
 
     if ascii_file is not None:
-        simputfile = f"{simputfile} ASCIIFile={ascii_file.resolve()}"
+        simputfile += f" ASCIIFile={ascii_file.resolve()}"
 
     if image_file is not None:
-        simputfile = f"{simputfile} ImageFile={image_file.resolve()}"
+        simputfile += f" ImageFile={image_file.resolve()}"
 
     run_command(cmd=simputfile)
 
