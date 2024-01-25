@@ -12,12 +12,12 @@ If not already done, you need to [install](https://docs.docker.com/engine/instal
 
 ```shell
 mkdir downloads/ && cd downloads/ && \
-mkdir simput_git/ && cd simput_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ . && cd ../ \
-mkdir sixte_git/ && cd sixte_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ . && cd ../ \
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh \
-wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz \
-wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz \
-rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF ccf/ \
+mkdir simput_git/ && cd simput_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ . && cd ../ && \
+mkdir sixte_git/ && cd sixte_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ . && cd ../ && \
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
+wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz && \
+wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz && \
+rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF ccf/ && \
 wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-6.32.1src.tar.gz
 ```
 
@@ -69,14 +69,14 @@ Make sure that these variables are loaded. If you want to make sure you can rest
 ### 2. Download everything
 This will take some time...
 ```shell
-mkdir -p ${MINICONDA} \
-mkdir -p ${HOME}/simput_git/ && cd ${HOME}/simput_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ . \
-mkdir -p ${HOME}/sixte_git/ && cd ${HOME}/sixte_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ . \
-cd ${HOME} \
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${MINICONDA}/miniconda.sh \
-wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz \
-wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz \
-rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF $SAS_CCFPATH \
+mkdir -p ${MINICONDA} && \
+mkdir -p ${HOME}/simput_git/ && cd ${HOME}/simput_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ . && \
+mkdir -p ${HOME}/sixte_git/ && cd ${HOME}/sixte_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ . && \
+cd ${HOME} && \
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${MINICONDA}/miniconda.sh && \
+wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz && \
+wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz && \
+rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF $SAS_CCFPATH && \
 wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-6.32.1src.tar.gz
 ```
 ### 3. Setup `miniconda`
@@ -113,35 +113,35 @@ perlbrew install --switch -n -f perl-5.36.1 && cpanm -n Switch && cpanm -n Shell
 ### 5. Setup SIMPUT and SIXTE
 Install `SIMPUT`:
 ```shell
-cd ${HOME}/simput_git/ \
+cd ${HOME}/simput_git/ && \
 echo "Initializing simput..." && autoreconf --install --force > /dev/null 2>&1 && \
 echo "Configuring simput..." && ./configure --prefix=${SIMPUT} > /dev/null 2>&1 &&  \
 echo "Building simput..." && make > /dev/null 2>&1 &&  \
 echo "Installing simput..." && make install > /dev/null 2>&1 && \
-echo "Cleaning simput..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/simput_git/ \
+echo "Cleaning simput..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/simput_git/ && \
 cd ${HOME}
 ```
 Install `SIXTE`:
 ```shell
-cd ${HOME}/sixte_git/ \
+cd ${HOME}/sixte_git/ && \
 echo "Initializing sixte..." && autoreconf --install --force > /dev/null 2>&1 && \
 echo "Configuring sixte..." && ./configure --prefix=${SIMPUT} > /dev/null 2>&1 &&  \
 echo "Building sixte..." && make > /dev/null 2>&1 &&  \
 echo "Installing sixte..." && make install > /dev/null 2>&1 && \
-echo "Cleaning sixte..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/sixte_git/ \
+echo "Cleaning sixte..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/sixte_git/ && \
 cd ${HOME}
 ```
 Get the needed instrument files:
 ```shell
-mv instruments_xmm-1.2.1.tar.gz ${SIXTE}/ && cd ${SIXTE} \
-tar zxf instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz \
+mv instruments_xmm-1.2.1.tar.gz ${SIXTE}/ && cd ${SIXTE} && \
+tar zxf instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz && \
 cd ${HOME}
 ```
 ### 6. Setup `SAS`
 Install `SAS`:
 ```shell
-mkdir -p ${SAS_ROOT} && mv sas_21.0.0-Ubuntu22.04.tgz ${SAS_ROOT}/ && cd ${SAS_ROOT} \
-tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz && ./install.sh \
+mkdir -p ${SAS_ROOT} && mv sas_21.0.0-Ubuntu22.04.tgz ${SAS_ROOT}/ && cd ${SAS_ROOT} && \
+tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz && ./install.sh && \
 cd ${HOME}
 ```
 ### 7. Setup `headas`
@@ -154,10 +154,10 @@ echo "Configuring heasoft..." && ./configure --prefix=${HEADAS} > /dev/null 2>&1
 echo "Building heasoft..." && make > /dev/null 2>&1 && \
 echo "Installing heasoft..." && make install > /dev/null 2>&1 && \
 echo "Cleaning heasoft..." && make clean > /dev/null 2>&1 && \
-/bin/bash -c 'cd ${HEADAS}; for loop in x86_64*/*; do ln -sf $loop; done' \
-cd ${HOME}/heasoft-6.32.1 \
-cp -p Xspec/BUILD_DIR/hmakerc ${HEADAS}/bin/ \
-cp -p Xspec/BUILD_DIR/Makefile-std ${HEADAS}/bin/ \
+/bin/bash -c 'cd ${HEADAS}; for loop in x86_64*/*; do ln -sf $loop; done' && \
+cd ${HOME}/heasoft-6.32.1 && \
+cp -p Xspec/BUILD_DIR/hmakerc ${HEADAS}/bin/ && \
+cp -p Xspec/BUILD_DIR/Makefile-std ${HEADAS}/bin/ && \
 rm -rf Xspec/src/spectral
 ```
 
