@@ -4,7 +4,7 @@ from datetime import timedelta
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict
+from typing import Dict, Literal
 
 from loguru import logger
 import os
@@ -21,10 +21,80 @@ import shutil
 logger.remove()
 
 
+def _simulate_mode(
+    instrument_name: Literal["epn", "emos1", "emos2"],
+    mode: str,
+    amount: int,
+    sim_dir: Path,
+    xmm_filter_dir: Path,
+    xml_dir: Path,
+):
+    logger.info(f"START\tSimulating {instrument_name} for {mode.upper()}.")
+    mode_dir = sim_cfg.simput_dir / mode
+    if mode != "bkg":
+        mode_glob = mode_dir.rglob("*.simput.gz")
+        simputs = []
+        for i, simput in enumerate(mode_glob, start=1):
+            simputs.append(simput)
+            if amount != -1 and i >= amount:
+                break
+    else:
+        simputs = [next(mode_dir.rglob(f"*{instrument_name}.simput.gz"))] * amount
+
+    to_run = partial(
+        run_xmm_simulation,
+        instrument_name=instrument_name,
+        xml_dir=xml_dir.resolve(),
+        mode=f"{mode}",
+        tmp_dir=sim_dir.resolve(),
+        out_dir=xmm_filter_dir.resolve(),
+        exposure=sim_cfg.max_exposure,
+        xmm_filter=sim_cfg.filter,
+        sim_separate_ccds=sim_cfg.sim_separate_ccds,
+        consume_data=env_cfg.consume_data,
+    )
+    kwds = (
+        {"simput_file": simput.resolve(), "res_mult": res_mult}
+        for res_mult in sim_cfg.res_mults
+        for simput in simputs
+    )
+    _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
+    logger.success(
+        f"DONE\tSimulating {instrument_name} for {mode.upper()}. Duration: {duration}"
+    )
+
+    if env_cfg.working_dir != env_cfg.output_dir:
+        mode_compressed = (
+            env_cfg.output_dir
+            / "xmm_sim_dataset"
+            / instrument_name
+            / sim_cfg.filter
+            / f"{mode}.tar.gz"
+        )
+        mode_compressed.parent.mkdir(parents=True, exist_ok=True)
+
+        logger.info(
+            f"Simulated {mode.upper()} will be compressed and moved to {mode_compressed.resolve()}."
+            "Existing file will be overwritten."
+        )
+
+        compress_targz(
+            in_path=xmm_filter_dir,
+            out_file_path=sim_dir / f"{mode}.tar.gz",
+            remove_files=True,
+        )
+        shutil.move(src=sim_dir / f"{mode}.tar.gz", dst=mode_compressed)
+        for xmm_mode_dir in xmm_filter_dir.rglob(f"{mode}{os.sep}"):
+            shutil.rmtree(xmm_mode_dir)
+        shutil.rmtree(mode_dir)
+
+
 def run(path_to_cfg: Path) -> None:
     starttime = datetime.now()
     with open(path_to_cfg, "r") as f:
         cfg: Dict[str, dict] = json.load(f)
+
+    global env_cfg, sim_cfg
 
     env_cfg = EnvironmentCfg(**cfg.pop("environment"))
     sim_cfg = SimulationCfg(
@@ -114,156 +184,34 @@ def run(path_to_cfg: Path) -> None:
             xmm_filter_dir = sim_cfg.out_dir / instrument_name / sim_cfg.filter
             xmm_filter_dir.mkdir(exist_ok=True, parents=True)
             if sim_cfg.modes.img != 0:
-                logger.info(f"START\tSimulating {instrument_name} for IMG.")
-                simputs = list((sim_cfg.simput_dir / "img").rglob("*.simput.gz"))
-                to_run = partial(
-                    run_xmm_simulation,
+                _simulate_mode(
                     instrument_name=instrument_name,
-                    xml_dir=xml_dir.resolve(),
                     mode="img",
-                    tmp_dir=sim_dir.resolve(),
-                    out_dir=xmm_filter_dir.resolve(),
-                    exposure=sim_cfg.max_exposure,
-                    xmm_filter=sim_cfg.filter,
-                    sim_separate_ccds=sim_cfg.sim_separate_ccds,
-                    consume_data=env_cfg.consume_data,
+                    amount=sim_cfg.modes.img,
+                    sim_dir=sim_dir,
+                    xmm_filter_dir=xmm_filter_dir,
+                    xml_dir=xml_dir,
                 )
-                kwds = (
-                    {"simput_file": simput.resolve(), "res_mult": res_mult}
-                    for res_mult in sim_cfg.res_mults
-                    for simput in simputs
+
+            if sim_cfg.modes.agn != 0:
+                _simulate_mode(
+                    instrument_name=instrument_name,
+                    mode="agn",
+                    amount=sim_cfg.modes.agn,
+                    sim_dir=sim_dir,
+                    xmm_filter_dir=xmm_filter_dir,
+                    xml_dir=xml_dir,
                 )
-                _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-                logger.success(
-                    f"DONE\tSimulating {instrument_name} for IMG. Duration: {duration}"
+
+            if sim_cfg.modes.bkg != 0:
+                _simulate_mode(
+                    instrument_name=instrument_name,
+                    mode="bkg",
+                    amount=sim_cfg.modes.bkg,
+                    sim_dir=sim_dir,
+                    xmm_filter_dir=xmm_filter_dir,
+                    xml_dir=xml_dir,
                 )
-                if env_cfg.working_dir != env_cfg.output_dir:
-                    img_compressed = (
-                        env_cfg.output_dir
-                        / "xmm_sim_dataset"
-                        / instrument_name
-                        / sim_cfg.filter
-                        / "img.tar.gz"
-                    )
-                    img_compressed.parent.mkdir(parents=True, exist_ok=True)
-
-                    logger.info(
-                        f"Simulated IMG will be compressed and moved to {img_compressed.resolve()}."
-                        "Existing file will be overwritten."
-                    )
-
-                    compress_targz(
-                        in_path=xmm_filter_dir,
-                        out_file_path=sim_dir / "img.tar.gz",
-                        remove_files=True,
-                    )
-                    shutil.move(src=sim_dir / "img.tar.gz", dst=img_compressed)
-                    for img_dir in xmm_filter_dir.rglob(f"img{os.sep}"):
-                        shutil.rmtree(img_dir)
-
-                if sim_cfg.modes.agn != 0:
-                    logger.info(f"START\tSimulating {instrument_name} for AGN.")
-                    simputs = list((sim_cfg.simput_dir / "agn").rglob("*.simput.gz"))
-                    to_run = partial(
-                        run_xmm_simulation,
-                        instrument_name=instrument_name,
-                        xml_dir=xml_dir.resolve(),
-                        mode="agn",
-                        tmp_dir=sim_dir.resolve(),
-                        out_dir=xmm_filter_dir.resolve(),
-                        exposure=sim_cfg.max_exposure,
-                        xmm_filter=sim_cfg.filter,
-                        sim_separate_ccds=sim_cfg.sim_separate_ccds,
-                        consume_data=env_cfg.consume_data,
-                    )
-                    kwds = (
-                        {"simput_file": simput.resolve(), "res_mult": res_mult}
-                        for res_mult in sim_cfg.res_mults
-                        for simput in simputs
-                    )
-                    _, duration = mp_run(
-                        to_run, kwds, sim_cfg.num_processes, env_cfg.debug
-                    )
-                    logger.success(
-                        f"DONE\tSimulating {instrument_name} for AGN. Duration: {duration}"
-                    )
-                    if env_cfg.working_dir != env_cfg.output_dir:
-                        agn_compressed = (
-                            env_cfg.output_dir
-                            / "xmm_sim_dataset"
-                            / instrument_name
-                            / sim_cfg.filter
-                            / "agn.tar.gz"
-                        )
-                        agn_compressed.parent.mkdir(parents=True, exist_ok=True)
-
-                        logger.info(
-                            f"Simulated AGN will be compressed and moved to {agn_compressed.resolve()}."
-                            "Existing file will be overwritten."
-                        )
-
-                        compress_targz(
-                            in_path=xmm_filter_dir,
-                            out_file_path=sim_dir / "agn.tar.gz",
-                            remove_files=True,
-                        )
-                        shutil.move(src=sim_dir / "agn.tar.gz", dst=agn_compressed)
-                        for agn_dir in xmm_filter_dir.rglob(f"agn{os.sep}"):
-                            shutil.rmtree(agn_dir)
-
-                if sim_cfg.modes.bkg != 0:
-                    simput = next(
-                        (sim_cfg.simput_dir / "bkg").rglob(
-                            f"*{instrument_name}.simput.gz"
-                        )
-                    )
-                    logger.info(f"START\tSimulating {instrument_name} for BKG.")
-                    to_run = partial(
-                        run_xmm_simulation,
-                        instrument_name=instrument_name,
-                        xml_dir=xml_dir.resolve(),
-                        mode="bkg",
-                        tmp_dir=sim_dir.resolve(),
-                        out_dir=xmm_filter_dir.resolve(),
-                        exposure=sim_cfg.max_exposure,
-                        xmm_filter=sim_cfg.filter,
-                        sim_separate_ccds=sim_cfg.sim_separate_ccds,
-                        consume_data=env_cfg.consume_data,
-                    )
-                    kwds = (
-                        {"simput_file": simput.resolve(), "res_mult": res_mult}
-                        for res_mult in sim_cfg.res_mults
-                        for _ in range(sim_cfg.modes.bkg)
-                    )
-                    _, duration = mp_run(
-                        to_run, kwds, sim_cfg.num_processes, env_cfg.debug
-                    )
-                    logger.success(
-                        f"DONE\tSimulating {instrument_name} for BKG. Duration: {duration}"
-                    )
-                    if env_cfg.working_dir != env_cfg.output_dir:
-                        bkg_compressed = (
-                            env_cfg.output_dir
-                            / "xmm_sim_dataset"
-                            / instrument_name
-                            / sim_cfg.filter
-                            / "bkg.tar.gz"
-                        )
-                        bkg_compressed.parent.mkdir(parents=True, exist_ok=True)
-
-                        logger.info(
-                            f"Simulated BKG will be compressed and moved to {bkg_compressed.resolve()}."
-                            "Existing file will be overwritten."
-                        )
-
-                        compress_targz(
-                            in_path=xmm_filter_dir,
-                            out_file_path=sim_dir / "bkg.tar.gz",
-                            remove_files=True,
-                        )
-                        shutil.move(src=sim_dir / "bkg.tar.gz", dst=bkg_compressed)
-                        for bkg_dir in xmm_filter_dir.rglob(f"bkg{os.sep}"):
-                            shutil.rmtree(bkg_dir)
 
     endtime = datetime.now()
     logger.info(f"Duration: {endtime - starttime}")
