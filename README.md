@@ -38,7 +38,7 @@ libncurses5-dev ncurses-dev curl libcurl4 libcurl4-gnutls-dev xorg-dev make gcc 
 g++ gfortran perl-modules libncurses-dev libexpat1-dev libgsl0-dev libboost-dev \
 libcmocka-dev
 ```
-Setup environment variables _permanentely_. Please research how you can do that for your shell (see e. g. [here](https://unix.stackexchange.com/questions/117467/how-to-permanently-set-environmental-variables)). If you're using `bash` add following lines to e. g. `${HOME}/.bashrc`:
+Setup environment variables _permanentely_ for both login and non-login shells. Add following lines to `${HOME}/.profile`:
 
 ```shell
 # You can adjust these values as you like. These are my preferred paths.
