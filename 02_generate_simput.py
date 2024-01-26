@@ -174,12 +174,20 @@ def run(
 
             logger.info(f"START\tGenerating SIMPUT for mode 'bkg'...")
             bkg_path = simput_cfg.simput_dir / "bkg"
+            bkg_path.mkdir(parents=True, exist_ok=True)
             img_settings = []
             for instrument_name in simput_cfg.instruments:
-                mode_dir = bkg_path / "bkg"
-                mode_dir.mkdir(exist_ok=True, parents=True)
+                filter_abbrv = ""
+                if simput_cfg.filter == "thin":
+                    filter_abbrv = "t"
 
-                spectrum_name = f"{instrument_name[1]}{instrument_name[-1]}{simput_cfg.filter}ffg_spectrum.fits"
+                if simput_cfg.filter == "med":
+                    filter_abbrv = "m"
+
+                if simput_cfg.filter == "thick":
+                    filter_abbrv = "k"
+
+                spectrum_name = f"{instrument_name[1]}{instrument_name[-1]}{filter_abbrv}ffg_spectrum.fits"
                 spectrum_file = spectrum_dir / instrument_name / spectrum_name
 
                 if not spectrum_file.exists():
@@ -187,7 +195,7 @@ def run(
                         f"Could not find {spectrum_file.resolve()}. Creating it..."
                     )
                     run_command(
-                        f"cd {spectrum_file.parent.resolve()} && ./create_spectrums.sh"
+                        f"cd {spectrum_file.parent.resolve()} && bash create_spectrums.sh"
                     )
                     logger.success(
                         f"Created {spectrum_file.resolve()}. This will be done only once as long as the file exists."
@@ -200,7 +208,7 @@ def run(
                         "spectrum_file": spectrum_file,
                         "fov": fov,
                         "instrument_name": instrument_name,
-                        "output_dir": mode_dir,
+                        "output_dir": bkg_path,
                     }
                 )
 
