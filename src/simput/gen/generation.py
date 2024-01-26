@@ -101,6 +101,11 @@ def simput_generate(
                 img_settings=img_settings,
                 xspec_file=spectrum_file,
             )
+            img_path_in = img_settings["img_path"]
+            tng_name = img_path_in.parts[-3]
+            snapshot_num = img_path_in.parts[-2]
+            output_dir = output_dir / tng_name / snapshot_num
+            output_dir.mkdir(parents=True, exist_ok=True)
 
         if mode == "bkg":
             file_names = create_background(
