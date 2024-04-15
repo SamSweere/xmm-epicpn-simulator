@@ -1,7 +1,7 @@
 FROM ubuntu:22.04
 
-ENV HOME=/home/studtodorkov
-RUN adduser studtodorkov --uid 1194 --disabled-password --gecos "" --home $HOME
+ENV HOME=/home/xmm_user
+RUN adduser xmm_user --uid 1194 --disabled-password --gecos "" --home $HOME
 
 ENV SIMPUT=$HOME/simput SAS_ROOT=$HOME/sas SAS_CCFPATH=$HOME/ccf MINICONDA=$HOME/miniconda3
 ENV SAS_DIR=$SAS_ROOT/xmmsas_20230412_1735 SAS_CCF=$SAS_CCFPATH/ccf.cif HEADAS=$HOME/headas SIXTE=$SIMPUT
@@ -20,15 +20,39 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
 
 USER 1194
 WORKDIR $HOME
-COPY --chown=studtodorkov: --chmod=777 entrypoint.sh $HOME/
-# Install miniconda and initialize it
-COPY --chown=studtodorkov: --chmod=777 downloads/miniconda.sh $HOME/
-RUN /bin/bash miniconda.sh -b -u -p ${MINICONDA} && rm miniconda.sh
-ENV PATH="$MINICONDA/bin:$PATH"
+COPY --chown=xmm_user: --chmod=777 entrypoint.sh $HOME/
 
-RUN conda init bash
-RUN conda create -c conda-forge -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy  \
-    pypdf notebook astroquery lxml yt h5py loguru pydantic
+# Install python and initialize it
+ENV PYENV_ROOT /root/.pyenv
+ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
+
+# Install pyenv
+RUN curl https://pyenv.run | bash
+
+# Add pyenv executable to path and initialize pyenv every time a new shell session starts
+RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
+    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init --path)"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+
+# Install Python 3.11.8
+RUN pyenv install 3.11.8 && \
+    pyenv global 3.11.8
+
+# Copy dependencies
+COPY --chown=xmm_user: --chmod=777 requirements.txt $HOME/
+
+# Install dependencies
+RUN pip install -r requirements.txt
+
+# # Install miniconda and initialize it
+# COPY --chown=xmm_user: --chmod=777 downloads/miniconda.sh $HOME/
+# RUN /bin/bash miniconda.sh -b -u -p ${MINICONDA} && rm miniconda.sh
+# ENV PATH="$MINICONDA/bin:$PATH"
+
+# RUN conda init bash
+# RUN conda create -c conda-forge -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy  \
+#     pypdf notebook astroquery lxml yt h5py loguru pydantic
 
 # Install perl-5.36.1 and the required modules
 RUN curl -L https://install.perlbrew.pl | bash
@@ -40,7 +64,7 @@ RUN source ${HOME}/perl5/perlbrew/etc/bashrc && \
 RUN $HOME/perl5/perlbrew/bin/perlbrew switch perl-5.36.1 && \
     $HOME/perl5/perlbrew/bin/cpanm -n Switch && $HOME/perl5/perlbrew/bin/cpanm -n Shell && $HOME/perl5/perlbrew/bin/cpanm -n CGI
 
-COPY --chown=studtodorkov: --chmod=777 downloads/simput $HOME/simput_git/
+COPY --chown=xmm_user: --chmod=777 downloads/simput $HOME/simput_git/
 RUN cd ${HOME}/simput_git && \
     echo "Initializing simput..." && autoreconf --install --force > /dev/null 2>&1 && \
     echo "Configuring simput..." && ./configure --prefix=${SIMPUT} > /dev/null 2>&1 &&  \
@@ -48,7 +72,7 @@ RUN cd ${HOME}/simput_git && \
     echo "Installing simput..." && make install > /dev/null 2>&1 && \
     echo "Cleaning simput..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/simput_git
 
-COPY --chown=studtodorkov: --chmod=777 downloads/sixt $HOME/sixte_git/
+COPY --chown=xmm_user: --chmod=777 downloads/sixt $HOME/sixte_git/
 RUN cd ${HOME}/sixte_git && \
     echo "Initializing sixte..." && autoreconf --install --force > /dev/null 2>&1 && \
     echo "Configuring sixte..." && ./configure --prefix=${SIXTE} > /dev/null 2>&1 &&  \
@@ -57,23 +81,23 @@ RUN cd ${HOME}/sixte_git && \
     echo "Cleaning sixte..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/sixte_git
 
 WORKDIR $SIXTE
-COPY --chown=studtodorkov: --chmod=777 downloads/instruments_xmm-1.2.1.tar.gz $SIXTE/
+COPY --chown=xmm_user: --chmod=777 downloads/instruments_xmm-1.2.1.tar.gz $SIXTE/
 RUN tar zxf instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz
 
 WORKDIR $SAS_ROOT
 ENV SAS_PERL=$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl SAS_PYTHON=$MINICONDA/envs/xmm/bin/python
-COPY --chown=studtodorkov: --chmod=777 downloads/sas_21.0.0-Ubuntu22.04.tgz $SAS_ROOT/
+COPY --chown=xmm_user: --chmod=777 downloads/sas_21.0.0-Ubuntu22.04.tgz $SAS_ROOT/
 USER 0
 RUN tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz
-RUN chown -R studtodorkov: $SAS_ROOT && chmod -R 777 $SAS_ROOT
+RUN chown -R xmm_user: $SAS_ROOT && chmod -R 777 $SAS_ROOT
 USER 1194
 RUN ./install.sh
 
-COPY --chown=studtodorkov: --chmod=777 downloads/ccf $SAS_CCFPATH/
+COPY --chown=xmm_user: --chmod=777 downloads/ccf $SAS_CCFPATH/
 
 WORKDIR $HOME
 ENV CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=$SAS_PERL PYTHON=$MINICONDA/envs/xmm/bin/python
-COPY --chown=studtodorkov: --chmod=777 downloads/heasoft-6.32.1src.tar.gz $HOME/
+COPY --chown=xmm_user: --chmod=777 downloads/heasoft-6.32.1src.tar.gz $HOME/
 RUN tar zxf heasoft-6.32.1src.tar.gz && rm heasoft-6.32.1src.tar.gz
 RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
     cd heasoft-6.32.1/BUILD_DIR/ && \
@@ -81,7 +105,7 @@ RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
     echo "Building heasoft..." && make > /dev/null 2>&1 && \
     echo "Installing heasoft..." && make install > /dev/null 2>&1 && \
     echo "Cleaning heasoft..." && make clean > /dev/null 2>&1 && \
-    /bin/bash -c 'cd /home/studtodorkov/headas; for loop in x86_64*/*; do ln -sf $loop; done' \
+    /bin/bash -c 'cd /home/xmm_user/headas; for loop in x86_64*/*; do ln -sf $loop; done' \
     cd ${HOME}/heasoft-6.32.1 \
     cp -p Xspec/BUILD_DIR/hmakerc ${HEADAS}/bin/ \
     cp -p Xspec/BUILD_DIR/Makefile-std ${HEADAS}/bin/ \
