@@ -20,41 +20,14 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
 
 USER 1194
 WORKDIR $HOME
-COPY --chown=xmm_user: --chmod=777 entrypoint.sh $HOME/
 
-# Install python and initialize it
-ENV PYENV_ROOT /root/.pyenv
-ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
+# Install miniconda and initialize it
+COPY --chown=xmm_user: --chmod=777 downloads/miniconda.sh $HOME/
+RUN /bin/bash miniconda.sh -b -u -p ${MINICONDA} && rm miniconda.sh
+ENV PATH="$MINICONDA/bin:$PATH"
 
-# Install pyenv
-RUN curl https://pyenv.run | bash
-
-# Add pyenv executable to path and initialize pyenv every time a new shell session starts
-RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
-    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv init --path)"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
-
-# Install Python 3.11.8
-RUN pyenv install 3.11.8 && \
-    pyenv global 3.11.8
-
-RUN echo 'export PYTHON_PATH="$HOME/.pyenv/bin/python"' >> ~/.bashrc
-
-# Copy dependencies
-COPY --chown=xmm_user: --chmod=777 requirements.txt $HOME/
-
-# Install dependencies
-RUN pip install -r requirements.txt
-
-# # Install miniconda and initialize it
-# COPY --chown=xmm_user: --chmod=777 downloads/miniconda.sh $HOME/
-# RUN /bin/bash miniconda.sh -b -u -p ${MINICONDA} && rm miniconda.sh
-# ENV PATH="$MINICONDA/bin:$PATH"
-
-# RUN conda init bash
-# RUN conda create -c conda-forge -n xmm python=3.11.5 astropy numpy matplotlib requests beautifultable scipy  \
-#     pypdf notebook astroquery lxml yt h5py loguru pydantic
+RUN conda init bash
+RUN conda create -n xmm python=3.11.8
 
 # Install perl-5.36.1 and the required modules
 RUN curl -L https://install.perlbrew.pl | bash
@@ -66,7 +39,7 @@ RUN source ${HOME}/perl5/perlbrew/etc/bashrc && \
 RUN $HOME/perl5/perlbrew/bin/perlbrew switch perl-5.36.1 && \
     $HOME/perl5/perlbrew/bin/cpanm -n Switch && $HOME/perl5/perlbrew/bin/cpanm -n Shell && $HOME/perl5/perlbrew/bin/cpanm -n CGI
 
-COPY --chown=xmm_user: --chmod=777 downloads/simput $HOME/simput_git/
+COPY --chown=xmm_user: --chmod=777 downloads/simput_git $HOME/simput_git/
 RUN cd ${HOME}/simput_git && \
     echo "Initializing simput..." && autoreconf --install --force > /dev/null 2>&1 && \
     echo "Configuring simput..." && ./configure --prefix=${SIMPUT} > /dev/null 2>&1 &&  \
@@ -74,7 +47,7 @@ RUN cd ${HOME}/simput_git && \
     echo "Installing simput..." && make install > /dev/null 2>&1 && \
     echo "Cleaning simput..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/simput_git
 
-COPY --chown=xmm_user: --chmod=777 downloads/sixt $HOME/sixte_git/
+COPY --chown=xmm_user: --chmod=777 downloads/sixte_git $HOME/sixte_git/
 RUN cd ${HOME}/sixte_git && \
     echo "Initializing sixte..." && autoreconf --install --force > /dev/null 2>&1 && \
     echo "Configuring sixte..." && ./configure --prefix=${SIXTE} > /dev/null 2>&1 &&  \
@@ -87,7 +60,7 @@ COPY --chown=xmm_user: --chmod=777 downloads/instruments_xmm-1.2.1.tar.gz $SIXTE
 RUN tar zxf instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz
 
 WORKDIR $SAS_ROOT
-ENV SAS_PERL=$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl SAS_PYTHON=$PYTHON_PATH
+ENV SAS_PERL=$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl SAS_PYTHON=$MINICONDA/envs/xmm/bin/python
 COPY --chown=xmm_user: --chmod=777 downloads/sas_21.0.0-Ubuntu22.04.tgz $SAS_ROOT/
 USER 0
 RUN tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz
@@ -95,12 +68,24 @@ RUN chown -R xmm_user: $SAS_ROOT && chmod -R 777 $SAS_ROOT
 USER 1194
 RUN ./install.sh
 
+# Copy the Sas files
 COPY --chown=xmm_user: --chmod=777 downloads/ccf $SAS_CCFPATH/
 
+
+
+# Install the required python packages
+# HEASoftPy needs numpy, therefore we need to install it first
 WORKDIR $HOME
-ENV CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=$SAS_PERL PYTHON=$PYTHON_PATH
+COPY --chown=xmm_user: --chmod=777 requirements.txt $HOME/
+RUN $MINICONDA/envs/xmm/bin/pip install -r requirements.txt
+
+
+# Install Heasoft
+WORKDIR $HOME
+ENV CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=$SAS_PERL PYTHON=$MINICONDA/envs/xmm/bin/python
 COPY --chown=xmm_user: --chmod=777 downloads/heasoft-6.32.1src.tar.gz $HOME/
 RUN tar zxf heasoft-6.32.1src.tar.gz && rm heasoft-6.32.1src.tar.gz
+
 RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
     cd heasoft-6.32.1/BUILD_DIR/ && \
     echo "Configuring heasoft..." && ./configure --prefix=${HEADAS} > /dev/null 2>&1 && \
@@ -114,6 +99,7 @@ RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
     rm -rf Xspec/src/spectral
 
 
+#
 # Set the environment variables for the image
 ENV HEADASPROMPT=/dev/null HEADASNOQUERY="" PATH=$MINICONDA/bin:$PERL:$PATH
 ENV LD_LIBRARY_PATH=$MINICONDA/envs/xmm/lib:$LD_LIBRARY_PATH
@@ -126,5 +112,8 @@ RUN . ${HEADAS}/headas-init.sh && \
     . ${SIXTE}/bin/sixte-install.sh && \
     cd ${SAS_CCFPATH} && \
     cifbuild withobservationdate=yes
+
+# Create the entrypoint
+COPY --chown=xmm_user: --chmod=777 entrypoint.sh $HOME/
 
 ENTRYPOINT ["/bin/bash", "${HOME}/entrypoint.sh"]
