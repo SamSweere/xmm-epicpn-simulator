@@ -1,6 +1,6 @@
-import json
 import os
 import random
+import tomllib
 from argparse import ArgumentParser
 from datetime import datetime
 from itertools import repeat
@@ -149,8 +149,8 @@ def combine_and_save_sim(
 
 
 def run(path_to_cfg: Path) -> None:
-    with open(path_to_cfg) as f:
-        cfg: dict = json.load(f)
+    with open(path_to_cfg, "rb") as file:
+        cfg: dict[str, dict] = tomllib.load(file)
 
     env_cfg = cfg["environment"]
     instrument_cfg = cfg["instrument"]
@@ -206,9 +206,8 @@ def run(path_to_cfg: Path) -> None:
 
                 # Get the detector mask path, these should be present in the simulated dataset
                 det_mask = None
-                if mode_params["add_detmask"]:
-                    if instrument_cfg["instrument_name"] == "epn":
-                        det_mask = det_mask_root / f"pn_mask_500_2000_detxy_{res_mult}.ds"
+                if mode_params["add_detmask"] and instrument_cfg["instrument_name"] == "epn":
+                    det_mask = det_mask_root / f"pn_mask_500_2000_detxy_{res_mult}.ds"
 
                 agn_files = None
                 if amount_agn:

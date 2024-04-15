@@ -2,7 +2,7 @@
 name = "xmm-epicpn-simulator"
 version = "0.1.0"
 description = ""
-authors = ["Sam Sweere <samsweere@gmail.com>"]
+authors = ["Sam Sweere <samsweere@gmail.com>", "Bojan Todorkov <bojan@todorkov.de>"]
 readme = "README.md"
 packages = [{include = "src"}]
 

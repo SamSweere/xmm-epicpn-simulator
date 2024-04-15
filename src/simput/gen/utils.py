@@ -44,9 +44,9 @@ def generate_ascii_spectrum(
     rates: float | Iterable | np.ndarray,
     verbose: bool = True,
 ) -> Path:
-    if not isinstance(energies, (float, Iterable, np.ndarray)):
+    if not isinstance(energies, float | Iterable | np.ndarray):
         raise TypeError(f"'energies' has to be one of (float, Iterable, np.ndarray)! Got: {type(energies)}")
-    if not isinstance(rates, (float, Iterable, np.ndarray)):
+    if not isinstance(rates, float | Iterable | np.ndarray):
         raise TypeError(f"'rates' has to be one of (float, Iterable, np.ndarray)! Got: {type(rates)}")
 
     if isinstance(energies, float):

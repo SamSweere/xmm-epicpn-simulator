@@ -41,11 +41,19 @@ def create_agn_sources(
 ):
     output_files = []
 
-    for _ in range(img_settings["num"]):
+    for _ in range(img_settings["n_gen"]):
         # Use the current time as id, such that clashes don't happen
         unique_id = uuid4().int
         output_file_path = run_dir / f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput"
         simput_files: list[Path] = []
+
+        # TODO: make an option to make agns that are close together
+        if img_settings["deblening_n_gen"] > 0:
+            # TODO:
+            # img_settings["deblending_min_sep"]
+            # img_settings["deblending_max_sep"]
+            # img_settings["deblending_max_flux_delta"]
+            pass
 
         for i, flux in enumerate(img_settings["fluxes"]):
             logger.info(f"Creating AGN with flux={flux}")

@@ -1,6 +1,6 @@
-import json
 import os
 import shutil
+import tomllib
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 from functools import partial
@@ -80,8 +80,8 @@ def _simulate_mode(
 
 def run(path_to_cfg: Path) -> None:
     starttime = datetime.now()
-    with open(path_to_cfg) as f:
-        cfg: dict[str, dict] = json.load(f)
+    with open(path_to_cfg, "rb") as file:
+        cfg: dict[str, dict] = tomllib.load(file)
 
     global env_cfg, sim_cfg
 

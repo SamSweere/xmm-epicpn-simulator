@@ -192,7 +192,7 @@ def create_vinget_file(instrument_name: str, xml_dir: Path) -> None:
 
     # Create the theta step_size bins
     theta = [0.0]
-    for i in range(theta_bins - 1):
+    for _ in range(theta_bins - 1):
         theta.append(theta[-1] + theta_stepsize)
 
     theta = np.array(theta).reshape(1, len(theta))

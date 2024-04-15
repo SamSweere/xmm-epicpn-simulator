@@ -1,0 +1,62 @@
+[environment]
+working_dir = "~/Projects/ESA"
+output_dir = "~/Projects/ESA"
+log_dir = "~/Projects/ESA/logs"
+debug = false
+verbose = false
+fail_on_error = false
+overwrite = true
+consume_data = false
+
+[energy]
+emin = 0.15
+emax = 15.0
+
+[download]
+num_processes = 4
+top_n = 400
+resolutions = [2048]
+snapshots.98 = 0.01
+
+[download.simulations]
+TNG50-1 = [[100, "kpc"], [400, "kpc"]]
+TNG100-1 = [[400, "kpc"], [1.6, "Mpc"]]
+TNG300-1 = [[1, "Mpc"], [4, "Mpc"]]
+
+[download.modes]
+proj = ["x", "y", "z"]
+slice = []
+
+[simput]
+num_processes = 8
+filter = "thin"
+zoom_range = [ 1, 2 ]
+sigma_b_range = [ 5, 50 ]
+offset_std = 0.05
+num_img_sample = 5
+instruments = ["epn", "emos1", "emos2"]
+
+[simput.img]
+n_gen = -1 # -1 for all
+
+[simput.agn]
+n_gen = 25000
+deblening_n_gen = 0.5 # Fraction of n_gen
+deblending_min_sep = 0.0 # in arcsec
+deblending_max_sep = 5.0 # in arcsec # TODO: determine this value
+deblending_max_flux_delta = 0.5 # the maximum difference between two sources in flux # TODO: determine this value
+
+[simput.bkg]
+n_gen = 1
+
+[simulation]
+num_processes = 8
+instruments = ["epn", "emos1", "emos2"]
+filter = "thin"
+res_mults = [1, 2, 4]
+max_exposure = 100000
+modes.img = -1
+modes.agn = -1
+modes.bkg = 25000
+sim_separate_ccds = true
+wait_time = 0.00002304

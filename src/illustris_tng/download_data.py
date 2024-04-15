@@ -81,7 +81,7 @@ def get_cutouts(
                         for chunk in r.iter_content(chunk_size=int(1e6)):
                             f.write(chunk)
                 retries = 0
-            except:
+            except:  # noqa
                 retries = retries - 1
 
         if not cutout_file.exists():

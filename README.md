@@ -44,7 +44,7 @@ Setup environment variables _permanentely_ for both login and non-login shells. 
 # You can adjust these values as you like. These are my preferred paths.
 export SIMPUT=${HOME}/simput
 export SIXTE=${SIMPUT} # This path has to be the same as SIMPUT!
-export MINICONDA=${HOME}/miniconda3
+# export MINICONDA=${HOME}/miniconda3
 
 # SAS variables
 export SAS_ROOT=${HOME}/sas
@@ -69,11 +69,11 @@ Make sure that these variables are loaded. If you want to make sure you can rest
 ### 2. Download everything
 This will take some time...
 ```shell
-mkdir -p ${MINICONDA} && \
+# mkdir -p ${MINICONDA} && \
 mkdir -p ${HOME}/simput_git/ && cd ${HOME}/simput_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ . && \
 mkdir -p ${HOME}/sixte_git/ && cd ${HOME}/sixte_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ . && \
 cd ${HOME} && \
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${MINICONDA}/miniconda.sh && \
+# wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${MINICONDA}/miniconda.sh && \
 wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz && \
 wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz && \
 rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF $SAS_CCFPATH && \
@@ -216,7 +216,7 @@ cd ${HOME}
 If that runs fine, you're ready to go!
 
 ## Configuring the code
-The good thing: You'll need to fill out `config.json` only once! Every step relies on this configuration file and everything will be done accordingly. This file is divided into `environment`, `energy`, `download`, `simput` and `simulation`:
+The good thing: You'll need to fill out `config.toml` only once! Every step relies on this configuration file and everything will be done accordingly. This file is divided into `environment`, `energy`, `download`, `simput` and `simulation`:
 
 #### environment
 This gives paths and some general information to the code:

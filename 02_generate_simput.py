@@ -1,5 +1,5 @@
-import json
 import shutil
+import tomllib
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 from functools import partial
@@ -23,8 +23,8 @@ logger.remove()
 
 def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | None) -> None:
     starttime = datetime.now()
-    with open(path_to_cfg) as f:
-        cfg: dict[str, dict] = json.load(f)
+    with open(path_to_cfg, "rb") as file:
+        cfg: dict[str, dict] = tomllib.load(file)
     env_cfg = EnvironmentCfg(**cfg.pop("environment"))
     simput_cfg = SimputCfg(
         **cfg.pop("simput"),
@@ -49,7 +49,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
     with TemporaryDirectory(prefix="simput_") as tmp_dir:
         tmp_dir = Path(tmp_dir)
 
-        if simput_cfg.modes.img != 0:
+        if simput_cfg.img.n_gen != 0:
             logger.info("START\tGenerating SIMPUT for mode 'img'...")
             img_path = simput_cfg.simput_dir / "img"
             img_path.mkdir(parents=True, exist_ok=True)
@@ -64,7 +64,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             to_create: list[tuple[Path, int]] = []
             rng = np.random.default_rng()
 
-            amount_img = simput_cfg.modes.img
+            amount_img = simput_cfg.img.n_gen
             for in_file in simput_cfg.fits_dir.rglob("*.fits"):
                 if amount_img > 0:
                     amount_img = amount_img - 1
@@ -158,7 +158,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 compress_targz(in_path=img_path, out_file_path=img_compressed)
                 shutil.rmtree(img_path)
 
-        if simput_cfg.modes.bkg:
+        if simput_cfg.bkg.n_gen:
             from src.xmm.utils import get_fov
 
             if spectrum_dir is None:
@@ -234,7 +234,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 compress_targz(in_path=bkg_path, out_file_path=bkg_compressed)
                 shutil.rmtree(bkg_path)
 
-        if simput_cfg.modes.agn > 0:
+        if simput_cfg.agn.n_gen > 0:
             if agn_counts_file is None:
                 raise FileNotFoundError(f"{agn_counts_file} does not exist!")
 
@@ -245,17 +245,19 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             agn_path = simput_cfg.simput_dir / "agn"
             agn_path.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"Will generate {simput_cfg.modes.agn} AGNs.")
+            logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs.")
 
             # Get the fluxes from the agn distribution
             fluxes = get_fluxes(agn_counts_file)
-            img_settings: dict = {"fluxes": fluxes}
+            img_settings: dict = dict(simput_cfg.agn).copy()
+            img_settings["fluxes"] = fluxes
+
             if env_cfg.debug:
-                img_settings["num"] = simput_cfg.modes.agn
+                img_settings["n_gen"] = simput_cfg.agn.n_gen
                 kwds = ({"img_settings": img_settings} for _ in range(1))
             else:
-                img_settings["num"] = 1
-                kwds = ({"img_settings": img_settings} for _ in range(simput_cfg.modes.agn))
+                img_settings["n_gen"] = 1
+                kwds = ({"img_settings": img_settings} for _ in range(simput_cfg.agn.n_gen))
 
             # Get the spectrum file
             spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)

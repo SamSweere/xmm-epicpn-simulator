@@ -1,5 +1,5 @@
-import json
 import shutil
+import tomllib
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 from functools import partial
@@ -24,8 +24,8 @@ logger.remove()
 
 def run(path_to_cfg: Path, api_key: str):
     starttime = datetime.now()
-    with open(path_to_cfg) as file:
-        cfg: dict[str, dict] = json.load(file)
+    with open(path_to_cfg, "rb") as file:
+        cfg: dict[str, dict] = tomllib.load(file)
     env_cfg = EnvironmentCfg(**cfg.pop("environment"))
 
     download_cfg = DownloadCfg(
@@ -52,7 +52,7 @@ def run(path_to_cfg: Path, api_key: str):
     logger.info("START\tGetting simulations.")
     simulations: list[str] = []
     for simulation_name, simulation_url in get_available_simulations(api_key=api_key):
-        if simulation_name in download_cfg.simulations.keys():
+        if simulation_name in download_cfg.simulations:
             simulations.append(simulation_url)
 
     if not simulations:
@@ -63,7 +63,7 @@ def run(path_to_cfg: Path, api_key: str):
     logger.info("START\tGetting subhalos.")
     subhalos = []
     for url in simulations:
-        for snapshot_num in download_cfg.snapshots.keys():
+        for snapshot_num in download_cfg.snapshots:
             # request and inspect most massive top_n subhalos that are central (primary_flag = 1)
             # primary_flag = 1 indicates that this is the central (i.e. most massive, or "primary") subhalo of
             # this FoF halo.
@@ -133,7 +133,7 @@ def run(path_to_cfg: Path, api_key: str):
                         for chunk in r.iter_content(chunk_size=int(1e6)):
                             f.write(chunk)
                 retries = 0
-            except:
+            except:  # noqa
                 retries = retries - 1
 
         if not cloudy_emissivity.exists():
