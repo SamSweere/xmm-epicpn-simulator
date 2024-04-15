@@ -39,6 +39,8 @@ RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
 RUN pyenv install 3.11.8 && \
     pyenv global 3.11.8
 
+RUN echo 'export PYTHON_PATH="$HOME/.pyenv/bin/python"' >> ~/.bashrc
+
 # Copy dependencies
 COPY --chown=xmm_user: --chmod=777 requirements.txt $HOME/
 
@@ -85,7 +87,7 @@ COPY --chown=xmm_user: --chmod=777 downloads/instruments_xmm-1.2.1.tar.gz $SIXTE
 RUN tar zxf instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz
 
 WORKDIR $SAS_ROOT
-ENV SAS_PERL=$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl SAS_PYTHON=$MINICONDA/envs/xmm/bin/python
+ENV SAS_PERL=$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl SAS_PYTHON=$PYTHON_PATH
 COPY --chown=xmm_user: --chmod=777 downloads/sas_21.0.0-Ubuntu22.04.tgz $SAS_ROOT/
 USER 0
 RUN tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz
@@ -96,7 +98,7 @@ RUN ./install.sh
 COPY --chown=xmm_user: --chmod=777 downloads/ccf $SAS_CCFPATH/
 
 WORKDIR $HOME
-ENV CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=$SAS_PERL PYTHON=$MINICONDA/envs/xmm/bin/python
+ENV CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=$SAS_PERL PYTHON=$PYTHON_PATH
 COPY --chown=xmm_user: --chmod=777 downloads/heasoft-6.32.1src.tar.gz $HOME/
 RUN tar zxf heasoft-6.32.1src.tar.gz && rm heasoft-6.32.1src.tar.gz
 RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
