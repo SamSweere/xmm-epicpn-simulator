@@ -1,7 +1,7 @@
 import os
 import shutil
 from pathlib import Path
-from typing import List, Literal, Tuple
+from typing import Literal
 
 import numpy as np
 from astropy.io import fits
@@ -28,9 +28,7 @@ def get_fov(instrument_name: str) -> float:
 
         return get_fov(2)
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_cdelt(instrument_name: str, res_mult: int) -> float:
@@ -49,9 +47,7 @@ def get_cdelt(instrument_name: str, res_mult: int) -> float:
 
         return get_cdelt(2, res_mult)
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_pixel_size(instrument_name: str, res_mult: int) -> float:
@@ -70,9 +66,7 @@ def get_pixel_size(instrument_name: str, res_mult: int) -> float:
 
         return get_pixel_size(2, res_mult)
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_surface(instrument_name: str, res_mult: int) -> float:
@@ -91,12 +85,10 @@ def get_surface(instrument_name: str, res_mult: int) -> float:
 
         return get_surface(emos_num=2, res_mult=res_mult)
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_width_height(instrument_name: str, res_mult: int) -> Tuple[int, int]:
+def get_width_height(instrument_name: str, res_mult: int) -> tuple[int, int]:
     """
     Returns:
         Tuple[int, int]: The width and height of the instrument in pixels.
@@ -116,12 +108,10 @@ def get_width_height(instrument_name: str, res_mult: int) -> Tuple[int, int]:
 
         return get_img_width_height(emos_num=2, res_mult=res_mult)
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_naxis12(instrument_name: str, res_mult: int) -> Tuple[int, int]:
+def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
     if instrument_name == "epn":
         from src.xmm.epn import get_naxis12
 
@@ -137,9 +127,7 @@ def get_naxis12(instrument_name: str, res_mult: int) -> Tuple[int, int]:
 
         return get_naxis12(emos_num=2, res_mult=res_mult)
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_focal_length(instrument_name: str) -> float:
@@ -158,9 +146,7 @@ def get_focal_length(instrument_name: str) -> float:
 
         return get_focal_length(emos_num=2)
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_instrument_files(instrument_name: str) -> Path:
@@ -172,24 +158,15 @@ def get_instrument_files(instrument_name: str) -> Path:
             https://www.sternwarte.uni-erlangen.de/sixte/instruments/
     """
     if instrument_name not in available_instruments:
-        raise ValueError(
-            f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-        )
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
-    p = (
-        Path(os.environ["SIXTE"])
-        / "share"
-        / "sixte"
-        / "instruments"
-        / "xmm"
-        / instrument_to_sixte_dir[instrument_name]
-    )
+    p = Path(os.environ["SIXTE"]) / "share" / "sixte" / "instruments" / "xmm" / instrument_to_sixte_dir[instrument_name]
 
     if not p.exists():
         raise NotADirectoryError(
-            f"It looks like you haven't downloaded the instrument files provided by SIXTE "
-            f"(see https://www.sternwarte.uni-erlangen.de/sixte/instruments/)! Please download "
-            f"and extract them as given in their instructions."
+            "It looks like you haven't downloaded the instrument files provided by SIXTE "
+            "(see https://www.sternwarte.uni-erlangen.de/sixte/instruments/)! Please download "
+            "and extract them as given in their instructions."
         )
 
     return p
@@ -197,13 +174,9 @@ def get_instrument_files(instrument_name: str) -> Path:
 
 def create_vinget_file(instrument_name: str, xml_dir: Path) -> None:
     if instrument_name not in available_instruments:
-        raise ValueError(
-            f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-        )
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
-    out_file = get_vignet_file(
-        xml_dir=xml_dir.resolve(), instrument_name=instrument_name
-    )
+    out_file = get_vignet_file(xml_dir=xml_dir.resolve(), instrument_name=instrument_name)
     xrt_xareaef = get_xrt_xareaef(instrument_name=instrument_name)
 
     with fits.open(name=xrt_xareaef, mode="readonly") as file:
@@ -274,9 +247,7 @@ def create_vinget_file(instrument_name: str, xml_dir: Path) -> None:
         array=vignet,
     )
 
-    coldefs = fits.ColDefs(
-        [energy_lo_col, energy_hi_col, theta_col, phi_col, vignet_col]
-    )
+    coldefs = fits.ColDefs([energy_lo_col, energy_hi_col, theta_col, phi_col, vignet_col])
     vignet_hdr = fits.Header()
     # Include the required headers
     vignet_hdr["HDUCLASS"] = "OGIP"
@@ -312,19 +283,13 @@ def create_vinget_file(instrument_name: str, xml_dir: Path) -> None:
 
 def create_psf_file(instrument_name: str, xml_dir: Path, res_mult: int) -> None:
     if instrument_name not in available_instruments:
-        raise ValueError(
-            f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-        )
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
-    out = get_psf_file(
-        xml_dir=xml_dir.resolve(), instrument_name=instrument_name, res_mult=res_mult
-    )
+    out = get_psf_file(xml_dir=xml_dir.resolve(), instrument_name=instrument_name, res_mult=res_mult)
     inst_name_map = {"epn": "pn", "emos1": "mos1", "emos2": "mos2"}
 
     instrument_files = get_instrument_files(instrument_name=instrument_name)
-    psf_file = list(
-        instrument_files.glob(f"*_{inst_name_map[instrument_name]}_psf.fits")
-    )[0]
+    psf_file = list(instrument_files.glob(f"*_{inst_name_map[instrument_name]}_psf.fits"))[0]
 
     shutil.copy(src=psf_file, dst=out)
 
@@ -342,7 +307,7 @@ def create_xml_files(
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
     wait_time: float,
-) -> List[Path]:
+) -> list[Path]:
     """
     Returns:
         List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list
@@ -356,19 +321,13 @@ def create_xml_files(
 
     vignet_file = get_vignet_file(xml_dir=xml_dir, instrument_name=instrument_name)
     vignet_name = vignet_file.name
-    psf_file = get_psf_file(
-        xml_dir=xml_dir, instrument_name=instrument_name, res_mult=res_mult
-    )
+    psf_file = get_psf_file(xml_dir=xml_dir, instrument_name=instrument_name, res_mult=res_mult)
     psf_name = psf_file.name
 
     prefix = f"{instrument_name[1:]}"
     files = {
-        instrument_files
-        / f"{prefix}-{xmm_filter}-10.rmf": out_dir
-        / f"{prefix}-{xmm_filter}-10.rmf",
-        instrument_files
-        / f"{prefix}-{xmm_filter}-10.arf": out_dir
-        / f"{prefix}-{xmm_filter}-10.arf",
+        instrument_files / f"{prefix}-{xmm_filter}-10.rmf": out_dir / f"{prefix}-{xmm_filter}-10.rmf",
+        instrument_files / f"{prefix}-{xmm_filter}-10.arf": out_dir / f"{prefix}-{xmm_filter}-10.arf",
         psf_file: out_dir / psf_name,
         vignet_file: out_dir / vignet_name,
     }
@@ -412,9 +371,7 @@ def create_xml_files(
             wait_time=wait_time,
         )
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_xml_files(
@@ -423,7 +380,7 @@ def get_xml_files(
     res_mult: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
-) -> List[Path]:
+) -> list[Path]:
     """
     Returns:
         List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list
@@ -461,9 +418,7 @@ def get_xml_files(
             sim_separate_ccds=sim_separate_ccds,
         )
 
-    raise ValueError(
-        f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-    )
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_psf_file(
@@ -472,18 +427,14 @@ def get_psf_file(
     res_mult: int,
 ) -> Path:
     if instrument_name not in available_instruments:
-        raise ValueError(
-            f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-        )
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
     return xml_dir / f"{instrument_name}_psf_{1.0 / res_mult}x.fits"
 
 
 def get_vignet_file(instrument_name: str, xml_dir: Path) -> Path:
     if instrument_name not in available_instruments:
-        raise ValueError(
-            f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}."
-        )
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
     return xml_dir / f"{instrument_name}_vignet.fits"
 
@@ -549,9 +500,7 @@ def add_ccdnr_and_xy(hdu, xmm, ccdnr):
     header["TFORM19"] = "I"
     header.comments["TFORM19"] = "data format of field: 2-byte INTEGER"
 
-    header["NAXIS1"] = (
-        header["NAXIS1"] + 1 + 4
-    )  # Add the extra byte of the ccdnr and two for the detx and dety
+    header["NAXIS1"] = header["NAXIS1"] + 1 + 4  # Add the extra byte of the ccdnr and two for the detx and dety
     # header['NAXIS1'] = xmm.total_width
     # header['NAXIS2'] = xmm.total_height
 

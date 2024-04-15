@@ -1,6 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List, Literal
+from typing import Literal
 from uuid import uuid4
 
 from loguru import logger
@@ -18,7 +18,7 @@ def create_background(
     emax: float,
     run_dir: Path,
     spectrum_file: Path,
-) -> List[Path]:
+) -> list[Path]:
     output_files = [
         background(
             run_dir=run_dir,
@@ -45,7 +45,7 @@ def create_agn_sources(
         # Use the current time as id, such that clashes don't happen
         unique_id = uuid4().int
         output_file_path = run_dir / f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput"
-        simput_files: List[Path] = []
+        simput_files: list[Path] = []
 
         for i, flux in enumerate(img_settings["fluxes"]):
             logger.info(f"Creating AGN with flux={flux}")
@@ -59,9 +59,7 @@ def create_agn_sources(
                 offset="random",
             )
             simput_files.append(output_file)
-        output_file = merge_simputs(
-            simput_files=simput_files, output_file=output_file_path
-        )
+        output_file = merge_simputs(simput_files=simput_files, output_file=output_file_path)
         output_files.append(output_file)
 
         for file in simput_files:
@@ -120,9 +118,7 @@ def simput_generate(
             # Compress the simput file and move it to the correct output dir
             compressed_file = output_dir / f"{file_name.name}.gz"
             if compressed_file.exists():
-                logger.warning(
-                    f"SIMPUT file {compressed_file.resolve()} already exists, skipping."
-                )
+                logger.warning(f"SIMPUT file {compressed_file.resolve()} already exists, skipping.")
             else:
                 compress_gzip(in_file_path=file_name, out_file_path=compressed_file)
             file_name.unlink(missing_ok=True)

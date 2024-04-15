@@ -5,9 +5,9 @@ import numpy as np
 from astropy.io import fits
 from loguru import logger
 
-from src.simput.gen.utils import ones_like_xmm, generate_ascii_spectrum
+from src.simput.gen.utils import generate_ascii_spectrum, ones_like_xmm
 from src.sixte import commands
-from src.xmm.utils import get_cdelt, get_surface, get_naxis12
+from src.xmm.utils import get_cdelt, get_naxis12, get_surface
 
 
 def get_ascii_spectrum(
@@ -61,9 +61,7 @@ def background(
         filename=f"const_background{suffix}.fits",
     )
 
-    ascii_spectrum_file = get_ascii_spectrum(
-        run_dir, spectrum_file, instrument_name, verbose
-    )
+    ascii_spectrum_file = get_ascii_spectrum(run_dir, spectrum_file, instrument_name, verbose)
 
     outfile_path = run_dir / f"background{suffix}.simput"
 
@@ -76,8 +74,6 @@ def background(
     )
 
     if verbose:
-        logger.info(
-            f"Background generation complete. Saved to {outfile_path.resolve()}"
-        )
+        logger.info(f"Background generation complete. Saved to {outfile_path.resolve()}")
 
     return outfile_path

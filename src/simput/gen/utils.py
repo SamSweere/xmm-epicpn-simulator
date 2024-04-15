@@ -1,6 +1,6 @@
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Union, Tuple, Iterable
 
 import numpy as np
 from astropy.io import fits
@@ -8,12 +8,7 @@ from loguru import logger
 
 
 def ones_like_xmm(
-        resolution: Union[int, Tuple[int, int]],
-        cdelt: float,
-        crpix1: float,
-        crpix2: float,
-        run_dir: Path,
-        filename: str
+    resolution: int | tuple[int, int], cdelt: float, crpix1: float, crpix2: float, run_dir: Path, filename: str
 ) -> Path:
     if isinstance(resolution, int):
         resolution = (resolution, resolution)
@@ -31,7 +26,7 @@ def ones_like_xmm(
         "CUNIT2": "deg",
         "CDELT1": cdelt,
         "CDELT2": cdelt,
-        "comment": "This fits image has all pixel value as 1 and has a similar resolution as xmm"
+        "comment": "This fits image has all pixel value as 1 and has a similar resolution as xmm",
     }
 
     header = fits.Header(header)
@@ -44,10 +39,10 @@ def ones_like_xmm(
 
 
 def generate_ascii_spectrum(
-        run_dir: Path,
-        energies: Union[float, Iterable, np.ndarray],
-        rates: Union[float, Iterable, np.ndarray],
-        verbose: bool = True
+    run_dir: Path,
+    energies: float | Iterable | np.ndarray,
+    rates: float | Iterable | np.ndarray,
+    verbose: bool = True,
 ) -> Path:
     if not isinstance(energies, (float, Iterable, np.ndarray)):
         raise TypeError(f"'energies' has to be one of (float, Iterable, np.ndarray)! Got: {type(energies)}")
@@ -56,11 +51,11 @@ def generate_ascii_spectrum(
 
     if isinstance(energies, float):
         if not isinstance(rates, float):
-            raise ValueError(f"If 'energies' is a float, than 'rates' has to be a float too!")
+            raise ValueError("If 'energies' is a float, than 'rates' has to be a float too!")
         content = [f"{energies} {rates}"]
     else:
         rates = rates if isinstance(rates, Iterable) else [rates for _ in energies]
-        content = [f"{energy} {rate}" for energy, rate in zip(energies, rates)]
+        content = [f"{energy} {rate}" for energy, rate in zip(energies, rates, strict=False)]
 
     content = f"{os.linesep}".join(content)
     content = content.strip()

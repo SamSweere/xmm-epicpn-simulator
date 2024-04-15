@@ -1,12 +1,10 @@
-from typing import Tuple
-
 import numpy as np
 from astropy.io import fits
 
-from src.xmm.ccf import get_epn_lincoord, get_xmm_miscdata, get_telescope
+from src.xmm.ccf import get_epn_lincoord, get_telescope, get_xmm_miscdata
 
 
-def get_max_xy(res_mult: int = 1) -> Tuple[int, int]:
+def get_max_xy(res_mult: int = 1) -> tuple[int, int]:
     xrval, yrval = np.absolute(get_xyrval())
 
     p_delt = get_pixel_size(res_mult)
@@ -20,7 +18,7 @@ def get_max_xy(res_mult: int = 1) -> Tuple[int, int]:
     return int(size_x), int(size_y)
 
 
-def get_naxis12(res_mult: int = 1) -> Tuple[int, int]:
+def get_naxis12(res_mult: int = 1) -> tuple[int, int]:
     fov_deg = get_fov()
     arc_mm_x, arc_mm_y = get_plate_scale_xy()
 
@@ -42,11 +40,11 @@ def get_surface(res_mult: int = 1) -> float:
     return (pixel_size**2) * x * y
 
 
-def get_ccd_width_height(res_mult: int = 1) -> Tuple[int, int]:
+def get_ccd_width_height(res_mult: int = 1) -> tuple[int, int]:
     return 64 * res_mult, 200 * res_mult
 
 
-def get_cc12_txy() -> Tuple[float, float]:
+def get_cc12_txy() -> tuple[float, float]:
     epn_lincoord = get_epn_lincoord()
     with fits.open(name=epn_lincoord, mode="readonly") as file:
         header = file[1].header
@@ -55,21 +53,17 @@ def get_cc12_txy() -> Tuple[float, float]:
     return cc12_tx, cc12_ty
 
 
-def get_plate_scale_xy() -> Tuple[float, float]:
+def get_plate_scale_xy() -> tuple[float, float]:
     xmm_miscdata = get_xmm_miscdata()
     with fits.open(name=xmm_miscdata, mode="readonly") as file:
         miscdata = file[1].data
         epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
-        plate_scale_x = (
-            epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
-        )
-        plate_scale_y = (
-            epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].astype(float).item()
-        )
+        plate_scale_x = epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
+        plate_scale_y = epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].astype(float).item()
     return plate_scale_x, plate_scale_y
 
 
-def get_xyrval() -> Tuple[np.ndarray, np.ndarray]:
+def get_xyrval() -> tuple[np.ndarray, np.ndarray]:
     epn_lincoord = get_epn_lincoord()
     with fits.open(name=epn_lincoord, mode="readonly") as file:
         lincoord = file[1].data
@@ -87,9 +81,7 @@ def get_pixel_size(res_mult: int = 1) -> float:
         miscdata = file[1].data
         epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
         # Size of one pixel
-        p_delt = (
-            epn[epn["PARM_ID"] == "MM_PER_PIXEL_X"]["PARM_VAL"].astype(float).item()
-        )
+        p_delt = epn[epn["PARM_ID"] == "MM_PER_PIXEL_X"]["PARM_VAL"].astype(float).item()
 
     return round(p_delt / res_mult, 3)
 
@@ -116,9 +108,7 @@ def get_focal_length() -> float:
         miscdata = file[1].data
         telescope = get_telescope("epn")
         xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
-        focallength = (
-            xrt[xrt["PARM_ID"] == "FOCAL_LENGTH"]["PARM_VAL"].astype(float).item()
-        )
+        focallength = xrt[xrt["PARM_ID"] == "FOCAL_LENGTH"]["PARM_VAL"].astype(float).item()
 
     return focallength
 
@@ -144,26 +134,11 @@ def create_detector_mask(res_mult: int = 1) -> np.ndarray:
 
     mask = np.zeros((width, height))
 
-    small_gap = int(
-        np.ceil(
-            (round(float(yrval[1] - yrval[0]), 3) - (64 * pixel_size * res_mult))
-            / pixel_size
-        )
-    )
-    large_gap = int(
-        np.ceil(
-            (round(float(yrval[0] - yrval[3]), 3) - (64 * pixel_size * res_mult))
-            / pixel_size
-        )
-    )
-    vertical_gap = int(
-        np.ceil(
-            (round(float(xrval[0] - xrval[9]), 3) - (200 * pixel_size * res_mult))
-            / pixel_size
-        )
-    )
+    small_gap = int(np.ceil((round(float(yrval[1] - yrval[0]), 3) - (64 * pixel_size * res_mult)) / pixel_size))
+    large_gap = int(np.ceil((round(float(yrval[0] - yrval[3]), 3) - (64 * pixel_size * res_mult)) / pixel_size))
+    vertical_gap = int(np.ceil((round(float(xrval[0] - xrval[9]), 3) - (200 * pixel_size * res_mult)) / pixel_size))
 
-    drows = int(np.ceil((round(float(yrval[9] - yrval[0]), 3) / pixel_size)))
+    drows = int(np.ceil(round(float(yrval[9] - yrval[0]), 3) / pixel_size))
 
     # --- Upper row ---
     start = drows
@@ -193,7 +168,7 @@ def create_detector_mask(res_mult: int = 1) -> np.ndarray:
 # TODO Add get_bad_pixels
 
 
-def get_shift_xy(res_mult: int = 1) -> Tuple[float, float]:
+def get_shift_xy(res_mult: int = 1) -> tuple[float, float]:
     cc12tx, cc12ty = get_cc12_txy()
     p_delt = get_pixel_size(res_mult)
     shift_x = cc12tx / p_delt

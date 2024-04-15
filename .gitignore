@@ -2,6 +2,7 @@
 *.fits
 .idea/
 .vscode/
+.python-version
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

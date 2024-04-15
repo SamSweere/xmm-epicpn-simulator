@@ -1,7 +1,7 @@
 # XMM EPIC-pn Simulator
 You can run this code either locally or via Docker. My main case for the latter is to run the code on a [Kubernetes](https://kubernetes.io) (aka K8s) cluster, which uses [CephFS](https://docs.ceph.com/en/nautilus/cephfs/). Therefore, my focus on optimization lies on utilising multiprocessing and handling of large amounts of small files.
 
-The use cases do not differ much: The `Dockerfile` is a summary of steps to be taken to set everything up locally. 
+The use cases do not differ much: The `Dockerfile` is a summary of steps to be taken to set everything up locally.
 
 ## Docker Setup
 Docker is a containerised system which makes it possible create and run a whole operation system in a container.
@@ -25,7 +25,7 @@ wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-
 4. If needed, login into the image registries used by your cluster via `docker login {image_registry_url}` and push the image via `docker push {your_own_tag}`
 
 ## Local setup
-A word of warning: The following steps and the code run on Ubuntu 22.04. I haven't tested (nor do I intend to) other operating systems. If you're using Windows you'll probably run into problems, because of the logging library ([`Loguru`](https://github.com/Delgan/loguru)) I'm using. For more information see e. g. [this GitHub issue](https://github.com/Delgan/loguru/issues/1064).   
+A word of warning: The following steps and the code run on Ubuntu 22.04. I haven't tested (nor do I intend to) other operating systems. If you're using Windows you'll probably run into problems, because of the logging library ([`Loguru`](https://github.com/Delgan/loguru)) I'm using. For more information see e. g. [this GitHub issue](https://github.com/Delgan/loguru/issues/1064).
 
 The local setup is basically a step-by-step reproduction of the Dockerfile:
 ### 1. Setup your Ubuntu:
@@ -56,7 +56,7 @@ export SAS_PYTHON=${MINICONDA}/envs/xmm/bin/python
 
 # HEADAS variables
 export HEADAS=${HOME}/headas
-export HEADASPROMPT=/dev/null 
+export HEADASPROMPT=/dev/null
 export HEADASNOQUERY=""
 export LD_LIBRARY_PATH=${MINICONDA}/envs/xmm/lib:${LD_LIBRARY_PATH}
 
@@ -79,7 +79,43 @@ wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sa
 rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF $SAS_CCFPATH && \
 wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-6.32.1src.tar.gz
 ```
-### 3. Setup `miniconda`
+
+
+### 3. Setup python environment
+There are two ways to setup the python environment: Either via `pyenv` or `miniconda`. I would recommend using `pyenv` and `poetry` since the dependencies are already defined in `pyproject.toml`. If you want to use `miniconda`, then you'll need to install the dependencies manually.
+
+### 3. Setup `python` using `pyenv` and `poetry`
+The following steps are for a detailed installation of the development environment. Note that for every step there are multiple ways to i.e. install python, create an environment or install dependencies. The following steps are just one way to do it.
+
+
+1. Install `Pyenv`:
+    https://github.com/pyenv/pyenv#installation
+2. Install `python 3.11.8`:
+    ```bash
+    pyenv install 3.11.8
+    ```
+3. Install pyenv-virtualenv:
+    https://github.com/pyenv/pyenv-virtualenv
+
+4. Create a virtual environment:
+    ```bash
+    pyenv virtualenv 3.11.8 xmm-epicpn-simulator
+    ```
+5. Enable and use the virtual environment:
+    ```bash
+    pyenv local xmm-epicpn-simulator
+    pyenv activate xmm-epicpn-simulator
+    ```
+6. Install poetry:
+    ```bash
+    pip install poetry
+    ```
+7. Install the dependencies:
+    ```bash
+    poetry install
+    ```
+
+### (Optionally if you want to use conda) 3. Setup `miniconda`
 Install `miniconda`:
 ```shell
 bash ${MINICONDA}/miniconda.sh -b -u -p ${MINICONDA} && rm -rf ${MINICONDA}/miniconda.sh
@@ -98,6 +134,7 @@ Activate our new conda environment:
 ```shell
 conda activate xmm
 ```
+
 ### 4. Setup Perl
 Install [`perlbrew`](https://perlbrew.pl):
 ```shell
@@ -247,31 +284,31 @@ Executing any of the scripts is same for both setups:
 
 3. Choose what step you want to run
 4. Run `conda run -n xmm --no-capture-output python /path/to/script` with the needed command line arguments:
-   
-   1. `01_download_files.py` requires two arguments: 
-   
+
+   1. `01_download_files.py` requires two arguments:
+
        1. `-k` followed by your personal Illustris API key (see below)
        2. `-p` followed by the path to the `config.json`
-   2. `02_generate_simput.py` requires three arguments: 
+   2. `02_generate_simput.py` requires three arguments:
        1. `-a` followed by the path to the `agn_counts.cgi` file in `res`
        2. `-p` followed by the path to the `config.json`
        3. `-s` followed by the path to `res/spectrums`
     3. `03_xmm_simulation.py` requires one argument:
-       1. `-p` followed by the path to the `config.json` 
+       1. `-p` followed by the path to the `config.json`
 
 ## IllustrisTNG simulations
-For our XMM simulations we need sources to simulate (simulation input). 
-In our project we are especially interested in extended sources. 
+For our XMM simulations we need sources to simulate (simulation input).
+In our project we are especially interested in extended sources.
 We take these extended sources from the Illustris TNG project (https://www.tng-project.org/).
 This is a large cosmological hydrodynamical simulation of galaxy formation containing hundreds
-of terabytes of simulated data. From this we take the most massive objects and take 
+of terabytes of simulated data. From this we take the most massive objects and take
 x-ray projections and x-ray slices (less realistic but contains more clearly defined structure).
 Note that cutout files are relatively large (100-1000 mb) and can take a while to download, it will first download all the relevant cutouts before generating the images.
 
 #### Notes on extended sources (images as simput)
 To create the simput for extended sources we use fits image files. In order to have a realistic distribution we augment these images using:
 - Brightness: The brightness of the source is internally defined as sigma_b. This is based on the std of 50ks background. I.e. `sigma_b = 10` will result in a brightness of 10 times the background at 50ks.
-The images are used as a distribution of a given brightness. 
+The images are used as a distribution of a given brightness.
 We determine the final brightness by taking a center cutout of the image and set this to the brightness defined by sigma_b.
 - Location: We augment to location by offsetting the image from the bore-axis. Since real xmm observation are usually focussed on the center of extended sources we by default offcenter the images by a small amount around the bore-sight based on a normal distribution.
 - Size (zoom): We augment the size of the extended source by artificially zooming in or out.

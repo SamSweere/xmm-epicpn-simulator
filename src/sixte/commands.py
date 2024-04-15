@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal, List, Optional
+from typing import Literal
 
 from src.xmm_utils.external_run import run_command
 
@@ -59,9 +59,9 @@ def simputfile(
     src_flux: float = 0.0,
     emin: float = 1.0,
     emax: float = 10.0,
-    xspec_file: Optional[Path] = None,
-    ascii_file: Optional[Path] = None,
-    image_file: Optional[Path] = None,
+    xspec_file: Path | None = None,
+    ascii_file: Path | None = None,
+    image_file: Path | None = None,
     clobber: bool = True,
     chatter: int = 0,
     history: bool = True,
@@ -84,15 +84,12 @@ def simputfile(
     run_command(cmd=simputfile)
 
 
-def simputmerge(
-    infiles: List[Path], outfile: Path, fetch_extension: bool = True
-) -> None:
+def simputmerge(infiles: list[Path], outfile: Path, fetch_extension: bool = True) -> None:
     ins = [str(f.resolve()) for f in infiles]
     ins = ",".join(ins)
 
     simputmerge = (
-        f"simputmerge Infiles={ins} Outfile={outfile.resolve()} "
-        f"FetchExtension={'yes' if fetch_extension else 'no'}"
+        f"simputmerge Infiles={ins} Outfile={outfile.resolve()} " f"FetchExtension={'yes' if fetch_extension else 'no'}"
     )
 
     run_command(cmd=simputmerge)

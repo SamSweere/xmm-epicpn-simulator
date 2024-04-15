@@ -1,10 +1,9 @@
 import subprocess
-from typing import Optional
 
 from loguru import logger
 
 
-def run_command(cmd, cmd_input: Optional[str] = None) -> None:
+def run_command(cmd, cmd_input: str | None = None) -> None:
     logger.debug(f"Running command:\n\t{cmd}")
     # Execute a shell command with the stdout and stderr being redirected to a log file
     if cmd_input is not None:

@@ -1,32 +1,31 @@
 import json
+import shutil
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
-import shutil
-from typing import Dict, List
+
 import requests
 from loguru import logger
 
+from src.config import DownloadCfg, EnergySettings, EnvironmentCfg
 from src.illustris_tng.download_data import (
     get_available_simulations,
     get_cutouts,
     get_subhalos,
 )
 from src.illustris_tng.fits import cutout_to_xray_fits
+from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.multiprocessing import mp_run
 from src.xmm_utils.run_utils import configure_logger
-from src.xmm_utils.file_utils import compress_targz, decompress_targz
-from src.config import DownloadCfg, EnergySettings, EnvironmentCfg
-
 
 logger.remove()
 
 
 def run(path_to_cfg: Path, api_key: str):
     starttime = datetime.now()
-    with open(path_to_cfg, "r") as file:
-        cfg: Dict[str, dict] = json.load(file)
+    with open(path_to_cfg) as file:
+        cfg: dict[str, dict] = json.load(file)
     env_cfg = EnvironmentCfg(**cfg.pop("environment"))
 
     download_cfg = DownloadCfg(
@@ -51,19 +50,15 @@ def run(path_to_cfg: Path, api_key: str):
     )
 
     logger.info("START\tGetting simulations.")
-    simulations: List[str] = []
+    simulations: list[str] = []
     for simulation_name, simulation_url in get_available_simulations(api_key=api_key):
         if simulation_name in download_cfg.simulations.keys():
             simulations.append(simulation_url)
 
     if not simulations:
-        raise ValueError(
-            f"No simulations found! Please check your config file ({path_to_cfg})."
-        )
+        raise ValueError(f"No simulations found! Please check your config file ({path_to_cfg}).")
 
-    logger.info(
-        f"DONE\tFound {len(simulations)} available simulations. ({', '.join(simulations)})"
-    )
+    logger.info(f"DONE\tFound {len(simulations)} available simulations. ({', '.join(simulations)})")
 
     logger.info("START\tGetting subhalos.")
     subhalos = []
@@ -87,17 +82,13 @@ def run(path_to_cfg: Path, api_key: str):
                 subhalos.append(subhalo_url)
 
     if not subhalos:
-        raise ValueError(
-            f"No subhalos found! Please check your config file ({path_to_cfg})."
-        )
+        raise ValueError(f"No subhalos found! Please check your config file ({path_to_cfg}).")
 
     logger.info(f"DONE\tGot {len(subhalos)} subhalos.")
 
     logger.info("START\tDownloading/getting already downloaded cutouts.")
     if download_cfg.cutouts_compressed.exists():
-        logger.info(
-            f"Found compressed cutouts in {download_cfg.cutouts_compressed.resolve()}. Decompressing..."
-        )
+        logger.info(f"Found compressed cutouts in {download_cfg.cutouts_compressed.resolve()}. Decompressing...")
         decompress_targz(
             in_file_path=download_cfg.cutouts_compressed,
             out_file_dir=download_cfg.cutouts_path,
@@ -129,9 +120,7 @@ def run(path_to_cfg: Path, api_key: str):
     logger.info("START\tGenerating FITS from cutouts.")
     cloudy_emissivity = env_cfg.working_dir / "cloudy_emissivity_v2.h5"
     if not cloudy_emissivity.exists():
-        logger.info(
-            f"Downloading cloudy_emissivity_v2.h5 to {cloudy_emissivity.resolve()}"
-        )
+        logger.info(f"Downloading cloudy_emissivity_v2.h5 to {cloudy_emissivity.resolve()}")
         retries = 3
         while retries > 0:
             try:
@@ -148,14 +137,10 @@ def run(path_to_cfg: Path, api_key: str):
                 retries = retries - 1
 
         if not cloudy_emissivity.exists():
-            raise FileNotFoundError(
-                f"Failed to load cloudy_emissivity_v2.h5 {cloudy_emissivity}!"
-            )
+            raise FileNotFoundError(f"Failed to load cloudy_emissivity_v2.h5 {cloudy_emissivity}!")
 
     if download_cfg.fits_compressed.exists():
-        logger.info(
-            f"Found compressed FITS in {download_cfg.fits_compressed.resolve()}. Decompressing..."
-        )
+        logger.info(f"Found compressed FITS in {download_cfg.fits_compressed.resolve()}. Decompressing...")
         decompress_targz(
             in_file_path=download_cfg.fits_compressed,
             out_file_dir=download_cfg.fits_path,
@@ -203,9 +188,7 @@ def run(path_to_cfg: Path, api_key: str):
             out_file_path=download_cfg.fits_compressed,
         )
 
-        logger.info(
-            f"Deleting {download_cfg.cutouts_path.resolve()} and {download_cfg.fits_path.resolve()}."
-        )
+        logger.info(f"Deleting {download_cfg.cutouts_path.resolve()} and {download_cfg.fits_path.resolve()}.")
         shutil.rmtree(download_cfg.cutouts_path)
         shutil.rmtree(download_cfg.fits_path)
 
@@ -220,12 +203,9 @@ if __name__ == "__main__":
         "--api_key",
         type=str,
         required=True,
-        help="IllustrisTNG API key. If you don't have one, create an account at "
-        "https://www.tng-project.org/data/",
+        help="IllustrisTNG API key. If you don't have one, create an account at " "https://www.tng-project.org/data/",
     )
-    parser.add_argument(
-        "-p", "--config_path", type=Path, required=True, help="Path to config file."
-    )
+    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
 
     args = parser.parse_args()
     run(

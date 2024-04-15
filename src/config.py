@@ -1,15 +1,16 @@
-from typing import Annotated, Dict, List, Literal, Tuple
+from multiprocessing import cpu_count
 from pathlib import Path
+from typing import Annotated, Literal
+
 from pydantic import (
     BaseModel,
     Field,
-    PositiveInt,
     NonNegativeFloat,
     NonNegativeInt,
     PositiveFloat,
+    PositiveInt,
 )
 from pydantic.functional_validators import AfterValidator
-from multiprocessing import cpu_count
 
 
 def _expanduser(v: Path) -> Path:
@@ -27,13 +28,11 @@ def _get_num_processes(v: int) -> int:
     return v
 
 
-def _check_modes(v: Dict[str, list]) -> Dict[str, list]:
+def _check_modes(v: dict[str, list]) -> dict[str, list]:
     available_modes = ("proj", "slice")
-    for mode in v.keys():
+    for mode in v:
         if mode not in available_modes:
-            raise ValueError(
-                f"Unknown mode '{mode}'! Available modes: {available_modes}"
-            )
+            raise ValueError(f"Unknown mode '{mode}'! Available modes: {available_modes}")
 
         axes = v[mode]
         for axis in axes:
@@ -63,11 +62,11 @@ ProcessCount = Annotated[NonNegativeInt, AfterValidator(_get_num_processes)]
 class DownloadCfg(BaseModel):
     num_processes: ProcessCount
     top_n: PositiveInt
-    resolutions: List[PositiveInt]
-    snapshots: Dict[Annotated[NonNegativeInt, Field(le=99)], PositiveFloat]
-    simulations: Dict[str, List[Tuple[PositiveFloat, str]]]
+    resolutions: list[PositiveInt]
+    snapshots: dict[Annotated[NonNegativeInt, Field(le=99)], PositiveFloat]
+    simulations: dict[str, list[tuple[PositiveFloat, str]]]
     modes: Annotated[
-        Dict[str, list],
+        dict[str, list],
         AfterValidator(_check_modes),
     ]
     cutouts_path: CfgPath
@@ -90,10 +89,10 @@ class _SimulationModes(BaseModel):
 
 class SimputCfg(BaseModel):
     num_processes: NonNegativeInt
-    instruments: List[InstrumentName]
+    instruments: list[InstrumentName]
     filter: XMMFilter
-    zoom_range: Tuple[PositiveInt, PositiveInt]
-    sigma_b_range: Tuple[PositiveInt, PositiveInt]
+    zoom_range: tuple[PositiveInt, PositiveInt]
+    sigma_b_range: tuple[PositiveInt, PositiveInt]
     modes: _SimputModes
     offset_std: PositiveFloat
     num_img_sample: PositiveInt
@@ -120,9 +119,9 @@ class EnvironmentCfg(BaseModel):
 
 class SimulationCfg(BaseModel):
     num_processes: NonNegativeInt
-    instruments: List[InstrumentName]
+    instruments: list[InstrumentName]
     filter: XMMFilter
-    res_mults: List[PositiveInt]
+    res_mults: list[PositiveInt]
     max_exposure: PositiveInt
     modes: _SimulationModes
     sim_separate_ccds: bool

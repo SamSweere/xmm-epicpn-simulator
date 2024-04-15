@@ -1,6 +1,5 @@
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
 from uuid import uuid4
 
 import numpy as np
@@ -17,7 +16,7 @@ def _prepare_fits_image(
     sigma_b: float = 10,
     offset_x: float = 0,
     offset_y: float = 0,
-) -> Tuple[Path, float]:
+) -> tuple[Path, float]:
     with fits.open(img_path) as hdu_in:
         naxis1 = hdu_in[0].header["NAXIS1"]
         naxis2 = hdu_in[0].header["NAXIS2"]
@@ -101,9 +100,7 @@ def _prepare_fits_image(
     return tmp_output_file, flux
 
 
-def simput_image(
-    emin: float, emax: float, run_dir: Path, img_settings: dict, xspec_file: Path
-) -> List[Path]:
+def simput_image(emin: float, emax: float, run_dir: Path, img_settings: dict, xspec_file: Path) -> list[Path]:
     img_path_in: Path = img_settings["img_path"]
     zooms = img_settings["zoom"]
     sigmas_b = img_settings["sigma_b"]
@@ -112,7 +109,7 @@ def simput_image(
 
     output_files = []
 
-    for zoom, sigma_b, offset_x, offset_y in zip(zooms, sigmas_b, offsets_x, offsets_y):
+    for zoom, sigma_b, offset_x, offset_y in zip(zooms, sigmas_b, offsets_x, offsets_y, strict=False):
         img_path, flux = _prepare_fits_image(
             run_dir,
             img_path_in,
@@ -154,9 +151,7 @@ def simput_image(
             primary_header["P0"] = (emin, "Emin")
             primary_header["P1"] = (emax, "Emax")
 
-            primary_header[
-                "COMMENT"
-            ] = "The image is used as a distribution map for this flux."
+            primary_header["COMMENT"] = "The image is used as a distribution map for this flux."
             primary_header["COMMENT"] = "All the calibration is done on 50ks."
             primary_header["COMMENT"] = (
                 f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at "

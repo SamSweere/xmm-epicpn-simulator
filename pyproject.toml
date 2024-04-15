@@ -1,0 +1,88 @@
+[tool.poetry]
+name = "xmm-epicpn-simulator"
+version = "0.1.0"
+description = ""
+authors = ["Sam Sweere <samsweere@gmail.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11, <3.12"
+astropy = "^6.0.1"
+numpy = "^1.26.4"
+matplotlib = "^3.8.4"
+requests = "^2.31.0"
+beautifultable = "^1.1.0"
+scipy = "^1.13.0"
+pypdf = "^4.2.0"
+astroquery = "^0.4.7"
+lxml = "^5.2.1"
+yt = "^4.3.1"
+h5py = "^3.11.0"
+loguru = "^0.7.2"
+pydantic = "^2.7.0"
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.3.7"
+pre-commit = "^3.7.0"
+ipykernel = "^6.29.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+# Ruff is flake8 + isort + other tools implemented in Rust
+include = ['*.py', '*.ipynb', 'pyproject.toml']
+
+# The fix value enables or disables auto fixing
+fix = false
+
+line-length = 120
+
+target-version = 'py311'
+
+[tool.ruff.lint]
+ignore = [
+    'D100', # Missing docstring in public module
+    'D104' , # Missing docstring in public package
+    'PD901', # `df` is a bad variable name. Be kinder to your future self.
+    ]
+
+select = [
+    'E',    # pycodestyle
+    'W',    # pycodestyle
+    'F',    # pyflakes
+    'I',    # isort
+    'B',    # flake8-bugbear
+    'C4',   # flake8-comprehensions
+    'UP',   # pyupgrade
+    'PD',   # pandas-vet
+    'SIM',  # flake8-simplify
+    # 'D',    # pydocstyle
+]
+
+[tool.ruff.lint.per-file-ignores]
+'notebooks/*' = [
+
+    'E501', # Line too long, most of the time not a problem in a notebook
+    'B018', # Found useless expression. Either assign it to a variable or remove it. Often used in notebooks for debugging
+    'E402', # Module level import not at top of file, this is usually not the case in a notebook
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = 'google'
+
+[tool.mypy]
+python_version = '3.11'
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+disable_error_code = [
+    'attr-defined'
+]
+exclude = [
+    '^tests/.*',
+    '^notebooks/.*',
+]

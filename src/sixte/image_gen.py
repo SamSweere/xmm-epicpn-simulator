@@ -1,15 +1,12 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List
 
 import heasoftpy as hsp
 from astropy.io import fits
 from loguru import logger
 
 
-def merge_ccd_eventlists(
-    infiles: List[Path], out_dir: Path, consume_data: bool
-) -> Path:
+def merge_ccd_eventlists(infiles: list[Path], out_dir: Path, consume_data: bool) -> Path:
     if len(infiles) == 1:
         return infiles[0]
 
@@ -22,9 +19,7 @@ def merge_ccd_eventlists(
         "clobber": "yes",
     }
 
-    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(
-        tmp_dir
-    ):
+    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
         hsp.ftmerge(params)
 
     logger.info(f"Successfully ran 'ftmerge' with params: {params}")
@@ -36,9 +31,7 @@ def merge_ccd_eventlists(
     return outfile
 
 
-def split_eventlist(
-    run_dir: Path, eventlist_path: Path, consume_data: bool, multiples: int = 10000
-):
+def split_eventlist(run_dir: Path, eventlist_path: Path, consume_data: bool, multiples: int = 10000):
     # This function splits an eventlist in multiples of multiples and saves them.
     # It returns the split files
     with fits.open(eventlist_path, mode="readonly") as hdu:

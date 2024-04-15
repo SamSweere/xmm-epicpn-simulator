@@ -1,12 +1,12 @@
-from astropy.io import fits
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.io import fits
 
 # Load the combined eventsfile
-hdu = fits.open('/home/sam/Documents/ESA/data/sim/tmp/grid_point_sources_1_mult_10_0ks/ccd_combined_evt.fits')
+hdu = fits.open("/home/sam/Documents/ESA/data/sim/tmp/grid_point_sources_1_mult_10_0ks/ccd_combined_evt.fits")
 # types = np.sort(hdu['EVENTS'].data['TYPE'])
-unique, counts = np.unique(hdu['EVENTS'].data['TYPE'], return_counts=True)
-perc = counts/np.sum(counts)
+unique, counts = np.unique(hdu["EVENTS"].data["TYPE"], return_counts=True)
+perc = counts / np.sum(counts)
 
 plt.bar(unique, perc)
 

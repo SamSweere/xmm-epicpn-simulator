@@ -1,15 +1,15 @@
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Literal, List
+from typing import Literal
+from uuid import uuid4
 
 from astropy.io import fits
 from loguru import logger
-from uuid import uuid4
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_xml_files, get_naxis12, get_cdelt
+from src.xmm.utils import get_cdelt, get_naxis12, get_xml_files
 from src.xmm_utils.file_utils import compress_gzip
 
 
@@ -37,11 +37,10 @@ def run_simulation(
 
     if not xml_paths:
         raise FileNotFoundError(
-            f"It looks like you have not created the corresponding XML files for instrument "
-            f"'{instrument_name}'"
+            f"It looks like you have not created the corresponding XML files for instrument " f"'{instrument_name}'"
         )
 
-    evt_filepaths: List[Path] = []
+    evt_filepaths: list[Path] = []
     for xml_path in xml_paths:
         ccd_name = xml_path.stem
         evt_filepath = run_dir / f"{ccd_name}_evt.fits"
@@ -58,9 +57,7 @@ def run_simulation(
         evt_filepaths.append(evt_filepath)
 
     # Merge all the ccd.py eventlists into one eventlist
-    merged = merge_ccd_eventlists(
-        infiles=evt_filepaths, out_dir=run_dir, consume_data=consume_data
-    )
+    merged = merge_ccd_eventlists(infiles=evt_filepaths, out_dir=run_dir, consume_data=consume_data)
 
     # split the eventlist
     split_exposure_evt_files = split_eventlist(
@@ -199,7 +196,5 @@ def run_xmm_simulation(
                 file_path.rename(new_bg_path)
                 file_path = new_bg_path
             final_compressed_file_path = final_img_directory / f"{file_path.name}.gz"
-            compress_gzip(
-                in_file_path=file_path, out_file_path=final_compressed_file_path
-            )
+            compress_gzip(in_file_path=file_path, out_file_path=final_compressed_file_path)
             file_path.unlink()

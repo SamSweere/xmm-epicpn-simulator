@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from loguru import logger
@@ -14,20 +13,18 @@ from src.config import EnergySettings, EnvironmentCfg, SimputCfg
 from src.simput.agn import get_fluxes
 from src.simput.gen import simput_generate
 from src.simput.utils import get_spectrumfile
-from src.xmm_utils.file_utils import compress_targz, decompress_targz
-from src.xmm_utils.run_utils import configure_logger
 from src.xmm_utils.external_run import run_command
+from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.multiprocessing import mp_run
+from src.xmm_utils.run_utils import configure_logger
 
 logger.remove()
 
 
-def run(
-    path_to_cfg: Path, agn_counts_file: Optional[Path], spectrum_dir: Optional[Path]
-) -> None:
+def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | None) -> None:
     starttime = datetime.now()
-    with open(path_to_cfg, "r") as f:
-        cfg: Dict[str, dict] = json.load(f)
+    with open(path_to_cfg) as f:
+        cfg: dict[str, dict] = json.load(f)
     env_cfg = EnvironmentCfg(**cfg.pop("environment"))
     simput_cfg = SimputCfg(
         **cfg.pop("simput"),
@@ -53,20 +50,18 @@ def run(
         tmp_dir = Path(tmp_dir)
 
         if simput_cfg.modes.img != 0:
-            logger.info(f"START\tGenerating SIMPUT for mode 'img'...")
+            logger.info("START\tGenerating SIMPUT for mode 'img'...")
             img_path = simput_cfg.simput_dir / "img"
             img_path.mkdir(parents=True, exist_ok=True)
 
             if simput_cfg.fits_compressed.exists():
-                logger.info(
-                    f"Found compressed FITS files in {simput_cfg.fits_compressed.resolve()}. Decompressing..."
-                )
+                logger.info(f"Found compressed FITS files in {simput_cfg.fits_compressed.resolve()}. Decompressing...")
                 decompress_targz(
                     in_file_path=simput_cfg.fits_compressed,
                     out_file_dir=simput_cfg.fits_dir,
                 )
 
-            to_create: List[Tuple[Path, int]] = []
+            to_create: list[tuple[Path, int]] = []
             rng = np.random.default_rng()
 
             amount_img = simput_cfg.modes.img
@@ -172,7 +167,7 @@ def run(
             if not spectrum_dir.is_dir():
                 raise NotADirectoryError(f"{spectrum_dir} is not a directory!")
 
-            logger.info(f"START\tGenerating SIMPUT for mode 'bkg'...")
+            logger.info("START\tGenerating SIMPUT for mode 'bkg'...")
             bkg_path = simput_cfg.simput_dir / "bkg"
             bkg_path.mkdir(parents=True, exist_ok=True)
             img_settings = []
@@ -191,12 +186,8 @@ def run(
                 spectrum_file = spectrum_dir / instrument_name / spectrum_name
 
                 if not spectrum_file.exists():
-                    logger.info(
-                        f"Could not find {spectrum_file.resolve()}. Creating it..."
-                    )
-                    run_command(
-                        f"cd {spectrum_file.parent.resolve()} && bash create_spectrums.sh"
-                    )
+                    logger.info(f"Could not find {spectrum_file.resolve()}. Creating it...")
+                    run_command(f"cd {spectrum_file.parent.resolve()} && bash create_spectrums.sh")
                     logger.success(
                         f"Created {spectrum_file.resolve()}. This will be done only once as long as the file exists."
                     )
@@ -250,7 +241,7 @@ def run(
             if not agn_counts_file.is_file():
                 raise FileNotFoundError(f"{agn_counts_file} is not a file!")
 
-            logger.info(f"START\tGenerating SIMPUT for mode 'agn'...")
+            logger.info("START\tGenerating SIMPUT for mode 'agn'...")
             agn_path = simput_cfg.simput_dir / "agn"
             agn_path.mkdir(parents=True, exist_ok=True)
 
@@ -264,9 +255,7 @@ def run(
                 kwds = ({"img_settings": img_settings} for _ in range(1))
             else:
                 img_settings["num"] = 1
-                kwds = (
-                    {"img_settings": img_settings} for _ in range(simput_cfg.modes.agn)
-                )
+                kwds = ({"img_settings": img_settings} for _ in range(simput_cfg.modes.agn))
 
             # Get the spectrum file
             spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
@@ -301,15 +290,9 @@ def run(
 
 if __name__ == "__main__":
     parser = ArgumentParser(prog="", description="")
-    parser.add_argument(
-        "-a", "--agn_counts_file", type=Path, help="Path to agn_counts_cgi."
-    )
-    parser.add_argument(
-        "-p", "--config_path", type=Path, required=True, help="Path to config file."
-    )
-    parser.add_argument(
-        "-s", "--spectrum_dir", type=Path, help="Path to spectrum directory."
-    )
+    parser.add_argument("-a", "--agn_counts_file", type=Path, help="Path to agn_counts_cgi.")
+    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
+    parser.add_argument("-s", "--spectrum_dir", type=Path, help="Path to spectrum directory.")
 
     args = parser.parse_args()
 

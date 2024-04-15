@@ -1,12 +1,11 @@
 from pathlib import Path
-from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 
-def get_s_n_from_file(file_path: Path) -> Tuple[np.ndarray, np.ndarray]:
-    with open(file_path, "r") as f:
+def get_s_n_from_file(file_path: Path) -> tuple[np.ndarray, np.ndarray]:
+    with open(file_path) as f:
         lines = f.readlines()
     # This is very specific for the file format, if the files changes recheck this
     lines = lines[7:27]
@@ -25,9 +24,7 @@ def get_fluxes(file_path: Path) -> np.ndarray:
     # N( > S) [deg ** -2]
     s, n = get_s_n_from_file(file_path)
 
-    n = (
-        n * np.pi * 0.25**2
-    )  # correct for the xmm fov, xmm fov has r=15 arcmin = 0.25 degrees
+    n = n * np.pi * 0.25**2  # correct for the xmm fov, xmm fov has r=15 arcmin = 0.25 degrees
 
     # Calculate the differences of the bins
     d = np.flip(np.ediff1d(np.flip(n)))
@@ -42,9 +39,7 @@ def get_fluxes(file_path: Path) -> np.ndarray:
     # Based on:
     # https://stackoverflow.com/questions/31730028/how-can-i-generate-a-random-sample-of-bin-counts-given-a-sequence-of-bin-probabi
     # Random sample_num from the bins based on the probabilities of getting a certain bin
-    counts = np.bincount(
-        np.random.choice(range(len(p)), size=num_stars, p=p), minlength=len(p)
-    )
+    counts = np.bincount(np.random.choice(range(len(p)), size=num_stars, p=p), minlength=len(p))
 
     # Linearly interpolate and save the fluxes
     fluxes = []

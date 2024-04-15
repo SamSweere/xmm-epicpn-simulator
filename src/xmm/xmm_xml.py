@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Literal, List
+from typing import Literal
 
 import numpy as np
 from loguru import logger
-from lxml.etree import Element, SubElement, ElementTree
+from lxml.etree import Element, ElementTree, SubElement
 
 from src.xmm.utils import get_psf_file, get_vignet_file
 
@@ -14,7 +14,7 @@ def create_pn_xml(
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
     wait_time: float = 23.04e-6,  # Setting this to 0.0 eliminates out of time events
-) -> List[Path]:
+) -> list[Path]:
     from src.xmm.epn import get_focal_length, get_fov, get_pixel_size
 
     focallength = get_focal_length()
@@ -28,7 +28,7 @@ def create_pn_xml(
     p_delt = round(p_delt * 1e-3, 6)
 
     if sim_separate_ccds:
-        from src.xmm.epn import get_ccd_width_height, get_xyrval, get_cc12_txy
+        from src.xmm.epn import get_cc12_txy, get_ccd_width_height, get_xyrval
 
         max_x, max_y = get_ccd_width_height(res_mult=res_mult)
         xrval, yrval = get_xyrval()
@@ -36,7 +36,7 @@ def create_pn_xml(
         xrval = (xrval - cc12tx) * 1e-3
         yrval = (yrval - cc12ty) * 1e-3
     else:
-        from src.xmm.epn import get_naxis12, get_cc12_txy
+        from src.xmm.epn import get_cc12_txy, get_naxis12
 
         max_x, max_y = get_naxis12(res_mult=res_mult)
         xrval, yrval = get_cc12_txy()
@@ -46,7 +46,7 @@ def create_pn_xml(
     xrpix = round((max_x + 1) / 2.0, 6)
     yrpix = round((max_y + 1) / 2.0, 6)
 
-    xml_paths: List[Path] = []
+    xml_paths: list[Path] = []
     loops = 12 if sim_separate_ccds else 1
     for i in range(loops):
         instrument = Element("instrument", telescop="XMM", instrume="EPIC-PN")
@@ -91,29 +91,21 @@ def create_pn_xml(
         readout = SubElement(detector, "readout", mode="time")
         SubElement(readout, "wait", time="68.75e-3")
 
-        loop = SubElement(
-            readout, "loop", start="0", end=f"{max_y - 1}", increment="1", variable="$i"
-        )
+        loop = SubElement(readout, "loop", start="0", end=f"{max_y - 1}", increment="1", variable="$i")
         SubElement(loop, "readoutline", lineindex="0", readoutindex="$i")
         SubElement(loop, "lineshift")
         if sim_separate_ccds:
-            SubElement(
-                loop, "wait", time=f"{wait_time}"
-            )  # Setting this to 0.0 eliminates out of time events
+            SubElement(loop, "wait", time=f"{wait_time}")  # Setting this to 0.0 eliminates out of time events
 
         SubElement(readout, "newframe")
 
         tree = ElementTree(instrument)
         if sim_separate_ccds:
             xml_path = out_dir / f"ccd{i + 1:02d}.xml"
-            tree.write(
-                xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True
-            )
+            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
         else:
-            xml_path = out_dir / f"combined.xml"
-            tree.write(
-                xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True
-            )
+            xml_path = out_dir / "combined.xml"
+            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
 
         xml_paths.append(xml_path)
     return xml_paths
@@ -124,14 +116,14 @@ def get_pn_xml(
     res_mult: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
-) -> List[Path]:
+) -> list[Path]:
     instrument_path = xml_dir / "epn"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
     glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
-    xml_paths: List[Path] = list(root.glob(glob_pattern))
+    xml_paths: list[Path] = list(root.glob(glob_pattern))
 
-    if sim_separate_ccds and not len(xml_paths) == 12:
+    if sim_separate_ccds and len(xml_paths) != 12:
         logger.warning(
             f"'sim_separate_ccds' is set to 'True', but I could find only {len(xml_paths)} of the 12 CCDs."
             f"I will simulate only the CCDs given in these files. If that was intentional, then you can "
@@ -149,7 +141,7 @@ def create_mos_xml(
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
     wait_time: float = 23.04e-6,  # Setting this to 0.0 eliminates out of time events
-) -> List[Path]:
+) -> list[Path]:
     from src.xmm.emos import get_focal_length, get_fov, get_pixel_size
 
     if emos_num not in [1, 2]:
@@ -183,7 +175,7 @@ def create_mos_xml(
     xrpix = round((width + 1) / 2.0, 6)
     yrpix = round((height + 1) / 2.0, 6)
 
-    xml_paths: List[Path] = []
+    xml_paths: list[Path] = []
     if sim_separate_ccds:
         loops = 7
         if emos_num == 1:
@@ -195,9 +187,7 @@ def create_mos_xml(
         rotas = ["0.0"]
 
     for i in range(loops):
-        instrument = Element(
-            "instrument", telescop="XMM", instrume=f"EPIC-MOS{emos_num}"
-        )
+        instrument = Element("instrument", telescop="XMM", instrume=f"EPIC-MOS{emos_num}")
 
         telescope = SubElement(instrument, "telescope")
         # Based on the pixel fov and the biggest axis
@@ -249,23 +239,17 @@ def create_mos_xml(
         SubElement(loop, "readoutline", lineindex="0", readoutindex="$i")
         SubElement(loop, "lineshift")
         if sim_separate_ccds:
-            SubElement(
-                loop, "wait", time=f"{wait_time}"
-            )  # Setting this to 0.0 eliminates out of time events
+            SubElement(loop, "wait", time=f"{wait_time}")  # Setting this to 0.0 eliminates out of time events
 
         SubElement(readout, "newframe")
 
         tree = ElementTree(instrument)
         if sim_separate_ccds:
             xml_path = out_dir / f"ccd{i + 1:02d}.xml"
-            tree.write(
-                xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True
-            )
+            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
         else:
-            xml_path = out_dir / f"combined.xml"
-            tree.write(
-                xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True
-            )
+            xml_path = out_dir / "combined.xml"
+            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
 
         xml_paths.append(xml_path)
     return xml_paths
@@ -277,14 +261,14 @@ def get_mos_xml(
     res_mult: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
-) -> List[Path]:
+) -> list[Path]:
     instrument_path = xml_dir / f"emos{emos_num}"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
     glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
-    xml_paths: List[Path] = list(root.glob(glob_pattern))
+    xml_paths: list[Path] = list(root.glob(glob_pattern))
 
-    if sim_separate_ccds and not len(xml_paths) == 7:
+    if sim_separate_ccds and len(xml_paths) != 7:
         xml_paths.clear()
 
     return xml_paths

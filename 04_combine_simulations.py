@@ -5,43 +5,44 @@ from argparse import ArgumentParser
 from datetime import datetime
 from itertools import repeat
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
 from astropy.io import fits
 
 
-def process_one_simulation(file_path: Path, general_header_dict: Optional[dict]) -> Tuple[np.ndarray, dict, dict]:
+def process_one_simulation(file_path: Path, general_header_dict: dict | None) -> tuple[np.ndarray, dict, dict]:
     with fits.open(file_path) as hdu:
-        hdu_data = hdu['PRIMARY'].data
-        header = hdu['PRIMARY'].header
+        hdu_data = hdu["PRIMARY"].data
+        header = hdu["PRIMARY"].header
 
         hdu_general_header_dict = {
-            'TELESCOP': (header['TELESCOP'], header.comments['TELESCOP']),
-            'WCSAXES': (header['WCSAXES'], header.comments['WCSAXES']),
-            'CRPIX1': (header['CRPIX1'], header.comments['CRPIX1']),
-            'CRPIX2': (header['CRPIX2'], header.comments['CRPIX2']),
-            'CDELT1': (header['CDELT1'], header.comments['CDELT1']),
-            'CDELT2': (header['CDELT2'], header.comments['CDELT2']),
-            'CUNIT1': (header['CUNIT1'], header.comments['CUNIT1']),
-            'CUNIT2': (header['CUNIT2'], header.comments['CUNIT2']),
-            'CTYPE1': (header['CTYPE1'], header.comments['CTYPE1']),
-            'CTYPE2': (header['CTYPE2'], header.comments['CTYPE2']),
-            'CRVAL1': (header['CRVAL1'], header.comments['CRVAL1']),
-            'CRVAL2': (header['CRVAL2'], header.comments['CRVAL2']),
-            'LONPOLE': (header['LONPOLE'], header.comments['LONPOLE']),
-            'RADESYS': (header['RADESYS'], header.comments['RADESYS']),
-            'EXPOSURE': (header['EXPOSURE'], header.comments['EXPOSURE']),
-            'RESMULT': (header['RESMULT'], header.comments['RESMULT'])
+            "TELESCOP": (header["TELESCOP"], header.comments["TELESCOP"]),
+            "WCSAXES": (header["WCSAXES"], header.comments["WCSAXES"]),
+            "CRPIX1": (header["CRPIX1"], header.comments["CRPIX1"]),
+            "CRPIX2": (header["CRPIX2"], header.comments["CRPIX2"]),
+            "CDELT1": (header["CDELT1"], header.comments["CDELT1"]),
+            "CDELT2": (header["CDELT2"], header.comments["CDELT2"]),
+            "CUNIT1": (header["CUNIT1"], header.comments["CUNIT1"]),
+            "CUNIT2": (header["CUNIT2"], header.comments["CUNIT2"]),
+            "CTYPE1": (header["CTYPE1"], header.comments["CTYPE1"]),
+            "CTYPE2": (header["CTYPE2"], header.comments["CTYPE2"]),
+            "CRVAL1": (header["CRVAL1"], header.comments["CRVAL1"]),
+            "CRVAL2": (header["CRVAL2"], header.comments["CRVAL2"]),
+            "LONPOLE": (header["LONPOLE"], header.comments["LONPOLE"]),
+            "RADESYS": (header["RADESYS"], header.comments["RADESYS"]),
+            "EXPOSURE": (header["EXPOSURE"], header.comments["EXPOSURE"]),
+            "RESMULT": (header["RESMULT"], header.comments["RESMULT"]),
         }
 
     if general_header_dict is None:
         general_header_dict = hdu_general_header_dict
     else:
         if general_header_dict != hdu_general_header_dict:
-            raise ValueError(f"General header values are not the same, something is wrong.\n"
-                             f"general_header_dict = {general_header_dict}\n"
-                             f"hdu_general_header_dict = {hdu_general_header_dict}")
+            raise ValueError(
+                f"General header values are not the same, something is wrong.\n"
+                f"general_header_dict = {general_header_dict}\n"
+                f"hdu_general_header_dict = {hdu_general_header_dict}"
+            )
 
     return hdu_data, header, general_header_dict
 
@@ -54,11 +55,8 @@ def apply_det_mask(data, det_mask_path) -> np.ndarray:
 
 
 def combine_simulation(
-        img_path: Path,
-        agn_path: Path = None,
-        background_path: Path = None,
-        det_mask_path: Path = None
-) -> Tuple[np.ndarray, fits.Header]:
+    img_path: Path, agn_path: Path = None, background_path: Path = None, det_mask_path: Path = None
+) -> tuple[np.ndarray, fits.Header]:
     if not img_path and not agn_path and not background_path:
         raise AssertionError("Not all inputfiles can be None")
 
@@ -67,22 +65,23 @@ def combine_simulation(
     data, img_header, general_header_dict = process_one_simulation(img_path, None)
 
     header["IMG_FILE"] = (img_path.name, "Input simulation file used as img")
-    header["IMG_SIMP"] = (img_header['SIMPUT'], "Input img simput used for simulation")
+    header["IMG_SIMP"] = (img_header["SIMPUT"], "Input img simput used for simulation")
 
     if agn_path is not None:
         agn_data, agn_header, general_header_dict = process_one_simulation(agn_path, general_header_dict)
 
         header["AGN_FILE"] = (agn_path.name, "Input simulation file used as agn")
-        header["AGN_SIMP"] = (agn_header['SIMPUT'], "Input agn simput used for simulation")
+        header["AGN_SIMP"] = (agn_header["SIMPUT"], "Input agn simput used for simulation")
 
         data = data + agn_data
 
     if background_path is not None:
-        background_data, background_header, general_header_dict = process_one_simulation(background_path,
-                                                                                         general_header_dict)
+        background_data, background_header, general_header_dict = process_one_simulation(
+            background_path, general_header_dict
+        )
 
         header["BCK_FILE"] = (background_path.name, "Input simulation file used as background")
-        header["BCK_SIMP"] = (background_header['SIMPUT'], "Input background simput used for simulation")
+        header["BCK_SIMP"] = (background_header["SIMPUT"], "Input background simput used for simulation")
 
         data = data + background_data
 
@@ -94,13 +93,14 @@ def combine_simulation(
     # Add the general background to the header
     header.update(general_header_dict)
 
-    header['COMMENT'] = f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at " \
-                        f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    header["COMMENT"] = (
+        f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at " f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    )
 
     return data, header
 
 
-def random_sample_sim_files(sample_dir: Path, num: int) -> List[Path]:
+def random_sample_sim_files(sample_dir: Path, num: int) -> list[Path]:
     files = list(sample_dir.glob("*.fits.gz"))
     files.extend(sample_dir.glob("*.fits"))
 
@@ -113,11 +113,7 @@ def random_sample_sim_files(sample_dir: Path, num: int) -> List[Path]:
 
 
 def combine_and_save_sim(
-        output_dir: Path,
-        imgs: List[Path],
-        agns: List[Path] = None,
-        backgrounds: List[Path] = None,
-        det_mask: Path = None
+    output_dir: Path, imgs: list[Path], agns: list[Path] = None, backgrounds: list[Path] = None, det_mask: Path = None
 ):
     if not os.path.exists(output_dir):
         raise NotADirectoryError(f"Output directory {output_dir} does not exist")
@@ -128,10 +124,11 @@ def combine_and_save_sim(
     if backgrounds is None:
         backgrounds = repeat(None, len(imgs))
 
-    for img, agn, background in zip(imgs, agns, backgrounds):
+    for img, agn, background in zip(imgs, agns, backgrounds, strict=False):
         print(f"Combining: img={img}, agn={agn} and background={background}")
-        data, header = combine_simulation(img_path=img, agn_path=agn, background_path=background,
-                                          det_mask_path=det_mask)
+        data, header = combine_simulation(
+            img_path=img, agn_path=agn, background_path=background, det_mask_path=det_mask
+        )
 
         # Determine the output name
         out_name = img.name.replace(".fits", "").replace(".gz", "")
@@ -152,7 +149,7 @@ def combine_and_save_sim(
 
 
 def run(path_to_cfg: Path) -> None:
-    with open(path_to_cfg, "r") as f:
+    with open(path_to_cfg) as f:
         cfg: dict = json.load(f)
 
     env_cfg = cfg["environment"]
@@ -160,11 +157,12 @@ def run(path_to_cfg: Path) -> None:
 
     exposures = cfg["exposure"]
     mode_dict = cfg["mode"]
-    res_mults = cfg['res_mult']
+    res_mults = cfg["res_mult"]
 
     working_directory = Path(env_cfg["working_directory"]).expanduser()
-    dataset_dir = working_directory / env_cfg["dataset_dir"] / instrument_cfg["instrument_name"] / instrument_cfg[
-        "filter"]
+    dataset_dir = (
+        working_directory / env_cfg["dataset_dir"] / instrument_cfg["instrument_name"] / instrument_cfg["filter"]
+    )
 
     det_mask_root = instrument_cfg["det_mask_root"]
 
@@ -218,14 +216,16 @@ def run(path_to_cfg: Path) -> None:
 
                 background_files = None
                 if amount_bg:
-                    background_files = random_sample_sim_files(sample_dir=exposure_dir / "background" / res_mult,
-                                                               num=amount_bg)
+                    background_files = random_sample_sim_files(
+                        sample_dir=exposure_dir / "background" / res_mult, num=amount_bg
+                    )
 
-                combine_and_save_sim(output_dir=output_dir, imgs=imgs, agns=agn_files, backgrounds=background_files,
-                                     det_mask=det_mask)
+                combine_and_save_sim(
+                    output_dir=output_dir, imgs=imgs, agns=agn_files, backgrounds=background_files, det_mask=det_mask
+                )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = ArgumentParser(prog="", description="")
     parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
 

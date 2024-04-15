@@ -1,22 +1,21 @@
 import json
+import os
+import shutil
 from argparse import ArgumentParser
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, Literal
+from typing import Literal
 
 from loguru import logger
-import os
 
+from src.config import EnvironmentCfg, SimulationCfg
 from src.sixte.simulator import run_xmm_simulation
 from src.xmm.utils import create_psf_file, create_vinget_file, create_xml_files
+from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.multiprocessing import mp_run
 from src.xmm_utils.run_utils import configure_logger
-from src.xmm_utils.file_utils import compress_targz, decompress_targz
-from src.config import EnvironmentCfg, SimulationCfg
-from datetime import datetime
-import shutil
 
 logger.remove()
 
@@ -54,23 +53,13 @@ def _simulate_mode(
         consume_data=env_cfg.consume_data,
     )
     kwds = (
-        {"simput_file": simput.resolve(), "res_mult": res_mult}
-        for res_mult in sim_cfg.res_mults
-        for simput in simputs
+        {"simput_file": simput.resolve(), "res_mult": res_mult} for res_mult in sim_cfg.res_mults for simput in simputs
     )
     _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-    logger.success(
-        f"DONE\tSimulating {instrument_name} for {mode.upper()}. Duration: {duration}"
-    )
+    logger.success(f"DONE\tSimulating {instrument_name} for {mode.upper()}. Duration: {duration}")
 
     if env_cfg.working_dir != env_cfg.output_dir:
-        mode_compressed = (
-            env_cfg.output_dir
-            / "xmm_sim_dataset"
-            / instrument_name
-            / sim_cfg.filter
-            / f"{mode}.tar.gz"
-        )
+        mode_compressed = env_cfg.output_dir / "xmm_sim_dataset" / instrument_name / sim_cfg.filter / f"{mode}.tar.gz"
         mode_compressed.parent.mkdir(parents=True, exist_ok=True)
 
         logger.info(
@@ -91,8 +80,8 @@ def _simulate_mode(
 
 def run(path_to_cfg: Path) -> None:
     starttime = datetime.now()
-    with open(path_to_cfg, "r") as f:
-        cfg: Dict[str, dict] = json.load(f)
+    with open(path_to_cfg) as f:
+        cfg: dict[str, dict] = json.load(f)
 
     global env_cfg, sim_cfg
 
@@ -115,9 +104,7 @@ def run(path_to_cfg: Path) -> None:
         retention=2,
     )
 
-    with TemporaryDirectory(prefix="xml_") as xml_dir, TemporaryDirectory(
-        prefix="sim_"
-    ) as sim_dir:
+    with TemporaryDirectory(prefix="xml_") as xml_dir, TemporaryDirectory(prefix="sim_") as sim_dir:
         xml_dir = Path(xml_dir)
         sim_dir = Path(sim_dir)
 
@@ -131,9 +118,7 @@ def run(path_to_cfg: Path) -> None:
         if env_cfg.working_dir != env_cfg.output_dir:
             simput_compressed = env_cfg.output_dir / "simput.tar.gz"
             if simput_compressed.exists():
-                logger.info(
-                    f"Found compressed SIMPUT files in {simput_compressed.resolve()}. Decompressing..."
-                )
+                logger.info(f"Found compressed SIMPUT files in {simput_compressed.resolve()}. Decompressing...")
                 decompress_targz(
                     in_file_path=simput_compressed,
                     out_file_dir=sim_cfg.simput_dir,
@@ -152,14 +137,9 @@ def run(path_to_cfg: Path) -> None:
 
         logger.info("START\tCreating all vignetting files.")
         to_run = partial(create_vinget_file, xml_dir=xml_dir)
-        kwds = (
-            {"instrument_name": instrument_name}
-            for instrument_name in sim_cfg.instruments
-        )
+        kwds = ({"instrument_name": instrument_name} for instrument_name in sim_cfg.instruments)
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-        logger.success(
-            f"DONE\tVignetting files have been created. Duration: {duration}"
-        )
+        logger.success(f"DONE\tVignetting files have been created. Duration: {duration}")
 
         logger.info("START\tCreating all XML files.")
         to_run = partial(
@@ -219,9 +199,7 @@ def run(path_to_cfg: Path) -> None:
 
 if __name__ == "__main__":
     parser = ArgumentParser(prog="", description="")
-    parser.add_argument(
-        "-p", "--config_path", type=Path, required=True, help="Path to config file."
-    )
+    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
 
     args = parser.parse_args()
     run(path_to_cfg=args.config_path)
