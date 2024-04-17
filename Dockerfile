@@ -98,8 +98,6 @@ RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
     cp -p Xspec/BUILD_DIR/Makefile-std ${HEADAS}/bin/ \
     rm -rf Xspec/src/spectral
 
-
-#
 # Set the environment variables for the image
 ENV HEADASPROMPT=/dev/null HEADASNOQUERY="" PATH=$MINICONDA/bin:$PERL:$PATH
 ENV LD_LIBRARY_PATH=$MINICONDA/envs/xmm/lib:$LD_LIBRARY_PATH
