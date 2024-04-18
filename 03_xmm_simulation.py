@@ -1,4 +1,5 @@
 import os
+import pathlib
 import shutil
 import tomllib
 from argparse import ArgumentParser
@@ -199,7 +200,13 @@ def run(path_to_cfg: Path) -> None:
 
 if __name__ == "__main__":
     parser = ArgumentParser(prog="", description="")
-    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
+    parser.add_argument(
+        "-p",
+        "--config_path",
+        type=Path,
+        default=pathlib.Path(__file__).parent.resolve() / "config.toml",
+        help="Path to config file.",
+    )
 
     args = parser.parse_args()
     run(path_to_cfg=args.config_path)

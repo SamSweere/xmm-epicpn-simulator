@@ -1,3 +1,4 @@
+import pathlib
 import shutil
 import tomllib
 from argparse import ArgumentParser
@@ -293,7 +294,13 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
 if __name__ == "__main__":
     parser = ArgumentParser(prog="", description="")
     parser.add_argument("-a", "--agn_counts_file", type=Path, help="Path to agn_counts_cgi.")
-    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
+    parser.add_argument(
+        "-p",
+        "--config_path",
+        type=Path,
+        default=pathlib.Path(__file__).parent.resolve() / "config.toml",
+        help="Path to config file.",
+    )
     parser.add_argument("-s", "--spectrum_dir", type=Path, help="Path to spectrum directory.")
 
     args = parser.parse_args()

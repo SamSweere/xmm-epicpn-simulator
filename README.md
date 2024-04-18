@@ -81,11 +81,23 @@ Then change the permissions:
 sudo chmod -R 777 /path/to/xmm-epicpn-simulator/data
 ```
 
-### Running the code on your local machine
+
+
+### Running the code
+First make sure your working directory is the root of this project (also when running this from the docker container). I.e.
+```shell
+cd /path/to/xmm-epicpn-simulator
+```
 
 The code is split up into different steps, represented by different scripts. If you want to go through the whole process, then you _must_ execute the steps in the correct order. They are numbered accordingly. There are following steps:
 
 1. `01_download_files.py`: Download files from the [Illustris Project](https://www.tng-project.org). Before you can do that you'll need an API key. For this check out their [registration page](https://www.tng-project.org/users/register/). After your request has been approved, you'll see your personal API key after you login. Please keep this key to yourself!
+If you do not want to re-enter the api key every time you can add it to a `.env` file in the root of the project. The file should look like this:
+```
+TNG_API_KEY="{your_api_key_here}"
+```
+
+By default the code will use `config.toml` as the configuration file. If you want to use another file, then you can pass the path to the file as a command line argument (`--config_path`). The script will then use this file instead of `config.toml`.
 
 2. `02_generate_simput.py`: Create SIMPUT files based on the previously downloaded files.
 

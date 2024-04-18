@@ -1,3 +1,5 @@
+import os
+import pathlib
 import shutil
 import tomllib
 from argparse import ArgumentParser
@@ -6,6 +8,7 @@ from functools import partial
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
 from loguru import logger
 
 from src.config import DownloadCfg, EnergySettings, EnvironmentCfg
@@ -197,15 +200,30 @@ def run(path_to_cfg: Path, api_key: str):
 
 
 if __name__ == "__main__":
+    # Load .env file
+    load_dotenv()
+
+    # Get TNG_API_KEY from environment variables, or None if it's not present
+    default_tng_api_key = os.getenv("TNG_API_KEY")
+
     parser = ArgumentParser(prog="", description="")
+    # Add TNG_API_KEY argument
     parser.add_argument(
         "-k",
         "--api_key",
         type=str,
-        required=True,
-        help="IllustrisTNG API key. If you don't have one, create an account at " "https://www.tng-project.org/data/",
+        default=default_tng_api_key,
+        required=default_tng_api_key is None,
+        help="TNG API key. If you don't have one, create an account at " "https://www.tng-project.org/data/",
     )
-    parser.add_argument("-p", "--config_path", type=Path, required=True, help="Path to config file.")
+
+    parser.add_argument(
+        "-p",
+        "--config_path",
+        type=Path,
+        default=pathlib.Path(__file__).parent.resolve() / "config.toml",
+        help="Path to config file.",
+    )
 
     args = parser.parse_args()
     run(
