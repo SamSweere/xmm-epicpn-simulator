@@ -1,7 +1,7 @@
 [environment]
-working_dir = "~/Projects/ESA"
-output_dir = "~/Projects/ESA"
-log_dir = "~/Projects/ESA/logs"
+working_dir = "/home/xmm_user/xmm-epicpn-simulator/data/tmp"
+output_dir = "/home/xmm_user/xmm-epicpn-simulator/data"
+log_dir = "/home/xmm_user/xmm-epicpn-simulator/data/logs"
 debug = false
 verbose = false
 fail_on_error = false

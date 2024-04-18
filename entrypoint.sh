@@ -3,4 +3,6 @@
 . $SAS_DIR/setsas.sh
 . $SIXTE/bin/sixte-install.sh
 
-exec "$@"
+
+bash
+# exec "$@"

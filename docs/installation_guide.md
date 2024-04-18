@@ -1,4 +1,4 @@
-# Installation
+# Installation Guide
 This code can be executed either locally or through Docker. The primary use case for Docker is to deploy the code on a [Kubernetes](https://kubernetes.io) (K8s) cluster utilizing [CephFS](https://docs.ceph.com/en/nautilus/cephfs/). Optimization efforts are concentrated on implementing multiprocessing and efficiently managing large volumes of small files.
 
 The deployment process is similar for both use cases: the `Dockerfile` provides a detailed set of instructions for setting up the environment, whether locally or on a cluster.
@@ -32,7 +32,7 @@ wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-
 
 3. Build the image given by the `Dockerfile` in this repo: `docker build -t {your_own_tag} .` This will take an hour or two.
 4. If needed, login into the image registries used by your cluster via `docker login {image_registry_url}` and push the image via `docker push {your_own_tag}`
-5. You can access the image via `docker run -it {your_own_tag}` and run the code as described below.
+5. You can access the image via `docker run -it {your_own_tag}`. See the main [README](../README.md) for more information on how to run the code.
 
 ## Local Installation
 A word of warning: The following steps and the code run on Ubuntu 22.04. I haven't tested (nor do I intend to) other operating systems. If you're using Windows you'll probably run into problems, because of the logging library ([`Loguru`](https://github.com/Delgan/loguru)) I'm using. For more information see e. g. [this GitHub issue](https://github.com/Delgan/loguru/issues/1064).

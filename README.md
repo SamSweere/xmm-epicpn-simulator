@@ -4,7 +4,7 @@ This repository hosts simulation code for generating XMM-Newton EPIC-pn observat
 The simulations are tailored to produce training datasets for deep learning algorithms aimed at super-resolution enhancement and noise reduction of XMM-Newton EPIC-pn data. For details on the deep learning implementation, refer to the [xmm-superres-denoise](https://github.com/SamSweere/xmm-superres-denoise) repository. The findings from this research are documented in the paper _Deep Learning-Based Super-Resolution and De-Noising for XMM-Newton Images_, published in [MNRAS, 517, 4054 (2022)](https://doi.org/10.1093/mnras/stac2437). Please cite this publication when using the simulation code for your research.
 
 ## Installation
-Given the complex dependencies and the need for external software, the code is best run in a Docker container. See the [docs/installation.md](docs/installation.md) for detailed instructions on installing the necessary software, optionally using Docker.
+Given the complex dependencies and the need for external software, the code is best run in a Docker container. See the [**Installation Guide**](docs/installation_guide.md) for detailed instructions on installing the necessary software, optionally using Docker.
 
 ## Configuring the code
 The good thing: You'll need to fill out `config.toml` only once! Every step relies on this configuration file and everything will be done accordingly. This file is divided into `environment`, `energy`, `download`, `simput` and `simulation`:
@@ -54,6 +54,35 @@ Set the energy boundaries in `keV`:
 - `wait_time`: If not 0, then Out-Of-Time events will be simulated.
 
 ## Running the code
+
+### Running the code in a Docker container
+Assuming you have the Docker image ready (see the [**Installation Guide**](docs/installation_guide.md)), you can run the code in the Docker container. First navigate to the root of this project:
+```shell
+cd /path/to/xmm-epicpn-simulator
+```
+Next we can run the Docker container and mount the current directory into the container. This way the code is available in the container and the results will be saved on your local machine. Run the following command:
+```shell
+docker run --rm -it -v $(pwd):/home/xmm_user/xmm-epicpn-simulator samsweere/xmm-epicpn-simulator:latest
+```
+The `--rm` flag will remove the container and the volume after it has finished running. The `-it` flags are for interactive mode.
+
+Optionally you can replace `$(pwd)` with the path to the directory where the `xmm-epicpn-simulator` code is located.
+
+Note that the code will write the results to the `xmm-epicpn-simulator/data` directory. It needs to have write permissions to this directory. By default the docker will run with the uid of `1000`. If your user is not `1000`, then you'll need to change the permissions of the directory. You chan check your user id by running:
+```shell
+id -u
+```
+You can change the permissions of the directory by running. First if it doesn't exist, create the directory:
+```shell
+mkdir /path/to/xmm-epicpn-simulator/data
+```
+Then change the permissions:
+```shell
+sudo chmod -R 777 /path/to/xmm-epicpn-simulator/data
+```
+
+### Running the code on your local machine
+
 The code is split up into different steps, represented by different scripts. If you want to go through the whole process, then you _must_ execute the steps in the correct order. They are numbered accordingly. There are following steps:
 
 1. `01_download_files.py`: Download files from the [Illustris Project](https://www.tng-project.org). Before you can do that you'll need an API key. For this check out their [registration page](https://www.tng-project.org/users/register/). After your request has been approved, you'll see your personal API key after you login. Please keep this key to yourself!
@@ -111,3 +140,4 @@ These can then in the future be combined with a detector-mask to create a realis
 Since this is a simulation we can also simulate observations where XMM has a higher resolution (both spatial and psf wise).
 
 ## Acknowledgements
+Many thanks to [Bojan Todorkov](https://github.com/bojobo) for his code improvements and bug fixes to the codebase!
