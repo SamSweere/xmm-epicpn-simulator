@@ -27,17 +27,18 @@ COPY --chown=xmm_user: --chmod=777 downloads/miniconda.sh $HOME/
 RUN /bin/bash miniconda.sh -b -u -p ${MINICONDA} && rm miniconda.sh
 ENV PATH="$MINICONDA/bin:$PATH"
 
-RUN conda init bash
-RUN conda create -n xmm python=3.11.8 -y
+# Create the conda environment for xmm, also install numpy already since headas needs it
+RUN conda init bash && \
+    conda create -y -n xmm python=3.11.8 numpy astropy scipy matplotlib
 
 # Install perl-5.36.1 and the required modules
 RUN curl -L https://install.perlbrew.pl | bash
 ENV PERLBREW_ROOT=$HOME/perl5/perlbrew
-RUN $HOME/perl5/perlbrew/bin/perlbrew init && $HOME/perl5/perlbrew/bin/perlbrew install-cpanm
-RUN mkdir -p ${HOME}/perl5/perlbrew/dists
-RUN source ${HOME}/perl5/perlbrew/etc/bashrc && \
-    $HOME/perl5/perlbrew/bin/perlbrew install -n -f perl-5.36.1
-RUN $HOME/perl5/perlbrew/bin/perlbrew switch perl-5.36.1 && \
+RUN $HOME/perl5/perlbrew/bin/perlbrew init && $HOME/perl5/perlbrew/bin/perlbrew install-cpanm && \
+    mkdir -p ${HOME}/perl5/perlbrew/dists && \
+    source ${HOME}/perl5/perlbrew/etc/bashrc && \
+    $HOME/perl5/perlbrew/bin/perlbrew install -n -f perl-5.36.1 && \
+    $HOME/perl5/perlbrew/bin/perlbrew switch perl-5.36.1 && \
     $HOME/perl5/perlbrew/bin/cpanm -n Switch && $HOME/perl5/perlbrew/bin/cpanm -n Shell && $HOME/perl5/perlbrew/bin/cpanm -n CGI
 
 # Build and install SIMPUT
@@ -68,19 +69,13 @@ WORKDIR $SAS_ROOT
 ENV SAS_PERL=$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl SAS_PYTHON=$MINICONDA/envs/xmm/bin/python
 COPY --chown=xmm_user: --chmod=777 downloads/sas_21.0.0-Ubuntu22.04.tgz $SAS_ROOT/
 USER 0
-RUN tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz
-RUN chown -R xmm_user: $SAS_ROOT && chmod -R 777 $SAS_ROOT
+RUN tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz && \
+    chown -R xmm_user: $SAS_ROOT && chmod -R 777 $SAS_ROOT
 USER 1000
 RUN ./install.sh
 
 # Copy the Sas files
 COPY --chown=xmm_user: --chmod=777 downloads/ccf $SAS_CCFPATH/
-
-# Install the required python packages
-# HEASoftPy needs numpy, therefore we need to install it first
-WORKDIR $HOME
-COPY --chown=xmm_user: --chmod=777 requirements.txt $HOME/
-RUN $MINICONDA/envs/xmm/bin/pip install -r requirements.txt
 
 # Remove lib/libtinfo.so and lib/libtinfo.so.6 from the anaconda environment since it breaks bash
 RUN rm $MINICONDA/envs/xmm/lib/libtinfo.so && rm $MINICONDA/envs/xmm/lib/libtinfo.so.6
@@ -90,7 +85,6 @@ WORKDIR $HOME
 ENV CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=$SAS_PERL PYTHON=$MINICONDA/envs/xmm/bin/python
 COPY --chown=xmm_user: --chmod=777 downloads/heasoft-6.32.1src.tar.gz $HOME/
 RUN tar zxf heasoft-6.32.1src.tar.gz && rm heasoft-6.32.1src.tar.gz
-
 
 WORKDIR $HOME/heasoft-6.32.1/BUILD_DIR/
 RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
@@ -162,6 +156,12 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
 
 # Copy the home directory
 COPY --from=builder --chown=xmm_user: $HOME $HOME
+
+# Finally Install the required python packages, we do this in the last step to avoid rebuilding the full image
+# every time we change the requirements
+WORKDIR $HOME
+COPY --chown=xmm_user: --chmod=777 requirements.txt $HOME/
+RUN $MINICONDA/envs/xmm/bin/pip install -r requirements.txt
 
 # Set the working directory and entrypoint
 WORKDIR $HOME
