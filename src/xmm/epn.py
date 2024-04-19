@@ -127,6 +127,8 @@ def get_fov() -> float:
     return fov
 
 
+# WARNING: THE FOLLOWING FUNCTION WILL CREATE A THEORETICAL MASK FOR THE EPIC-PN DETECTOR
+# FOR REALISM USE THE ACTUAL CALIBRATED DETECTOR MASK
 def create_detector_mask(res_mult: int = 1) -> np.ndarray:
     width, height = get_max_xy(res_mult)
     pixel_size = get_pixel_size(res_mult)
