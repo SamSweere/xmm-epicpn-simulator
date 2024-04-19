@@ -40,7 +40,7 @@ instruments = ["epn"] #, "emos1", "emos2"]
 n_gen = 0 #-1 # -1 for all
 
 [simput.agn]
-n_gen = 5 #25000
+n_gen = 1 #25000
 deblending_n_gen = 0.5 # Fraction of n_gen
 deblending_min_sep = 0.0 # in arcsec
 deblending_max_sep = 5.0 # in arcsec # TODO: determine this value
@@ -56,7 +56,9 @@ filter = "thin"
 res_mults = [1, 2, 4]
 max_exposure = 100000
 modes.img = 0 # -1
-modes.agn = 5 # -1
-modes.bkg = 0 # 25000
+modes.agn = 1 # -1
+modes.bkg = 1 # 25000
 sim_separate_ccds = false # true
-wait_time = 0.00002304
+# We create a very small wait time when the separate_ccds is false
+# in order to avoid readout artifacts.
+wait_time = 0.00000001 # Correct separate wait_time = 0.00002304

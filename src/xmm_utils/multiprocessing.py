@@ -19,11 +19,9 @@ def mp_run(func, kwds_generator: Generator, num_processes: int, debug: bool = Fa
         pool.join()
     end = datetime.now()
     results = []
-    print(f"apply_results: {apply_results}")
     flattened_apply_results = [
         item for sublist in apply_results for item in (sublist if isinstance(sublist, list) else [sublist])
     ]
-    print(f"flattened_apply_results: {flattened_apply_results}")
     for apply_result in flattened_apply_results:
         if apply_result is not None:
             results.append(apply_result)

@@ -34,6 +34,10 @@ def _simulate_mode(
         return
 
     logger.info(f"START\tSimulating {instrument_name} for {mode.upper()}.")
+
+    # Find the simput files
+
+    # Find the simput files
     mode_dir = sim_cfg.simput_dir / mode
     if mode != "bkg":
         mode_glob = mode_dir.rglob("*.simput.gz")
@@ -124,15 +128,26 @@ def run(path_to_cfg: Path) -> None:
                 res_mult_dir = instrument_dir / sim_cfg.filter / f"{res_mult}x"
                 res_mult_dir.mkdir(exist_ok=True, parents=True)
 
+        # Decrompress SIMPUT files if needed
         if env_cfg.working_dir != env_cfg.output_dir:
-            simput_compressed = env_cfg.output_dir / "simput.tar.gz"
-            if simput_compressed.exists():
-                logger.info(f"Found compressed SIMPUT files in {simput_compressed.resolve()}. Decompressing...")
-                decompress_targz(
-                    in_file_path=simput_compressed,
-                    out_file_dir=sim_cfg.simput_dir,
-                )
-                logger.success("DONE\tDecompressing SIMPUT files.")
+            for mode in sim_cfg.modes:
+                print(f"mode: {mode}")
+                if mode[1] == 0:
+                    logger.debug(f"Skipping {mode[0]} since simulation ammount is set to 0.")
+                    continue
+
+                simput_dir = env_cfg.output_dir / "simput" / mode[0]
+
+                simput_compressed_files = [next(simput_dir.rglob("*.tar.gz"))]
+
+                for simput_compressed in simput_compressed_files:
+                    if simput_compressed.exists():
+                        logger.info(f"Found compressed SIMPUT files in {simput_compressed.resolve()}. Decompressing...")
+                        decompress_targz(
+                            in_file_path=simput_compressed,
+                            out_file_dir=sim_cfg.simput_dir / mode[0],
+                        )
+                        logger.success("DONE\tDecompressing SIMPUT files.")
 
         logger.info("START\tCreating all PSF files.")
         to_run = partial(create_psf_file, xml_dir=xml_dir)

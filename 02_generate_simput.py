@@ -149,7 +149,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             logger.info(f"DONE\tGenerating SIMPUT for mode 'img'. Duration: {duration}")
 
             if env_cfg.working_dir != env_cfg.output_dir:
-                img_compressed = env_cfg.output_dir / "simput" / "img.tar.gz"
+                img_compressed = env_cfg.output_dir / "simput" / "img" / "img.tar.gz"
                 img_compressed.parent.mkdir(parents=True, exist_ok=True)
                 logger.info(
                     f"Compressing IMG SIMPUT files and moving them to {img_compressed.resolve()}."
@@ -225,7 +225,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             logger.info(f"DONE\tGenerating SIMPUT for mode 'bkg'. Duration: {duration}")
 
             if env_cfg.working_dir != env_cfg.output_dir:
-                bkg_compressed = env_cfg.output_dir / "simput" / "bkg.tar.gz"
+                bkg_compressed = env_cfg.output_dir / "simput" / "bkg" / "bkg.tar.gz"
                 bkg_compressed.parent.mkdir(parents=True, exist_ok=True)
                 logger.info(
                     f"Compressing BKG SIMPUT files and moving them to {bkg_compressed.resolve()}."
@@ -277,7 +277,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             logger.info(f"DONE\tGenerating SIMPUT for mode 'agn'. Duration: {duration}")
 
             if env_cfg.working_dir != env_cfg.output_dir:
-                agn_compressed = env_cfg.output_dir / "simput" / "agn.tar.gz"
+                agn_compressed = env_cfg.output_dir / "simput" / "agn" / "agn.tar.gz"
                 agn_compressed.parent.mkdir(parents=True, exist_ok=True)
                 logger.info(
                     f"Compressing AGN SIMPUT files and moving them to {agn_compressed.resolve()}."
