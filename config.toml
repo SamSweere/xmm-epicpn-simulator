@@ -2,8 +2,8 @@
 working_dir = "/home/xmm_user/xmm-epicpn-simulator/data/tmp"
 output_dir = "/home/xmm_user/xmm-epicpn-simulator/data"
 log_dir = "/home/xmm_user/xmm-epicpn-simulator/data/logs"
-debug = false
-verbose = false
+debug = true
+verbose = true
 fail_on_error = false
 overwrite = true
 consume_data = false
@@ -34,29 +34,29 @@ zoom_range = [ 1, 2 ]
 sigma_b_range = [ 5, 50 ]
 offset_std = 0.05
 num_img_sample = 5
-instruments = ["epn", "emos1", "emos2"]
+instruments = ["epn"] #, "emos1", "emos2"]
 
 [simput.img]
-n_gen = -1 # -1 for all
+n_gen = 0 #-1 # -1 for all
 
 [simput.agn]
-n_gen = 25000
-deblening_n_gen = 0.5 # Fraction of n_gen
+n_gen = 5 #25000
+deblending_n_gen = 0.5 # Fraction of n_gen
 deblending_min_sep = 0.0 # in arcsec
 deblending_max_sep = 5.0 # in arcsec # TODO: determine this value
 deblending_max_flux_delta = 0.5 # the maximum difference between two sources in flux # TODO: determine this value
 
 [simput.bkg]
-n_gen = 1
+n_gen = 1 #1
 
 [simulation]
 num_processes = 8
-instruments = ["epn", "emos1", "emos2"]
+instruments = ["epn"] # , "emos1", "emos2"]
 filter = "thin"
 res_mults = [1, 2, 4]
 max_exposure = 100000
-modes.img = -1
-modes.agn = -1
-modes.bkg = 25000
-sim_separate_ccds = true
+modes.img = 0 # -1
+modes.agn = 5 # -1
+modes.bkg = 0 # 25000
+sim_separate_ccds = false # true
 wait_time = 0.00002304

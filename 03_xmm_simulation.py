@@ -29,6 +29,10 @@ def _simulate_mode(
     xmm_filter_dir: Path,
     xml_dir: Path,
 ):
+    if amount == 0:
+        logger.info(f"Skipping {mode.upper()} simulation for {instrument_name} since n_gen is set to {amount}.")
+        return
+
     logger.info(f"START\tSimulating {instrument_name} for {mode.upper()}.")
     mode_dir = sim_cfg.simput_dir / mode
     if mode != "bkg":
@@ -74,9 +78,13 @@ def _simulate_mode(
             remove_files=True,
         )
         shutil.move(src=sim_dir / f"{mode}.tar.gz", dst=mode_compressed)
-        for xmm_mode_dir in xmm_filter_dir.rglob(f"{mode}{os.sep}"):
-            shutil.rmtree(xmm_mode_dir)
-        shutil.rmtree(mode_dir)
+
+        try:
+            for xmm_mode_dir in xmm_filter_dir.rglob(f"{mode}{os.sep}"):
+                shutil.rmtree(xmm_mode_dir)
+            shutil.rmtree(mode_dir)
+        except FileNotFoundError as e:
+            logger.error(f"Error while deleting {mode_dir.resolve()}: {e}")
 
 
 def run(path_to_cfg: Path) -> None:

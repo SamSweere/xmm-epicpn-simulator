@@ -48,7 +48,7 @@ def create_agn_sources(
         simput_files: list[Path] = []
 
         # TODO: make an option to make agns that are close together
-        if img_settings["deblening_n_gen"] > 0:
+        if img_settings["deblending_n_gen"] > 0:
             # TODO:
             # img_settings["deblending_min_sep"]
             # img_settings["deblending_max_sep"]

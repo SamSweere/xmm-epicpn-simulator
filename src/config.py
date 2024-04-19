@@ -75,10 +75,10 @@ class DownloadCfg(BaseModel):
     fits_compressed: Path
 
 
-class _SimputModes(BaseModel):
-    img: Annotated[int, Field(ge=-1)]
-    agn: NonNegativeInt
-    bkg: bool
+# class _SimputModes(BaseModel):
+#     img: Annotated[int, Field(ge=-1)]
+#     agn: NonNegativeInt
+#     bkg: bool
 
 
 class _SimulationModes(BaseModel):
@@ -87,13 +87,33 @@ class _SimulationModes(BaseModel):
     bkg: NonNegativeInt
 
 
+class _SimputImg(BaseModel):
+    n_gen: NonNegativeInt
+
+
+class _SimputAgn(BaseModel):
+    n_gen: NonNegativeInt
+    deblending_n_gen: NonNegativeFloat
+    deblending_min_sep: NonNegativeFloat
+    deblending_max_sep: NonNegativeFloat
+    deblending_max_flux_delta: NonNegativeFloat
+
+
+class _SimputBkg(BaseModel):
+    n_gen: NonNegativeInt
+
+
 class SimputCfg(BaseModel):
     num_processes: NonNegativeInt
     instruments: list[InstrumentName]
     filter: XMMFilter
     zoom_range: tuple[PositiveInt, PositiveInt]
     sigma_b_range: tuple[PositiveInt, PositiveInt]
-    modes: _SimputModes
+    img: _SimputImg
+    agn: _SimputAgn
+    bkg: _SimputBkg
+    # agn: dict[str, any]
+    # bkg: dict[str, int]
     offset_std: PositiveFloat
     num_img_sample: PositiveInt
     simput_dir: CfgPath

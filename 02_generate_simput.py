@@ -27,6 +27,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
     with open(path_to_cfg, "rb") as file:
         cfg: dict[str, dict] = tomllib.load(file)
     env_cfg = EnvironmentCfg(**cfg.pop("environment"))
+
     simput_cfg = SimputCfg(
         **cfg.pop("simput"),
         simput_dir=env_cfg.working_dir / "simput",
@@ -293,7 +294,13 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
 
 if __name__ == "__main__":
     parser = ArgumentParser(prog="", description="")
-    parser.add_argument("-a", "--agn_counts_file", type=Path, help="Path to agn_counts_cgi.")
+    parser.add_argument(
+        "-a",
+        "--agn_counts_file",
+        default=pathlib.Path(__file__).parent.resolve() / "res" / "agn_counts.cgi",
+        type=Path,
+        help="Path to agn_counts_cgi.",
+    )
     parser.add_argument(
         "-p",
         "--config_path",
@@ -301,7 +308,13 @@ if __name__ == "__main__":
         default=pathlib.Path(__file__).parent.resolve() / "config.toml",
         help="Path to config file.",
     )
-    parser.add_argument("-s", "--spectrum_dir", type=Path, help="Path to spectrum directory.")
+    parser.add_argument(
+        "-s",
+        "--spectrum_dir",
+        default=pathlib.Path(__file__).parent.resolve() / "res" / "spectrums",
+        type=Path,
+        help="Path to spectrum directory.",
+    )
 
     args = parser.parse_args()
 
