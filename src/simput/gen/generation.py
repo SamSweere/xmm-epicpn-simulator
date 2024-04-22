@@ -7,6 +7,7 @@ from loguru import logger
 
 from src.simput.gen.background import background
 from src.simput.gen.image import simput_image
+from src.simput.agn import get_fluxes
 from src.simput.gen.pointsource import simput_ps
 from src.simput.utils import merge_simputs
 from src.xmm_utils.file_utils import compress_gzip
@@ -47,6 +48,9 @@ def create_agn_sources(
         output_file_path = run_dir / f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput"
         simput_files: list[Path] = []
 
+        # Get the fluxes from the agn distribution
+        fluxes = get_fluxes(img_settings["agn_counts_file"])
+
         # TODO: make an option to make agns that are close together
         if img_settings["deblending_n_gen"] > 0:
             # TODO:
@@ -55,7 +59,7 @@ def create_agn_sources(
             # img_settings["deblending_max_flux_delta"]
             pass
 
-        for i, flux in enumerate(img_settings["fluxes"]):
+        for i, flux in enumerate(fluxes):
             logger.info(f"Creating AGN with flux={flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
             output_file = simput_ps(

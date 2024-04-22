@@ -11,7 +11,6 @@ import numpy as np
 from loguru import logger
 
 from src.config import EnergySettings, EnvironmentCfg, SimputCfg
-from src.simput.agn import get_fluxes
 from src.simput.gen import simput_generate
 from src.simput.utils import get_spectrumfile
 from src.xmm_utils.external_run import run_command
@@ -250,9 +249,8 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs.")
 
             # Get the fluxes from the agn distribution
-            fluxes = get_fluxes(agn_counts_file)
             img_settings: dict = dict(simput_cfg.agn).copy()
-            img_settings["fluxes"] = fluxes
+            img_settings["agn_counts_file"] = agn_counts_file
 
             if env_cfg.debug:
                 img_settings["n_gen"] = simput_cfg.agn.n_gen
