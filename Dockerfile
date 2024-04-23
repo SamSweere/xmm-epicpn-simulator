@@ -20,7 +20,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     libncurses5-dev libreadline6-dev \
     libcmocka-dev libexpat1-dev libgsl0-dev libfile-which-perl \
     libdevel-checklib-perl make ncurses-dev perl perl-modules xorg-dev \
-    # SIMPUT 
+    # SIMPUT
     autoconf libboost-dev libtool && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
@@ -144,7 +144,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     libncurses5-dev libreadline6-dev \
     libcmocka-dev libexpat1-dev libgsl0-dev libfile-which-perl \
     libdevel-checklib-perl make ncurses-dev perl perl-modules xorg-dev \
-    # SIMPUT 
+    # SIMPUT
     autoconf libboost-dev libtool \
     # General tools
     nano vim && \
@@ -161,4 +161,5 @@ RUN $MINICONDA/envs/xmm/bin/pip install -r requirements.txt
 
 # Set the working directory and entrypoint
 WORKDIR $HOME
+USER 1000
 ENTRYPOINT ["/bin/bash", "entrypoint.sh"]
