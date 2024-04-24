@@ -4,7 +4,7 @@ output_dir = "/home/xmm_user/xmm-epicpn-simulator/data"
 log_dir = "/home/xmm_user/xmm-epicpn-simulator/data/logs"
 debug = true
 verbose = true
-fail_on_error = false
+fail_on_error = true
 overwrite = true
 consume_data = false
 
@@ -28,7 +28,7 @@ proj = ["x", "y", "z"]
 slice = []
 
 [simput]
-num_processes = 16
+num_processes = 1 #16
 filter = "thin"
 zoom_range = [ 1, 2 ]
 sigma_b_range = [ 5, 50 ]
@@ -37,27 +37,27 @@ num_img_sample = 5
 instruments = ["epn"] #, "emos1", "emos2"]
 
 [simput.img]
-n_gen = -1 # -1 for all
+n_gen = 0 # -1 for all
 
 [simput.agn]
-n_gen = 25000 #25000
+n_gen = 1 #25000
 deblending_n_gen = 0.5 # Fraction of n_gen
 deblending_min_sep = 0.0 # in arcsec
 deblending_max_sep = 5.0 # in arcsec # TODO: determine this value
 deblending_max_flux_delta = 0.5 # the maximum difference between two sources in flux # TODO: determine this value
 
 [simput.bkg]
-n_gen = 1 # 0
+n_gen = 0 # 1
 
 [simulation]
 num_processes = 16
 instruments = ["epn"] # , "emos1", "emos2"]
 filter = "thin"
-res_mults = [1, 2, 4]
+res_mults = [1, 2]
 max_exposure = 100000
-modes.img = -1
-modes.agn = -1
-modes.bkg = 25000
+modes.img = 0 # 1
+modes.agn = 1 #-1
+modes.bkg = 0 # 25000
 sim_separate_ccds = false # true
 # We create a very small wait time when the separate_ccds is false
 # in order to avoid readout artifacts.

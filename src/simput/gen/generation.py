@@ -11,6 +11,8 @@ from src.simput.agn import get_fluxes
 from src.simput.gen.pointsource import simput_ps
 from src.simput.utils import merge_simputs
 from src.xmm_utils.file_utils import compress_gzip
+from src.xmm.utils import get_fov
+import numpy as np
 
 
 def create_background(
@@ -39,6 +41,7 @@ def create_agn_sources(
     run_dir: Path,
     img_settings: dict,
     xspec_file: Path,
+    offset: tuple[float, float] | str = (0.0, 0.0),
 ):
     output_files = []
 
@@ -60,6 +63,17 @@ def create_agn_sources(
             pass
 
         for i, flux in enumerate(fluxes):
+            
+            # Compute the offset 
+            # The FOV is the same for EPN, EMOS1, and EMOS2
+            fov = get_fov("epn")
+
+            # Randomly position the point source within the fov
+            rng = np.random.default_rng()
+            if offset == "random":
+                offset = rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=2)
+            
+            
             logger.info(f"Creating AGN with flux={flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
             output_file = simput_ps(
@@ -68,7 +82,7 @@ def create_agn_sources(
                 output_file=output_file,
                 src_flux=flux,
                 xspec_file=xspec_file,
-                offset="random",
+                offset=offset,
             )
             simput_files.append(output_file)
         output_file = merge_simputs(simput_files=simput_files, output_file=output_file_path)
@@ -101,6 +115,7 @@ def simput_generate(
                 run_dir=run_dir,
                 img_settings=img_settings,
                 xspec_file=spectrum_file,
+                offset = "random"
             )
 
         if mode == "img":
