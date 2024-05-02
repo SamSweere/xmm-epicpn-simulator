@@ -111,10 +111,9 @@ def run(path_to_cfg: Path) -> None:
 
     del cfg
 
-    # TODO Find a way to make a meaningful log name
     configure_logger(
         log_dir=env_cfg.log_dir,
-        log_name=f"03_xmm_simulation_{'_'.join(['m1', 'm2', 'pn'])}.log",
+        log_name="03_xmm_simulation.log",
         enqueue=True,
         debug=env_cfg.debug,
         verbose=env_cfg.verbose,
