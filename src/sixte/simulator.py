@@ -71,7 +71,7 @@ def run_simulation(
     naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
     cdelt1 = cdelt2 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
 
-    if instrument_name == "epn":
+    if instrument_name == "epn" and sim_separate_ccds:
         from src.xmm.epn import get_shift_xy
 
         shift_x, shift_y = get_shift_xy(res_mult=res_mult)
