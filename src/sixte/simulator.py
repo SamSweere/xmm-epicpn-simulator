@@ -10,7 +10,7 @@ from loguru import logger
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
 from src.xmm.utils import get_cdelt, get_naxis12, get_xml_files
-from src.xmm_utils.file_utils import compress_gzip
+from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
 
 
 def run_simulation(
@@ -21,6 +21,7 @@ def run_simulation(
     run_dir: Path,
     res_mult: int,
     exposure: int,
+    max_event_pattern: int,
     ra: float = 0.0,
     dec: float = 0.0,
     rollangle: float = 0.0,
@@ -54,6 +55,7 @@ def run_simulation(
             simput=simput_path,
             exposure=exposure,
         )
+        evt_filepath = filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern)
         evt_filepaths.append(evt_filepath)
 
     # Merge all the ccd.py eventlists into one eventlist
@@ -144,6 +146,7 @@ def run_xmm_simulation(
     tmp_dir: Path,
     out_dir: Path,
     res_mult: int,
+    max_event_pattern: int,
     exposure: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
@@ -165,6 +168,7 @@ def run_xmm_simulation(
             simput_path=simput_file,
             run_dir=run_dir,
             res_mult=res_mult,
+            max_event_pattern=max_event_pattern,
             exposure=exposure,
             sim_separate_ccds=sim_separate_ccds,
             consume_data=consume_data,
