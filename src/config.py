@@ -1,6 +1,6 @@
 from multiprocessing import cpu_count
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import (
     BaseModel,
@@ -9,6 +9,7 @@ from pydantic import (
     NonNegativeInt,
     PositiveFloat,
     PositiveInt,
+    computed_field,
 )
 from pydantic.functional_validators import AfterValidator
 
@@ -25,6 +26,13 @@ def _mkdir(v: Path) -> Path:
 def _get_num_processes(v: int) -> int:
     if v == 0:
         return cpu_count()
+    return v
+
+
+def _check_xmm_filter(v: str) -> str:
+    filters = ["thin", "med", "thick"]
+    if v not in filters:
+        raise ValueError(f"Unknown filter [{v}] for XMM-Newton! Available filters: {list(filters.keys())}")
     return v
 
 
@@ -54,8 +62,6 @@ def _check_modes(v: dict[str, list]) -> dict[str, list]:
 
 
 CfgPath = Annotated[Path, AfterValidator(_expanduser), AfterValidator(_mkdir)]
-InstrumentName = Literal["epn", "emos1", "emos2"]
-XMMFilter = Literal["thin", "med", "thick"]
 ProcessCount = Annotated[NonNegativeInt, AfterValidator(_get_num_processes)]
 
 
@@ -88,7 +94,7 @@ class _SimulationModes(BaseModel):
 
 
 class _SimputImg(BaseModel):
-    n_gen: NonNegativeInt
+    n_gen: Annotated[int, Field(ge=-1)]
 
 
 class _SimputAgn(BaseModel):
@@ -105,8 +111,6 @@ class _SimputBkg(BaseModel):
 
 class SimputCfg(BaseModel):
     num_processes: NonNegativeInt
-    instruments: list[InstrumentName]
-    filter: XMMFilter
     zoom_range: tuple[PositiveInt, PositiveInt]
     sigma_b_range: tuple[PositiveInt, PositiveInt]
     img: _SimputImg
@@ -139,12 +143,41 @@ class EnvironmentCfg(BaseModel):
 
 class SimulationCfg(BaseModel):
     num_processes: NonNegativeInt
-    instruments: list[InstrumentName]
-    filter: XMMFilter
     res_mults: list[PositiveInt]
     max_exposure: PositiveInt
     modes: _SimulationModes
-    sim_separate_ccds: bool
     wait_time: NonNegativeFloat = 23.04e-6
     simput_dir: Path
     out_dir: CfgPath
+
+
+class _EMOS(BaseModel):
+    use: bool
+    filter: Annotated[str, AfterValidator(_check_xmm_filter)]
+    sim_separate_ccds: bool
+    max_event_pattern: Annotated[int, Field(ge=-1, le=12)]
+
+    @computed_field
+    @property
+    def filter_abbrv(self) -> str:
+        filters = {"thin": "t", "med": "m", "thick": "k"}
+        return filters[self.filter]
+
+
+class _EPN(BaseModel):
+    use: bool
+    filter: Annotated[str, AfterValidator(_check_xmm_filter)]
+    sim_separate_ccds: bool
+    max_event_pattern: Annotated[int, Field(ge=-1, le=4)]
+
+    @computed_field
+    @property
+    def filter_abbrv(self) -> str:
+        filters = {"thin": "t", "med": "m", "thick": "k"}
+        return filters[self.filter]
+
+
+class XMMInstrument(BaseModel):
+    emos1: _EMOS
+    emos2: _EMOS
+    epn: _EPN

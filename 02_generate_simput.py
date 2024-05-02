@@ -16,7 +16,7 @@ from src.simput.utils import get_spectrumfile
 from src.xmm_utils.external_run import run_command
 from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.multiprocessing import mp_run
-from src.xmm_utils.run_utils import configure_logger
+from src.xmm_utils.run_utils import configure_logger, load_satellites
 
 logger.remove()
 
@@ -35,6 +35,8 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
     )
     energies = EnergySettings(**cfg.pop("energy"))
 
+    satellites = load_satellites(cfg.pop("instruments"))
+
     del cfg
 
     configure_logger(
@@ -46,6 +48,8 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
         rotation=timedelta(hours=1),
         retention=2,
     )
+
+    logger.info(f"Found satellites with instruments: {satellites}")
 
     with TemporaryDirectory(prefix="simput_") as tmp_dir:
         tmp_dir = Path(tmp_dir)
@@ -172,37 +176,32 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             bkg_path = simput_cfg.simput_dir / "bkg"
             bkg_path.mkdir(parents=True, exist_ok=True)
             img_settings = []
-            for instrument_name in simput_cfg.instruments:
-                filter_abbrv = ""
-                if simput_cfg.filter == "thin":
-                    filter_abbrv = "t"
 
-                if simput_cfg.filter == "med":
-                    filter_abbrv = "m"
+            for _, satellite in satellites.items():
+                for instrument in satellite:
+                    filter = satellite[instrument].filter_abbrv
 
-                if simput_cfg.filter == "thick":
-                    filter_abbrv = "k"
+                    spectrum_name = f"{instrument[1]}{instrument[-1]}{filter}ffg_spectrum.fits"
+                    spectrum_file = spectrum_dir / instrument / spectrum_name
 
-                spectrum_name = f"{instrument_name[1]}{instrument_name[-1]}{filter_abbrv}ffg_spectrum.fits"
-                spectrum_file = spectrum_dir / instrument_name / spectrum_name
+                    if not spectrum_file.exists():
+                        logger.info(f"Could not find {spectrum_file.resolve()}. Creating it...")
+                        run_command(f"cd {spectrum_file.parent.resolve()} && bash create_spectrums.sh")
+                        logger.success(
+                            f"Created {spectrum_file.resolve()}. "
+                            "This will be done only once as long as the file exists."
+                        )
 
-                if not spectrum_file.exists():
-                    logger.info(f"Could not find {spectrum_file.resolve()}. Creating it...")
-                    run_command(f"cd {spectrum_file.parent.resolve()} && bash create_spectrums.sh")
-                    logger.success(
-                        f"Created {spectrum_file.resolve()}. This will be done only once as long as the file exists."
+                    fov = get_fov(instrument)
+
+                    img_settings.append(
+                        {
+                            "spectrum_file": spectrum_file,
+                            "fov": fov,
+                            "instrument_name": instrument,
+                            "output_dir": bkg_path,
+                        }
                     )
-
-                fov = get_fov(instrument_name)
-
-                img_settings.append(
-                    {
-                        "spectrum_file": spectrum_file,
-                        "fov": fov,
-                        "instrument_name": instrument_name,
-                        "output_dir": bkg_path,
-                    }
-                )
 
             kwds = (
                 {
