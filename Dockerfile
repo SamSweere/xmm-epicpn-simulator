@@ -39,7 +39,6 @@ RUN conda init bash && \
 # Build and install SIMPUT
 COPY --chown=xmm_user: --chmod=777 downloads/simput_git $HOME/simput_git/
 RUN cd ${HOME}/simput_git && \
-    echo "Initializing simput..." && autoreconf --install --force && \
     echo "Configuring simput..." && ./configure --prefix=${SIMPUT} &&  \
     echo "Building simput..." && make &&  \
     echo "Installing simput..." && make install && \
@@ -48,7 +47,6 @@ RUN cd ${HOME}/simput_git && \
 # Build and install SIXTE
 COPY --chown=xmm_user: --chmod=777 downloads/sixte_git $HOME/sixte_git/
 RUN cd ${HOME}/sixte_git && \
-    echo "Initializing sixte..." && autoreconf --install --force && \
     echo "Configuring sixte..." && ./configure --prefix=${SIXTE} &&  \
     echo "Building sixte..." && make &&  \
     echo "Installing sixte..." && make install && \
