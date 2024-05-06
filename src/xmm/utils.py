@@ -113,19 +113,19 @@ def get_width_height(instrument_name: str, res_mult: int) -> tuple[int, int]:
 
 def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
     if instrument_name == "epn":
-        from src.xmm.epn import get_naxis12
+        from src.xmm.epn import get_max_xy
 
-        return get_naxis12(res_mult=res_mult)
+        return get_max_xy(res_mult=res_mult)
 
     if instrument_name == "emos1":
-        from src.xmm.emos import get_naxis12
+        from src.xmm.emos import get_img_width_height
 
-        return get_naxis12(emos_num=1, res_mult=res_mult)
+        return get_img_width_height(emos_num=1, res_mult=res_mult)
 
     if instrument_name == "emos2":
-        from src.xmm.emos import get_naxis12
+        from src.xmm.emos import get_img_width_height
 
-        return get_naxis12(emos_num=2, res_mult=res_mult)
+        return get_img_width_height(emos_num=2, res_mult=res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 

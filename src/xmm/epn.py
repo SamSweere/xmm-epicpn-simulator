@@ -23,10 +23,10 @@ def get_naxis12(res_mult: int = 1) -> tuple[int, int]:
     arc_mm_x, arc_mm_y = get_plate_scale_xy()
 
     fov_arcsec = fov_deg * 3600
-    naxis1 = int(np.ceil(fov_arcsec / arc_mm_x))
-    naxis2 = int(np.ceil(fov_arcsec / arc_mm_y))
+    naxis1 = int(np.ceil((fov_arcsec / arc_mm_x) * res_mult))
+    naxis2 = int(np.ceil((fov_arcsec / arc_mm_y) * res_mult))
 
-    return naxis1 * res_mult, naxis2 * res_mult
+    return naxis1, naxis2
 
 
 def get_surface(res_mult: int = 1) -> float:

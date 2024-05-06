@@ -23,17 +23,6 @@ def get_img_width_height(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[in
         return int(size_x), int(size_y)
 
 
-def get_naxis12(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[int, int]:
-    fov_deg = get_fov(emos_num)
-    arc_mm_x, arc_mm_y = get_plate_scale_xy(emos_num)
-
-    fov_arcsec = fov_deg * 3600
-    naxis1 = int(np.ceil(fov_arcsec / arc_mm_x))
-    naxis2 = int(np.ceil(fov_arcsec / arc_mm_y))
-
-    return naxis1 * res_mult, naxis2 * res_mult
-
-
 def get_surface(emos_num: Literal[1, 2], res_mult: int = 1) -> float:
     pixel_size = get_pixel_size(emos_num, res_mult)
     width, height = get_img_width_height(emos_num, res_mult)

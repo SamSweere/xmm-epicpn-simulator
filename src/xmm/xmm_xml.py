@@ -49,7 +49,7 @@ def create_pn_xml(
     xml_paths: list[Path] = []
     loops = 12 if sim_separate_ccds else 1
     for i in range(loops):
-        instrument = Element("instrument", telescop="XMM", instrume="EPIC-PN")
+        instrument = Element("instrument", telescop="XMM", instrume="EPN")
 
         telescope = SubElement(instrument, "telescope")
         # Based on the pixel fov and the biggest axis
@@ -65,7 +65,7 @@ def create_pn_xml(
             "vignetting",
             filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name='epn').name}",
         )
-        detector = SubElement(instrument, "detector", type="EPIC-PN")
+        detector = SubElement(instrument, "detector", type="EPN")
         SubElement(detector, "dimensions", xwidth=f"{max_x}", ywidth=f"{max_y}")
         # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota
         SubElement(
@@ -187,7 +187,7 @@ def create_mos_xml(
         rotas = ["0.0"]
 
     for i in range(loops):
-        instrument = Element("instrument", telescop="XMM", instrume=f"EPIC-MOS{emos_num}")
+        instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
 
         telescope = SubElement(instrument, "telescope")
         # Based on the pixel fov and the biggest axis
@@ -203,7 +203,7 @@ def create_mos_xml(
             "vignetting",
             filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}').name}",
         )
-        detector = SubElement(instrument, "detector", type=f"EPIC-MOS{emos_num}")
+        detector = SubElement(instrument, "detector", type=f"EM{emos_num}")
         SubElement(detector, "dimensions", xwidth=f"{width}", ywidth=f"{height}")
         SubElement(
             detector,
