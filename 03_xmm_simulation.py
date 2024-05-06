@@ -31,7 +31,7 @@ def _simulate_mode(
     sim_separate_ccds: bool,
     xmm_filter_dir: Path,
     xml_dir: Path,
-):
+) -> None:
     if amount == 0:
         logger.info(f"Skipping {mode.upper()} simulation for {instrument_name} since n_gen is set to {amount}.")
         return
@@ -85,12 +85,8 @@ def _simulate_mode(
         )
         shutil.move(src=sim_dir / f"{mode}.tar.gz", dst=mode_compressed)
 
-        try:
-            for xmm_mode_dir in xmm_filter_dir.rglob(f"{mode}{os.sep}"):
-                shutil.rmtree(xmm_mode_dir)
-            shutil.rmtree(mode_dir)
-        except FileNotFoundError as e:
-            logger.error(f"Error while deleting {mode_dir.resolve()}: {e}")
+        for xmm_mode_dir in xmm_filter_dir.rglob(f"{mode}{os.sep}"):
+            shutil.rmtree(xmm_mode_dir)
 
 
 def run(path_to_cfg: Path) -> None:
@@ -192,15 +188,17 @@ def run(path_to_cfg: Path) -> None:
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
         logger.success(f"DONE\tXML files have been created. Duration: {duration}")
 
-        for _, satellite in satellites.items():
-            for instrument_name, values in satellite.items():
-                xmm_filter_dir = sim_cfg.out_dir / instrument_name / values.filter
-                xmm_filter_dir.mkdir(exist_ok=True, parents=True)
-                if sim_cfg.modes.img != 0:
+        if sim_cfg.modes.img != 0:
+            mode = "img"
+            for _, satellite in satellites.items():
+                for instrument_name, values in satellite.items():
+                    xmm_filter_dir = sim_cfg.out_dir / instrument_name / values.filter
+                    xmm_filter_dir.mkdir(exist_ok=True, parents=True)
+
                     _simulate_mode(
                         instrument_name=instrument_name,
                         max_event_pattern=values.max_event_pattern,
-                        mode="img",
+                        mode=mode,
                         amount=sim_cfg.modes.img,
                         sim_dir=sim_dir,
                         xmm_filter=values.filter,
@@ -209,11 +207,20 @@ def run(path_to_cfg: Path) -> None:
                         xml_dir=xml_dir,
                     )
 
-                if sim_cfg.modes.agn != 0:
+            if env_cfg.working_dir != env_cfg.output_dir:
+                shutil.rmtree(sim_cfg.simput_dir / f"{mode}")
+
+        if sim_cfg.modes.agn != 0:
+            mode = "agn"
+            for _, satellite in satellites.items():
+                for instrument_name, values in satellite.items():
+                    xmm_filter_dir = sim_cfg.out_dir / instrument_name / values.filter
+                    xmm_filter_dir.mkdir(exist_ok=True, parents=True)
+
                     _simulate_mode(
                         instrument_name=instrument_name,
                         max_event_pattern=values.max_event_pattern,
-                        mode="agn",
+                        mode=mode,
                         amount=sim_cfg.modes.agn,
                         sim_dir=sim_dir,
                         xmm_filter=values.filter,
@@ -222,11 +229,20 @@ def run(path_to_cfg: Path) -> None:
                         xml_dir=xml_dir,
                     )
 
-                if sim_cfg.modes.bkg != 0:
+            if env_cfg.working_dir != env_cfg.output_dir:
+                shutil.rmtree(sim_cfg.simput_dir / f"{mode}")
+
+        if sim_cfg.modes.bkg != 0:
+            mode = "bkg"
+            for _, satellite in satellites.items():
+                for instrument_name, values in satellite.items():
+                    xmm_filter_dir = sim_cfg.out_dir / instrument_name / values.filter
+                    xmm_filter_dir.mkdir(exist_ok=True, parents=True)
+
                     _simulate_mode(
                         instrument_name=instrument_name,
                         max_event_pattern=values.max_event_pattern,
-                        mode="bkg",
+                        mode=mode,
                         amount=sim_cfg.modes.bkg,
                         sim_dir=sim_dir,
                         xmm_filter=values.filter,
@@ -234,6 +250,9 @@ def run(path_to_cfg: Path) -> None:
                         xmm_filter_dir=xmm_filter_dir,
                         xml_dir=xml_dir,
                     )
+
+            if env_cfg.working_dir != env_cfg.output_dir:
+                shutil.rmtree(sim_cfg.simput_dir / f"{mode}")
 
     endtime = datetime.now()
     logger.info(f"Duration: {endtime - starttime}")
