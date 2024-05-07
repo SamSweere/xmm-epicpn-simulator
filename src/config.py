@@ -94,6 +94,7 @@ class _SimputImg(BaseModel):
 class _SimputAgn(BaseModel):
     n_gen: NonNegativeInt
     deblending_n_gen: NonNegativeFloat
+    deblending_n_flux:NonNegativeFloat
     deblending_min_sep: NonNegativeFloat
     deblending_max_sep: NonNegativeFloat
     deblending_max_flux_delta: NonNegativeFloat

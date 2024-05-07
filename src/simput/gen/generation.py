@@ -14,6 +14,8 @@ from src.xmm_utils.file_utils import compress_gzip
 from src.xmm.utils import get_fov
 import numpy as np
 
+import csv
+
 
 def create_background(
     instrument_name: Literal["epn", "emos1", "emos2"],
@@ -44,35 +46,67 @@ def create_agn_sources(
     offset: tuple[float, float] | str = (0.0, 0.0),
 ):
     output_files = []
-
-    for _ in range(img_settings["n_gen"]):
+    
+    
+    #TODO: implement a vesion that works outside of the debugging mode 
+    if img_settings["deblending_n_gen"] > 0:
+            # Compute absolute number of images that should contain blended sources 
+            abs_deblending_n_gen = int(img_settings["deblending_n_gen"]*img_settings["n_gen"])
+            
+          
+        
+    for i_gen in range(img_settings["n_gen"]):
         # Use the current time as id, such that clashes don't happen
         unique_id = uuid4().int
         output_file_path = run_dir / f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput"
         simput_files: list[Path] = []
-
+        
+        
         # Get the fluxes from the agn distribution
         fluxes = get_fluxes(img_settings["agn_counts_file"])
+        num_fluxes = len(fluxes)
+       
+       
+        
+        # Compute the offsets 
+        # The FOV is the same for EPN, EMOS1, and EMOS2
+        fov = get_fov("epn")
 
-        # TODO: make an option to make agns that are close together
-        if img_settings["deblending_n_gen"] > 0:
-            # TODO:
-            # img_settings["deblending_min_sep"]
-            # img_settings["deblending_max_sep"]
-            # img_settings["deblending_max_flux_delta"]
-            pass
+        # Randomly position the point source within the fov
+        rng = np.random.default_rng()
+        if offset == "random":
+            offset_vals = rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=(num_fluxes,2))
 
+        # Adding extra fluxes and offsets 
+        if i_gen< abs_deblending_n_gen:
+            
+            # Determine fraction of blended fluxes 
+            frac_blended_sources = rng.normal(loc = img_settings["deblending_n_flux"], scale = 0.1)
+            # Make sure that the value is in range [0,1]
+            frac_blended_sources = np.clip(frac_blended_sources, 0,1)
+            
+            # Compute absolute number of AGNs that should be blended 
+            abs_deblending_n_flux = int(frac_blended_sources*num_fluxes)
+            
+            # Determine indices of blended sources 
+            blended_idx = rng.choice(np.arange(num_fluxes), size = abs_deblending_n_flux, replace = False)
+            
+            # Compute the offsets of the blended sources
+            blended_dist = rng.uniform(low=img_settings["deblending_min_sep"], high=img_settings["deblending_max_sep"], size= (abs_deblending_n_flux, 2))
+            # blended_dist = np.array([0.005, 0.005])
+            blended_offset_vals = offset_vals[blended_idx] + blended_dist
+            
+            # Determine fluxes of blended sources
+            blended_fluxes = fluxes[blended_idx] 
+            # Add offset in flux of the blended sources
+            blended_fluxes+= rng.uniform(low = -img_settings["deblending_max_flux_delta"]*blended_fluxes, high = img_settings["deblending_max_flux_delta"]*blended_fluxes, size= (abs_deblending_n_flux))
+            
+            # Concatenate original and blended offsets and fluxes 
+            offset_vals = np.concatenate((offset_vals, blended_offset_vals))
+            fluxes = np.concatenate((fluxes, blended_fluxes))
+        
+        
         for i, flux in enumerate(fluxes):
-            
-            # Compute the offset 
-            # The FOV is the same for EPN, EMOS1, and EMOS2
-            fov = get_fov("epn")
-
-            # Randomly position the point source within the fov
-            rng = np.random.default_rng()
-            if offset == "random":
-                offset = rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=2)
-            
             
             logger.info(f"Creating AGN with flux={flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
@@ -82,11 +116,12 @@ def create_agn_sources(
                 output_file=output_file,
                 src_flux=flux,
                 xspec_file=xspec_file,
-                offset=offset,
+                offset=offset_vals[i],
             )
             simput_files.append(output_file)
         output_file = merge_simputs(simput_files=simput_files, output_file=output_file_path)
         output_files.append(output_file)
+       
 
         for file in simput_files:
             file.unlink(missing_ok=True)
