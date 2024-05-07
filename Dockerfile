@@ -21,7 +21,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     libcmocka-dev libexpat1-dev libgsl0-dev libfile-which-perl \
     libdevel-checklib-perl make ncurses-dev perl perl-modules xorg-dev \
     # SIMPUT
-    libboost-dev && \
+    autoconf libboost-dev libtool && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 USER 1000
@@ -39,13 +39,13 @@ RUN conda init bash && \
 # Build and install SIMPUT
 COPY --chown=xmm_user: --chmod=777 downloads/simput_git $HOME/simput_git/
 RUN cd ${HOME}/simput_git && \
-    ./configure --prefix=${SIMPUT} && make && make install && \
+    autoreconf --install --force && ./configure --prefix=${SIMPUT} && make && make install && \
     rm -rf ${HOME}/simput_git
 
 # Build and install SIXTE
 COPY --chown=xmm_user: --chmod=777 downloads/sixte_git $HOME/sixte_git/
 RUN cd ${HOME}/sixte_git && \
-    ./configure --prefix=${SIXTE} && make && make install && \
+    autoreconf --install --force && ./configure --prefix=${SIXTE} && make && make install && \
     rm -rf ${HOME}/sixte_git
 
 # Extract and setup xmm instruments
