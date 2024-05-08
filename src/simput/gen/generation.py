@@ -5,9 +5,9 @@ from uuid import uuid4
 
 from loguru import logger
 
+from src.simput.agn import get_fluxes
 from src.simput.gen.background import background
 from src.simput.gen.image import simput_image
-from src.simput.agn import get_fluxes
 from src.simput.gen.pointsource import simput_ps
 from src.simput.utils import merge_simputs
 from src.xmm_utils.file_utils import compress_gzip

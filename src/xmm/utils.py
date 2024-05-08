@@ -18,15 +18,10 @@ def get_fov(instrument_name: str) -> float:
 
         return get_fov()
 
-    if instrument_name == "emos1":
+    if instrument_name == "emos1" or instrument_name == "emos2":
         from src.xmm.emos import get_fov
 
-        return get_fov(1)
-
-    if instrument_name == "emos2":
-        from src.xmm.emos import get_fov
-
-        return get_fov(2)
+        return get_fov(int(instrument_name[-1]))
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -37,15 +32,10 @@ def get_cdelt(instrument_name: str, res_mult: int) -> float:
 
         return get_cdelt(res_mult)
 
-    if instrument_name == "emos1":
+    if instrument_name == "emos1" or instrument_name == "emos2":
         from src.xmm.emos import get_cdelt
 
-        return get_cdelt(1, res_mult)
-
-    if instrument_name == "emos2":
-        from src.xmm.emos import get_cdelt
-
-        return get_cdelt(2, res_mult)
+        return get_cdelt(int(instrument_name[-1]), res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -56,15 +46,10 @@ def get_pixel_size(instrument_name: str, res_mult: int) -> float:
 
         return get_pixel_size(res_mult)
 
-    if instrument_name == "emos1":
+    if instrument_name == "emos1" or instrument_name == "emos2":
         from src.xmm.emos import get_pixel_size
 
-        return get_pixel_size(1, res_mult)
-
-    if instrument_name == "emos2":
-        from src.xmm.emos import get_pixel_size
-
-        return get_pixel_size(2, res_mult)
+        return get_pixel_size(int(instrument_name[-1]), res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -75,15 +60,10 @@ def get_surface(instrument_name: str, res_mult: int) -> float:
 
         return get_surface(res_mult=res_mult)
 
-    if instrument_name == "emos1":
+    if instrument_name == "emos1" or instrument_name == "emos2":
         from src.xmm.emos import get_surface
 
-        return get_surface(emos_num=1, res_mult=res_mult)
-
-    if instrument_name == "emos2":
-        from src.xmm.emos import get_surface
-
-        return get_surface(emos_num=2, res_mult=res_mult)
+        return get_surface(emos_num=int(instrument_name[-1]), res_mult=res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -94,38 +74,28 @@ def get_width_height(instrument_name: str, res_mult: int) -> tuple[int, int]:
         Tuple[int, int]: The width and height of the instrument in pixels.
     """
     if instrument_name == "epn":
-        from src.xmm.epn import get_max_xy
+        from src.xmm.epn import get_img_width_height
 
-        return get_max_xy(res_mult=res_mult)
+        return get_img_width_height(res_mult=res_mult)
 
-    if instrument_name == "emos1":
+    if instrument_name == "emos1" or instrument_name == "emos2":
         from src.xmm.emos import get_img_width_height
 
-        return get_img_width_height(emos_num=1, res_mult=res_mult)
-
-    if instrument_name == "emos2":
-        from src.xmm.emos import get_img_width_height
-
-        return get_img_width_height(emos_num=2, res_mult=res_mult)
+        return get_img_width_height(emos_num=int(instrument_name[-1]), res_mult=res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
     if instrument_name == "epn":
-        from src.xmm.epn import get_naxis12
+        from src.xmm.epn import get_img_width_height
 
-        return get_naxis12(res_mult=res_mult)
+        return get_img_width_height(res_mult=res_mult)
 
-    if instrument_name == "emos1":
-        from src.xmm.emos import get_naxis12
+    if instrument_name == "emos1" or instrument_name == "emos2":
+        from src.xmm.emos import get_img_width_height
 
-        return get_naxis12(emos_num=1, res_mult=res_mult)
-
-    if instrument_name == "emos2":
-        from src.xmm.emos import get_naxis12
-
-        return get_naxis12(emos_num=2, res_mult=res_mult)
+        return get_img_width_height(emos_num=int(instrument_name[-1]), res_mult=res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -136,15 +106,10 @@ def get_focal_length(instrument_name: str) -> float:
 
         return get_focal_length()
 
-    if instrument_name == "emos1":
+    if instrument_name == "emos1" or instrument_name == "emos2":
         from src.xmm.emos import get_focal_length
 
-        return get_focal_length(emos_num=1)
-
-    if instrument_name == "emos2":
-        from src.xmm.emos import get_focal_length
-
-        return get_focal_length(emos_num=2)
+        return get_focal_length(emos_num=int(instrument_name[-1]))
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -337,9 +302,9 @@ def create_xml_files(
         dest.symlink_to(src)
 
     if instrument_name == "epn":
-        from src.xmm.xmm_xml import create_pn_xml
+        from src.xmm.epn import create_xml
 
-        return create_pn_xml(
+        return create_xml(
             out_dir=out_dir,
             res_mult=res_mult,
             xmm_filter=xmm_filter,
@@ -347,24 +312,12 @@ def create_xml_files(
             wait_time=wait_time,
         )
 
-    if instrument_name == "emos1":
-        from src.xmm.xmm_xml import create_mos_xml
+    if instrument_name == "emos1" or instrument_name == "emos2":
+        from src.xmm.emos import create_xml
 
-        return create_mos_xml(
+        return create_xml(
             out_dir=out_dir,
-            emos_num=1,
-            res_mult=res_mult,
-            xmm_filter=xmm_filter,
-            sim_separate_ccds=sim_separate_ccds,
-            wait_time=wait_time,
-        )
-
-    if instrument_name == "emos2":
-        from src.xmm.xmm_xml import create_mos_xml
-
-        return create_mos_xml(
-            out_dir=out_dir,
-            emos_num=2,
+            emos_num=int(instrument_name[-1]),
             res_mult=res_mult,
             xmm_filter=xmm_filter,
             sim_separate_ccds=sim_separate_ccds,
@@ -387,32 +340,21 @@ def get_xml_files(
             contains a single Path to /path/to/instrument/combined.xml
     """
     if instrument_name == "epn":
-        from src.xmm.xmm_xml import get_pn_xml
+        from src.xmm.epn import get_xml
 
-        return get_pn_xml(
+        return get_xml(
             xml_dir=xml_dir,
             res_mult=res_mult,
             xmm_filter=xmm_filter,
             sim_separate_ccds=sim_separate_ccds,
         )
 
-    if instrument_name == "emos1":
-        from src.xmm.xmm_xml import get_mos_xml
+    if instrument_name == "emos1" or instrument_name == "emos2":
+        from src.xmm.emos import get_xml
 
-        return get_mos_xml(
+        return get_xml(
             xml_dir=xml_dir,
-            emos_num=1,
-            res_mult=res_mult,
-            xmm_filter=xmm_filter,
-            sim_separate_ccds=sim_separate_ccds,
-        )
-
-    if instrument_name == "emos2":
-        from src.xmm.xmm_xml import get_mos_xml
-
-        return get_mos_xml(
-            xml_dir=xml_dir,
-            emos_num=2,
+            emos_num=int(instrument_name[-1]),
             res_mult=res_mult,
             xmm_filter=xmm_filter,
             sim_separate_ccds=sim_separate_ccds,

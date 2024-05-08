@@ -1,10 +1,16 @@
+from pathlib import Path
+from typing import Literal
+
 import numpy as np
 from astropy.io import fits
+from loguru import logger
+from lxml.etree import Element, ElementTree, SubElement
 
 from src.xmm.ccf import get_epn_lincoord, get_telescope, get_xmm_miscdata
+from src.xmm.utils import get_psf_file, get_vignet_file
 
 
-def get_max_xy(res_mult: int = 1) -> tuple[int, int]:
+def get_img_width_height(res_mult: int = 1) -> tuple[int, int]:
     xrval, yrval = np.absolute(get_xyrval())
 
     p_delt = get_pixel_size(res_mult)
@@ -18,24 +24,13 @@ def get_max_xy(res_mult: int = 1) -> tuple[int, int]:
     return int(size_x), int(size_y)
 
 
-def get_naxis12(res_mult: int = 1) -> tuple[int, int]:
-    fov_deg = get_fov()
-    arc_mm_x, arc_mm_y = get_plate_scale_xy()
-
-    fov_arcsec = fov_deg * 3600
-    naxis1 = int(np.ceil(fov_arcsec / arc_mm_x))
-    naxis2 = int(np.ceil(fov_arcsec / arc_mm_y))
-
-    return naxis1 * res_mult, naxis2 * res_mult
-
-
 def get_surface(res_mult: int = 1) -> float:
     """
     Returns:
         float: The surface of EPIC-pn in mm²
     """
     pixel_size = get_pixel_size(res_mult=res_mult)
-    x, y = get_max_xy(res_mult=res_mult)
+    x, y = get_img_width_height(res_mult=res_mult)
 
     return (pixel_size**2) * x * y
 
@@ -130,7 +125,7 @@ def get_fov() -> float:
 # WARNING: THE FOLLOWING FUNCTION WILL CREATE A THEORETICAL MASK FOR THE EPIC-PN DETECTOR
 # FOR REALISM USE THE ACTUAL CALIBRATED DETECTOR MASK
 def create_detector_mask(res_mult: int = 1) -> np.ndarray:
-    width, height = get_max_xy(res_mult)
+    width, height = get_img_width_height(res_mult)
     pixel_size = get_pixel_size(res_mult)
     xrval, yrval = get_xyrval()
 
@@ -176,3 +171,120 @@ def get_shift_xy(res_mult: int = 1) -> tuple[float, float]:
     shift_x = cc12tx / p_delt
     shift_y = cc12ty / p_delt
     return shift_x, shift_y
+
+
+def create_xml(
+    out_dir: Path,
+    res_mult: int,
+    xmm_filter: Literal["thin", "med", "thick"],
+    sim_separate_ccds: bool,
+    wait_time: float = 23.04e-6,  # Setting this to 0.0 eliminates out of time events
+) -> list[Path]:
+    # Change units from mm to m
+    # See: http://www.sternwarte.uni-erlangen.de/~sixte/data/simulator_manual.pdf
+    # in chap. "C: XML Instrument Configuration"
+    focallength = round(get_focal_length() * 1e-3, 6)
+    p_delt = round(get_pixel_size(res_mult) * 1e-3, 6)
+    fov = get_fov()
+
+    if sim_separate_ccds:
+        max_x, max_y = get_ccd_width_height(res_mult=res_mult)
+        xrval, yrval = get_xyrval()
+        cc12tx, cc12ty = get_cc12_txy()
+        xrval = (xrval - cc12tx) * 1e-3
+        yrval = (yrval - cc12ty) * 1e-3
+    else:
+        max_x, max_y = get_img_width_height(res_mult=res_mult)
+        xrval, yrval = get_cc12_txy()
+        xrval = np.asarray([-xrval * 1e-3])
+        yrval = np.asarray([-yrval * 1e-3])
+
+    xrpix = round((max_x + 1) / 2.0, 6)
+    yrpix = round((max_y + 1) / 2.0, 6)
+
+    xml_paths: list[Path] = []
+    loops = 12 if sim_separate_ccds else 1
+    for i in range(loops):
+        instrument = Element("instrument", telescop="XMM", instrume="EPN")
+
+        telescope = SubElement(instrument, "telescope")
+        # Based on the pixel fov and the biggest axis
+        SubElement(telescope, "focallength", value=f"{focallength}")
+        SubElement(telescope, "fov", diameter=f"{fov}")
+        SubElement(
+            telescope,
+            "psf",
+            filename=f"{get_psf_file(xml_dir=out_dir, instrument_name='epn', res_mult=res_mult).name}",
+        )
+        SubElement(
+            telescope,
+            "vignetting",
+            filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name='epn').name}",
+        )
+        detector = SubElement(instrument, "detector", type="EPN")
+        SubElement(detector, "dimensions", xwidth=f"{max_x}", ywidth=f"{max_y}")
+        # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota
+        SubElement(
+            detector,
+            "wcs",
+            xrpix=f"{xrpix}",
+            yrpix=f"{yrpix}",
+            xrval=np.format_float_positional(xrval[i], 6),
+            yrval=np.format_float_positional(yrval[i], 6),
+            xdelt=f"{p_delt}",
+            ydelt=f"{p_delt}",
+            rota=f"{'180.0' if i < 6 else '0.0'}",
+        )
+        SubElement(detector, "cte", value="1")
+        SubElement(detector, "rmf", filename=f"pn-{xmm_filter}-10.rmf")
+        SubElement(detector, "arf", filename=f"pn-{xmm_filter}-10.arf")
+        SubElement(detector, "split", type="gauss", par1=f"{11.e-6 / res_mult}")
+        SubElement(detector, "threshold_readout_lo_keV", value="0.")
+        SubElement(detector, "threshold_event_lo_keV", value="200.e-3")
+        SubElement(detector, "threshold_split_lo_fraction", value="0.01")
+        SubElement(detector, "threshold_pattern_up_keV", value="15.")
+
+        readout = SubElement(detector, "readout", mode="time")
+        SubElement(readout, "wait", time="68.75e-3")
+
+        loop = SubElement(readout, "loop", start="0", end=f"{max_y - 1}", increment="1", variable="$i")
+        SubElement(loop, "readoutline", lineindex="0", readoutindex="$i")
+        SubElement(loop, "lineshift")
+        if sim_separate_ccds:
+            SubElement(loop, "wait", time=f"{wait_time}")  # Setting this to 0.0 eliminates out of time events
+
+        SubElement(readout, "newframe")
+
+        tree = ElementTree(instrument)
+        if sim_separate_ccds:
+            xml_path = out_dir / f"ccd{i + 1:02d}.xml"
+            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
+        else:
+            xml_path = out_dir / "combined.xml"
+            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
+
+        xml_paths.append(xml_path)
+    return xml_paths
+
+
+def get_xml(
+    xml_dir: Path,
+    res_mult: int,
+    xmm_filter: Literal["thin", "med", "thick"],
+    sim_separate_ccds: bool,
+) -> list[Path]:
+    instrument_path = xml_dir / "epn"
+    root = instrument_path / xmm_filter / f"{res_mult}x"
+
+    glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
+    xml_paths: list[Path] = list(root.glob(glob_pattern))
+
+    if sim_separate_ccds and len(xml_paths) != 12:
+        logger.warning(
+            f"'sim_separate_ccds' is set to 'True', but I could find only {len(xml_paths)} of the 12 CCDs."
+            f"I will simulate only the CCDs given in these files. If that was intentional, then you can "
+            f"ignore this warning. Otherwise abort the execution, create all XML files and re-run the"
+            f"code."
+        )
+
+    return xml_paths
