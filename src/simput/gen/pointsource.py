@@ -11,7 +11,8 @@ def simput_ps(
     emax: float,
     output_file: Path,
     xspec_file: Path,
-    center_point: tuple[float, float] = (0.0, 0.0),
+    # center_point: tuple[float, float] = (0.0, 0.0),
+    location: tuple[float, float],
     src_flux: float | str = 1.0e-12,
     offset: tuple[float, float] | str = (0.0, 0.0),
     verbose: bool = True,
@@ -40,7 +41,7 @@ def simput_ps(
     # if offset == "random":
     #     offset = rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=2)
 
-    location = (center_point[0] + offset[0], center_point[1] + offset[1])
+    # location = (center_point[0] + offset[0], center_point[1] + offset[1])
     ra = location[0]
     if ra < 0:
         ra = 360 + ra
