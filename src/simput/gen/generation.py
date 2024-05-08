@@ -67,7 +67,7 @@ def create_agn_sources(
         writer = csv.writer(file)
 
         # Write header row
-        writer.writerow(['idx','image_ID', 'contains_blended_sources', 'frac_blended_sources', 'blended_idx', 'flux_org', 'flux_blended', 'loc_org', 'loc_blended', 'blended_offset_vals'])
+        writer.writerow(['idx','image_ID', 'contains_blended_sources', 'frac_blended_sources', 'fluxes', 'locs','blended_idx', 'flux_blend', 'flux_blend2', 'loc_blend', 'loc_blend2', 'blended_offset_vals'])
         
         for i_gen in range(img_settings["n_gen"]):
             # Use the current time as id, such that clashes don't happen
@@ -98,40 +98,35 @@ def create_agn_sources(
                 # Determine fraction of blended fluxes 
                 frac_blended_sources = rng.normal(loc = img_settings["deblending_n_flux"], scale = 0.1)
                 # Make sure that the value is in range [0,1]
-                frac_blended_sources = np.clip(frac_blended_sources, 0,1)
+                frac_blended_sources = np.clip(frac_blended_sources, 0, 0.5)
                 
                 # Compute absolute number of AGNs that should be blended 
                 abs_deblending_n_flux = int(frac_blended_sources*num_fluxes)
                 
                 # Determine indices of blended sources 
-                blended_idx = rng.choice(np.arange(num_fluxes), size = abs_deblending_n_flux, replace = False)
+                blended_idx = rng.choice(np.arange(num_fluxes), size = (abs_deblending_n_flux,2), replace = False)
                 
                 # Compute the offsets of the blended sources
-                blended_dist = rng.uniform(low=img_settings["deblending_min_sep"], high=img_settings["deblending_max_sep"], size= (abs_deblending_n_flux, 2))
-                # blended_dist = np.array([0.003, 0.005])
-                blended_offset_vals = offset_vals[blended_idx] + blended_dist
+                # blended_dist = rng.uniform(low=img_settings["deblending_min_sep"], high=img_settings["deblending_max_sep"], size= (abs_deblending_n_flux, 2))
+                blended_dist = np.array([0.003, 0.005])
+                blended_offset_vals = offset_vals[blended_idx[:,0]] + blended_dist
                 
-                # Determine fluxes of blended sources
-                blended_fluxes = fluxes[blended_idx] 
-                # Add offset in flux of the blended sources
-                blended_fluxes+= rng.uniform(low = -img_settings["deblending_max_flux_delta"]*blended_fluxes, high = img_settings["deblending_max_flux_delta"]*blended_fluxes, size= (abs_deblending_n_flux))
+                # Change offset values of the blended sources that are moved 
+                offset_vals[blended_idx[:,1]] = blended_offset_vals
                 
-                # Concatenate original and blended offsets and fluxes 
-                offset_vals = np.concatenate((offset_vals, blended_offset_vals))
-                fluxes = np.concatenate((fluxes, blended_fluxes))
             else:
                 contains_blended_sources = False
                 frac_blended_sources = 0
             
             location = (center_point[0] + offset_vals[:,0], center_point[1] + offset_vals[:,1])
-            loc_org = np.array(location)[:,:num_fluxes]
-            loc_blended = np.array(location)[:,num_fluxes:]
-            flux_org = fluxes[:num_fluxes]
-            flux_blended = fluxes[:num_fluxes]
+            loc_blend = np.array(location)[:,blended_idx[:,0]]
+            loc_blend2 = np.array(location)[:,blended_idx[:,1]]
+            flux_blend = fluxes[blended_idx[:,0]]
+            flux_blend2 = fluxes[blended_idx[:,1]]
             
             #TODO: implement more efficient way of logging 
             # Write data to CSV file
-            writer.writerow([i_gen, f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev", contains_blended_sources, frac_blended_sources, blended_idx, flux_org, flux_blended, loc_org, loc_blended, blended_offset_vals])
+            writer.writerow([i_gen, f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev", contains_blended_sources, frac_blended_sources,fluxes, np.array(location), blended_idx, flux_blend, flux_blend2, loc_blend, loc_blend2, blended_dist])
         
             for i, flux in enumerate(fluxes):
                 
