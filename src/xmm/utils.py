@@ -327,13 +327,13 @@ def create_xml_files(
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_xml_files(
+def get_xml_file(
     instrument_name: str,
     xml_dir: Path,
     res_mult: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
-) -> list[Path]:
+) -> Path:
     """
     Returns:
         List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list

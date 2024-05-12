@@ -9,7 +9,7 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_cdelt, get_width_height, get_xml_files
+from src.xmm.utils import get_cdelt, get_width_height, get_xml_file
 from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
 
 
@@ -28,7 +28,7 @@ def run_simulation(
     sim_separate_ccds: bool = False,
     consume_data: bool = True,
 ):
-    xml_paths = get_xml_files(
+    xml_paths = get_xml_file(
         xml_dir=xml_dir,
         instrument_name=instrument_name,
         res_mult=res_mult,
@@ -42,6 +42,7 @@ def run_simulation(
         )
 
     evt_filepaths: list[Path] = []
+    # TODO This needs to be adjusted for a single XML
     for xml_path in xml_paths:
         ccd_name = xml_path.stem
         evt_filepath = run_dir / f"{ccd_name}_evt.fits"

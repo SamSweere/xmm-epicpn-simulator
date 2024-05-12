@@ -21,8 +21,10 @@ If not already done, you need to [install](https://docs.docker.com/engine/instal
 
 ```shell
 mkdir downloads/ && cd downloads/ && \
-mkdir simput_git/ && cd simput_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/simput.git/ . && cd ../ && \
-mkdir sixte_git/ && cd sixte_git/ && git clone http://www.sternwarte.uni-erlangen.de/git.public/sixt/ . && cd ../ && \
+wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/simput-2.6.1_BETA.tar.gz && \
+tar xfz simput-2.6.1_BETA.tar.gz && rm simput-2.6.1_BETA.tar.gz && \
+wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/sixte-3.0.1_BETA.tar.gz && \
+tar xfz sixte-3.0.1_BETA.tar.gz && rm sixte-3.0.1_BETA.tar.gz && \
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
 wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz && tar xfz instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz && \
 wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz && mkdir sas/ && tar xfz sas_21.0.0-Ubuntu22.04.tgz -C sas && rm sas_21.0.0-Ubuntu22.04.tgz && \

@@ -3,7 +3,6 @@ from typing import Literal
 
 import numpy as np
 from astropy.io import fits
-from loguru import logger
 from lxml.etree import Element, ElementTree, SubElement
 
 from src.xmm.ccf import get_emos_lincoord, get_telescope, get_xmm_miscdata
@@ -144,7 +143,6 @@ def create_xml(
     xrpix = round((width + 1) / 2.0, 6)
     yrpix = round((height + 1) / 2.0, 6)
 
-    xml_paths: list[Path] = []
     if sim_separate_ccds:
         loops = 7
         if emos_num == 1:
@@ -155,24 +153,26 @@ def create_xml(
         loops = 1
         rotas = ["0.0"]
 
-    for i in range(loops):
-        instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
+    instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
 
-        telescope = SubElement(instrument, "telescope")
-        # Based on the pixel fov and the biggest axis
-        SubElement(telescope, "focallength", value=f"{focallength}")
-        SubElement(telescope, "fov", diameter=f"{fov}")
-        SubElement(
-            telescope,
-            "psf",
-            filename=f"{get_psf_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}', res_mult=res_mult).name}",
-        )
-        SubElement(
-            telescope,
-            "vignetting",
-            filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}').name}",
-        )
-        detector = SubElement(instrument, "detector", type=f"EM{emos_num}")
+    telescope = SubElement(instrument, "telescope")
+    SubElement(telescope, "rmf", filename=f"mos{emos_num}-{xmm_filter}-10.rmf")
+    SubElement(telescope, "arf", filename=f"mos{emos_num}-{xmm_filter}-10.arf")
+    SubElement(telescope, "focallength", value=f"{focallength}")
+    SubElement(telescope, "fov", diameter=f"{fov}")
+    SubElement(
+        telescope,
+        "psf",
+        filename=f"{get_psf_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}', res_mult=res_mult).name}",
+    )
+    SubElement(
+        telescope,
+        "vignetting",
+        filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}').name}",
+    )
+
+    for i in range(loops):
+        detector = SubElement(instrument, "detector", type="ccd")
         SubElement(detector, "dimensions", xwidth=f"{width}", ywidth=f"{height}")
         SubElement(
             detector,
@@ -186,8 +186,6 @@ def create_xml(
             rota=f"{rotas[i]}",
         )
         SubElement(detector, "cte", value="1")
-        SubElement(detector, "rmf", filename=f"mos{emos_num}-{xmm_filter}-10.rmf")
-        SubElement(detector, "arf", filename=f"mos{emos_num}-{xmm_filter}-10.arf")
         SubElement(detector, "split", type="gauss", par1=f"{11.e-6 / res_mult}")
         SubElement(detector, "threshold_readout_lo_keV", value="0.")
         SubElement(detector, "threshold_event_lo_keV", value="200.e-3")
@@ -212,16 +210,16 @@ def create_xml(
 
         SubElement(readout, "newframe")
 
-        tree = ElementTree(instrument)
-        if sim_separate_ccds:
-            xml_path = out_dir / f"ccd{i + 1:02d}.xml"
-            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
-        else:
-            xml_path = out_dir / "combined.xml"
-            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
+    tree = ElementTree(instrument)
 
-        xml_paths.append(xml_path)
-    return xml_paths
+    if sim_separate_ccds:
+        xml_path = out_dir / f"seperate_ccds_{xmm_filter}.xml"
+    else:
+        xml_path = out_dir / f"combined_ccd_{xmm_filter}.xml"
+
+    tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
+
+    return xml_path
 
 
 def get_xml(
@@ -230,19 +228,11 @@ def get_xml(
     res_mult: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
-) -> list[Path]:
+) -> Path:
     instrument_path = xml_dir / f"emos{emos_num}"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
-    glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
-    xml_paths: list[Path] = list(root.glob(glob_pattern))
+    glob_pattern = f"seperate_ccds_{xmm_filter}.xml" if sim_separate_ccds else "combined.xml"
+    xml_path: Path = next(root.glob(glob_pattern))
 
-    if sim_separate_ccds and len(xml_paths) != 7:
-        logger.warning(
-            f"'sim_separate_ccds' is set to 'True', but I could find only {len(xml_paths)} of the 7 CCDs."
-            f"I will simulate only the CCDs given in these files. If that was intentional, then you can "
-            f"ignore this warning. Otherwise abort the execution, create all XML files and re-run the"
-            f"code."
-        )
-
-    return xml_paths
+    return xml_path
