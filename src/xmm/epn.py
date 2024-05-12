@@ -18,10 +18,13 @@ def get_img_width_height(res_mult: int = 1) -> tuple[int, int]:
     max_x = round(float(np.max(xrval)), 3)
     max_y = round(float(np.max(yrval)), 3)
 
-    size_x = np.ceil((max_x * 2 + 64 * p_delt * res_mult) / p_delt)
-    size_y = np.ceil((max_y * 2 + 200 * p_delt * res_mult) / p_delt)
+    size_x_px = (max_x * 2 + 64 * p_delt) * res_mult
+    size_y_px = (max_y * 2 + 200 * p_delt) * res_mult
+    
+    size_x_mm = np.ceil(size_x_px / p_delt)
+    size_y_mm = np.ceil(size_y_px / p_delt)
 
-    return int(size_x), int(size_y)
+    return int(size_x_mm), int(size_y_mm)
 
 
 def get_surface(res_mult: int = 1) -> float:
