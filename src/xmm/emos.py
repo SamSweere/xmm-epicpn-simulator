@@ -18,10 +18,13 @@ def get_img_width_height(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[in
     max_x = round(float(np.max(xrval)), 3)
     max_y = round(float(np.max(yrval)), 3)
 
-    size_x = np.ceil((max_x * 2 + 600 * p_delt * res_mult) / p_delt)
-    size_y = np.ceil((max_y * 2 + 600 * p_delt * res_mult) / p_delt)
+    size_x_mm = max_x * 2 + 600 * p_delt
+    size_y_mm = max_y * 2 + 600 * p_delt
+    
+    size_x_px = np.ceil(size_x_mm / p_delt) * res_mult
+    size_y_px = np.ceil(size_y_mm / p_delt) * res_mult
 
-    return int(size_x), int(size_y)
+    return int(size_x_px), int(size_y_px)
 
 
 def get_surface(emos_num: Literal[1, 2], res_mult: int = 1) -> float:
