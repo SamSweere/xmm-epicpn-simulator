@@ -176,7 +176,7 @@ def create_xml(
     )
 
     for i in range(len(rotas)):
-        detector = SubElement(instrument, "detector", type="ccd")
+        detector = SubElement(instrument, "detector", type="ccd", chip=f"{i}")
         SubElement(detector, "dimensions", xwidth=f"{width}", ywidth=f"{height}")
         SubElement(
             detector,

@@ -28,7 +28,7 @@ def run_simulation(
     sim_separate_ccds: bool = False,
     consume_data: bool = True,
 ):
-    xml_paths = get_xml_file(
+    xml_file = get_xml_file(
         xml_dir=xml_dir,
         instrument_name=instrument_name,
         res_mult=res_mult,
@@ -36,31 +36,29 @@ def run_simulation(
         sim_separate_ccds=sim_separate_ccds,
     )
 
-    if not xml_paths:
+    if not xml_file:
         raise FileNotFoundError(
-            f"It looks like you have not created the corresponding XML files for instrument " f"'{instrument_name}'"
+            f"It looks like you have not created the corresponding XML file for instrument " f"'{instrument_name}'"
         )
 
-    evt_filepaths: list[Path] = []
-    # TODO This needs to be adjusted for a single XML
-    for xml_path in xml_paths:
-        ccd_name = xml_path.stem
-        evt_filepath = run_dir / f"{ccd_name}_evt.fits"
-        commands.runsixt(
-            raw_data=run_dir / f"{ccd_name}_raw.fits",
-            evt_file=evt_filepath,
-            xml_file=xml_path.resolve(),
-            ra=ra,
-            dec=dec,
-            rollangle=rollangle,
-            simput=simput_path,
-            exposure=exposure,
-        )
-        evt_filepath = filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern)
-        evt_filepaths.append(evt_filepath)
+    commands.sixtesim(
+        output_path=run_dir.resolve(),
+        xml_file=xml_file.resolve(),
+        ra=ra,
+        dec=dec,
+        rollangle=rollangle,
+        simput=simput_path,
+        exposure=exposure,
+    )
 
-    # Merge all the ccd.py eventlists into one eventlist
-    merged = merge_ccd_eventlists(infiles=evt_filepaths, out_dir=run_dir, consume_data=consume_data)
+    for raw_filepath in run_dir.glob("*_raw.fits"):
+        raw_filepath.unlink()
+
+    evt_filepaths = []
+    for evt_filepath in run_dir.glob("*_none"):
+        evt_filepaths.append(filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern))
+
+    merged = merge_ccd_eventlists(evt_filepaths, run_dir, consume_data)
 
     # split the eventlist
     split_exposure_evt_files = split_eventlist(
