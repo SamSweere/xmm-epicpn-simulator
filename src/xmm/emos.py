@@ -157,8 +157,6 @@ def create_xml(
     xrpix = round((width + 1) / 2.0, 6)
     yrpix = round((height + 1) / 2.0, 6)
 
-    xml_paths: list[Path] = []
-
     instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
 
     telescope = SubElement(instrument, "telescope")
@@ -177,7 +175,7 @@ def create_xml(
         filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}').name}",
     )
 
-    for i in range(loops):
+    for i in range(len(rotas)):
         detector = SubElement(instrument, "detector", type="ccd")
         SubElement(detector, "dimensions", xwidth=f"{width}", ywidth=f"{height}")
         SubElement(

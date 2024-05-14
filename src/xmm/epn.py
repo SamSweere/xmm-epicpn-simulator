@@ -217,7 +217,6 @@ def create_xml(
 
     loops = 12 if sim_separate_ccds else 1
     for i in range(loops):
-        # TODO Detector type is wrong!
         detector = SubElement(instrument, "detector", type="ccd", chip=f"{i}")
         SubElement(detector, "dimensions", xwidth=f"{max_x}", ywidth=f"{max_y}")
         # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota
