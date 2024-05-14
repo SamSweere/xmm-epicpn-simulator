@@ -17,8 +17,8 @@ def get_img_width_height(res_mult: int = 1) -> tuple[int, int]:
     max_x = round(float(np.max(xrval)), 3)
     max_y = round(float(np.max(yrval)), 3)
 
-    size_x = np.ceil((max_x * 2 + 64 * p_delt * res_mult) / p_delt)
-    size_y = np.ceil((max_y * 2 + 200 * p_delt * res_mult) / p_delt)
+    size_x = np.floor((max_x * 2 + 64 * p_delt * res_mult) / p_delt)
+    size_y = np.floor((max_y * 2 + 200 * p_delt * res_mult) / p_delt)
 
     return int(size_x), int(size_y)
 
@@ -83,13 +83,9 @@ def get_pixel_size(res_mult: int = 1) -> float:
 def get_cdelt(res_mult: int = 1) -> float:
     # cdelt give the pixel sizes in degrees
     # cdelt from XMM_MISCDATA_0022.CCF PLATE_SCALE_X, the unit is in arsec, arsec to degree by deciding it by 3600
-    xmm_miscdata = get_xmm_miscdata()
-    with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        miscdata = file[1].data
-        epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
-        c_delt = epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
+    plate_scale_x, _ = get_plate_scale_xy()
 
-    c_delt = round((c_delt / 3600) / res_mult, 6)
+    c_delt = round((plate_scale_x / 3600) / res_mult, 6)
 
     return c_delt
 
