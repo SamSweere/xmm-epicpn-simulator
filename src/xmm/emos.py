@@ -18,8 +18,8 @@ def get_img_width_height(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[in
     max_x = round(float(np.max(xrval)), 3)
     max_y = round(float(np.max(yrval)), 3)
 
-    size_x = np.ceil((max_x * 2 + 600 * p_delt * res_mult) / p_delt)
-    size_y = np.ceil((max_y * 2 + 600 * p_delt * res_mult) / p_delt)
+    size_x = np.floor((max_x * 2 + 600 * p_delt * res_mult) / p_delt)
+    size_y = np.floor((max_y * 2 + 600 * p_delt * res_mult) / p_delt)
 
     return int(size_x), int(size_y)
 
@@ -135,27 +135,32 @@ def create_xml(
         xrval, yrval = get_xyrval(emos_num=emos_num)
         xrval = xrval * 1e-3
         yrval = yrval * 1e-3
+
+        if emos_num == 1:
+            rotas = ["0.0", "90.0", "90.0", "90.0", "270.0", "270.0", "270.0"]
+        else:
+            rotas = ["0.0", "270.0", "270.0", "270.0", "90.0", "90.0", "90.0"]
+            # We need to switch the axis for EMOS2 to be orthogonal to EMOS1
+            # In SIXTE the x-axis points north and y-axis points west.
+            # We need to set x = y and y = -x.
+            # See https://xmmweb.esac.esa.int/docs/documents/CAL-MAN-0001.pdf
+            # on page 5 for a visualisation.
+            xrval, yrval = yrval, -xrval
+
     else:
         width, height = get_img_width_height(emos_num=emos_num, res_mult=res_mult)
         xrval = yrval = 0.0
         xrval = np.asarray([xrval * 1e-3])
         yrval = np.asarray([yrval * 1e-3])
 
+        rotas = ["0.0"]
+
     xrpix = round((width + 1) / 2.0, 6)
     yrpix = round((height + 1) / 2.0, 6)
 
     xml_paths: list[Path] = []
-    if sim_separate_ccds:
-        loops = 7
-        if emos_num == 1:
-            rotas = ["0.0", "90.0", "90.0", "90.0", "270.0", "270.0", "270.0"]
-        else:
-            rotas = ["270.0", "0.0", "0.0", "0.0", "180.0", "180.0", "180.0"]
-    else:
-        loops = 1
-        rotas = ["0.0"]
 
-    for i in range(loops):
+    for i in range(len(rotas)):
         instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
 
         telescope = SubElement(instrument, "telescope")
