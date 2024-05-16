@@ -34,7 +34,6 @@ zoom_range = [ 1, 2 ]
 sigma_b_range = [ 5, 50 ]
 offset_std = 0.05
 num_img_sample = 5
-instruments = ["epn"] #, "emos1", "emos2"]
 
 [simput.img]
 n_gen = 0 # -1 for all
@@ -61,4 +60,14 @@ modes.bkg = 0 # 25000
 sim_separate_ccds = false # true
 # We create a very small wait time when the separate_ccds is false
 # in order to avoid readout artifacts.
-wait_time = 0.00000001 # Correct separate wait_time = 0.00002304
+wait_time = 0.00002304 # Correct separate wait_time = 0.00002304
+
+[simulation.modes]
+img = -1
+agn = -1
+bkg = 25000
+
+[instruments.xmm]
+emos1 = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12}
+emos2 = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12}
+epn = {use = true, filter = "thin", sim_separate_ccds = true, max_event_pattern = 4}

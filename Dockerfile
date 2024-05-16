@@ -14,9 +14,14 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     apt-get install software-properties-common -y &&  \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
-    apt-get install -y git libtool autoconf wget rsync perl libreadline-dev libncurses5-dev ncurses-dev curl \
-    libcurl4 libcurl4-gnutls-dev xorg-dev make gcc g++ gfortran perl-modules libncurses-dev libexpat1-dev libgsl0-dev \
-    libboost-dev libcmocka-dev vim nano && \
+    apt-get install -y \
+    # Heasoft packages
+    build-essential curl gcc g++ gfortran libcurl4 libcurl4-gnutls-dev \
+    libncurses5-dev libreadline6-dev \
+    libcmocka-dev libexpat1-dev libgsl0-dev libfile-which-perl \
+    libdevel-checklib-perl make ncurses-dev perl perl-modules xorg-dev \
+    # SIMPUT
+    autoconf libboost-dev libtool && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 USER 1000
@@ -31,47 +36,26 @@ ENV PATH="$MINICONDA/bin:$PATH"
 RUN conda init bash && \
     conda create -y -n xmm python=3.11.8 numpy astropy scipy matplotlib
 
-# Install perl-5.36.1 and the required modules
-RUN curl -L https://install.perlbrew.pl | bash
-ENV PERLBREW_ROOT=$HOME/perl5/perlbrew
-RUN $HOME/perl5/perlbrew/bin/perlbrew init && $HOME/perl5/perlbrew/bin/perlbrew install-cpanm && \
-    mkdir -p ${HOME}/perl5/perlbrew/dists && \
-    source ${HOME}/perl5/perlbrew/etc/bashrc && \
-    $HOME/perl5/perlbrew/bin/perlbrew install -n -f perl-5.36.1 && \
-    $HOME/perl5/perlbrew/bin/perlbrew switch perl-5.36.1 && \
-    $HOME/perl5/perlbrew/bin/cpanm -n Switch && $HOME/perl5/perlbrew/bin/cpanm -n Shell && $HOME/perl5/perlbrew/bin/cpanm -n CGI
-
 # Build and install SIMPUT
 COPY --chown=xmm_user: --chmod=777 downloads/simput_git $HOME/simput_git/
 RUN cd ${HOME}/simput_git && \
-    echo "Initializing simput..." && autoreconf --install --force > /dev/null 2>&1 && \
-    echo "Configuring simput..." && ./configure --prefix=${SIMPUT} > /dev/null 2>&1 &&  \
-    echo "Building simput..." && make > /dev/null 2>&1 &&  \
-    echo "Installing simput..." && make install > /dev/null 2>&1 && \
-    echo "Cleaning simput..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/simput_git
+    autoreconf --install --force && ./configure --prefix=${SIMPUT} && make && make install && \
+    rm -rf ${HOME}/simput_git
 
 # Build and install SIXTE
 COPY --chown=xmm_user: --chmod=777 downloads/sixte_git $HOME/sixte_git/
 RUN cd ${HOME}/sixte_git && \
-    echo "Initializing sixte..." && autoreconf --install --force > /dev/null 2>&1 && \
-    echo "Configuring sixte..." && ./configure --prefix=${SIXTE} > /dev/null 2>&1 &&  \
-    echo "Building sixte..." && make > /dev/null 2>&1 &&  \
-    echo "Installing sixte..." && make install > /dev/null 2>&1 && \
-    echo "Cleaning sixte..." && make clean > /dev/null 2>&1 && rm -rf ${HOME}/sixte_git
+    autoreconf --install --force && ./configure --prefix=${SIXTE} && make && make install && \
+    rm -rf ${HOME}/sixte_git
 
 # Extract and setup xmm instruments
 WORKDIR $SIXTE
-COPY --chown=xmm_user: --chmod=777 downloads/instruments_xmm-1.2.1.tar.gz $SIXTE/
-RUN tar zxf instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz
+COPY --chown=xmm_user: --chmod=777 downloads/share/ $SIXTE/share/
 
 # Extract and setup SAS
 WORKDIR $SAS_ROOT
-ENV SAS_PERL=$HOME/perl5/perlbrew/perls/perl-5.36.1/bin/perl SAS_PYTHON=$MINICONDA/envs/xmm/bin/python
-COPY --chown=xmm_user: --chmod=777 downloads/sas_21.0.0-Ubuntu22.04.tgz $SAS_ROOT/
-USER 0
-RUN tar zxf sas_21.0.0-Ubuntu22.04.tgz -C $SAS_ROOT && rm sas_21.0.0-Ubuntu22.04.tgz && \
-    chown -R xmm_user: $SAS_ROOT && chmod -R 777 $SAS_ROOT
-USER 1000
+ENV SAS_PERL=/usr/bin/perl SAS_PYTHON=$MINICONDA/envs/xmm/bin/python
+COPY --chown=xmm_user: --chmod=777 downloads/sas/ $SAS_ROOT/
 RUN ./install.sh
 
 # Copy the Sas files
@@ -83,22 +67,13 @@ RUN rm $MINICONDA/envs/xmm/lib/libtinfo.so && rm $MINICONDA/envs/xmm/lib/libtinf
 # Install Heasoft
 WORKDIR $HOME
 ENV CC=/usr/bin/gcc CXX=/usr/bin/g++ FC=/usr/bin/gfortran PERL=$SAS_PERL PYTHON=$MINICONDA/envs/xmm/bin/python
-COPY --chown=xmm_user: --chmod=777 downloads/heasoft-6.32.1src.tar.gz $HOME/
-RUN tar zxf heasoft-6.32.1src.tar.gz && rm heasoft-6.32.1src.tar.gz
+COPY --chown=xmm_user: --chmod=777 downloads/heasoft-6.32.1/ $HOME/heasoft-6.32.1/
 
 WORKDIR $HOME/heasoft-6.32.1/BUILD_DIR/
 RUN unset CFLAGS CXXFLAGS FFLAGS LDFLAGS && \
-    echo "Configuring heasoft..." && ./configure --prefix=${HEADAS} > /dev/null 2>&1 && \
-    echo "Building heasoft..." && make > /dev/null 2>&1 && \
-    echo "Installing heasoft..." && make install > /dev/null 2>&1 && \
-    echo "Cleaning heasoft..." && make clean > /dev/null 2>&1 && \
-    /bin/bash -c 'cd /home/xmm_user/headas; for loop in x86_64*/*; do ln -sf $loop; done'
-
-WORKDIR ${HOME}/heasoft-6.32.1
-
-RUN cp -p Xspec/BUILD_DIR/hmakerc ${HEADAS}/bin/ && \
-    cp -p Xspec/BUILD_DIR/Makefile-std ${HEADAS}/bin/ && \
-    rm -rf Xspec/src/spectral
+    ./configure --prefix=${HEADAS} && make && make install && \
+    /bin/bash -c 'cd /home/xmm_user/headas; for loop in x86_64*/*; do ln -sf $loop; done' && \
+    rm -rf ${HOME}/heasoft-6.32.1
 
 WORKDIR $HOME
 
@@ -149,9 +124,16 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     apt-get install software-properties-common -y &&  \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
-    apt-get install -y git libtool autoconf wget rsync perl libreadline-dev libncurses5-dev ncurses-dev curl \
-    libcurl4 libcurl4-gnutls-dev xorg-dev make gcc g++ gfortran perl-modules libncurses-dev libexpat1-dev libgsl0-dev \
-    libboost-dev libcmocka-dev vim nano && \
+    apt-get install -y \
+    # Heasoft packages
+    build-essential curl gcc g++ gfortran libcurl4 libcurl4-gnutls-dev \
+    libncurses5-dev libreadline6-dev \
+    libcmocka-dev libexpat1-dev libgsl0-dev libfile-which-perl \
+    libdevel-checklib-perl make ncurses-dev perl perl-modules xorg-dev \
+    # SIMPUT
+    libboost-dev \
+    # General tools
+    nano vim wget && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 # Copy the home directory
@@ -165,4 +147,5 @@ RUN $MINICONDA/envs/xmm/bin/pip install -r requirements.txt
 
 # Set the working directory and entrypoint
 WORKDIR $HOME
+USER 1000
 ENTRYPOINT ["/bin/bash", "entrypoint.sh"]
