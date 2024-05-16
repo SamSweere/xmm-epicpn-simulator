@@ -17,6 +17,8 @@ import numpy as np
 import csv
 
 
+
+
 def create_background(
     instrument_name: Literal["epn", "emos1", "emos2"],
     emin: float,
@@ -67,7 +69,7 @@ def create_agn_sources(
         writer = csv.writer(file)
 
         # Write header row
-        writer.writerow(['idx','image_ID', 'contains_blended_sources', 'frac_blended_sources', 'fluxes', 'locs','blended_idx', 'flux_blend', 'flux_blend2', 'loc_blend', 'loc_blend2', 'blended_offset_vals'])
+        writer.writerow(['idx','image_ID', 'contains_blended_sources', 'frac_blended_sources', 'fluxes', 'locations (ra, dec) [arcsec]', 'blended_idx', 'blended_fluxes1', 'blended_fluxes2', 'blended locations 1 (ra, dec) [arcsec]', 'blended_locations2 (ra, dec) [arcsec]', 'blended_offset_vals (ra, dec) [arcsec]'])
         
         for i_gen in range(img_settings["n_gen"]):
             # Use the current time as id, such that clashes don't happen
@@ -87,11 +89,17 @@ def create_agn_sources(
             rng = np.random.default_rng()
             if offset == "random":
                 offset_vals = rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=(num_fluxes,2))
+                
+                
+                if img_settings["put_source_in_center"]:
+                    # Force one agn to be at the center
+                    offset_vals[0] = np.array([0,0])
+                    fluxes [0] = 1.5*np.max(fluxes)  # Make it bright, so it is obvious which one is the one at the center
 
            
             
-            # Adding extra fluxes and offsets 
-            if i_gen< abs_deblending_n_gen:
+            # Making blended sources starting at 1 to not duplicate AGN in center of image
+            if i_gen < abs_deblending_n_gen:
                 
                 contains_blended_sources = True
                 
@@ -103,12 +111,12 @@ def create_agn_sources(
                 # Compute absolute number of AGNs that should be blended 
                 abs_deblending_n_flux = int(frac_blended_sources*num_fluxes)
                 
-                # Determine indices of blended sources 
-                blended_idx = rng.choice(np.arange(num_fluxes), size = (abs_deblending_n_flux,2), replace = False)
+                # Determine indices of blended sources, starting from index 1 because index 0 is supposed to be at the center and should not be blended (for now)
+                blended_idx = rng.choice(np.arange(1, num_fluxes), size = (abs_deblending_n_flux,2), replace = False)
                 
-                # Compute the offsets of the blended sources
-                # blended_dist = rng.uniform(low=img_settings["deblending_min_sep"], high=img_settings["deblending_max_sep"], size= (abs_deblending_n_flux, 2))
-                blended_dist = np.array([0.003, 0.005])
+                # Compute the offsets of the blended sources, divding by 3600 to go from arcseconds to degrees
+                blended_dist = rng.uniform(low=img_settings["deblending_min_sep"]/3600, high=img_settings["deblending_max_sep"]/3600, size= (abs_deblending_n_flux, 2))
+                # blended_dist = np.array([8/3600, 8/3600])
                 blended_offset_vals = offset_vals[blended_idx[:,0]] + blended_dist
                 
                 # Change offset values of the blended sources that are moved 
@@ -119,15 +127,16 @@ def create_agn_sources(
                 frac_blended_sources = 0
             
             location = (center_point[0] + offset_vals[:,0], center_point[1] + offset_vals[:,1])
-            loc_blend = np.array(location)[:,blended_idx[:,0]]
-            loc_blend2 = np.array(location)[:,blended_idx[:,1]]
+            loc_blend = np.transpose(np.array(location)[:,blended_idx[:,0]])
+            loc_blend2 = np.transpose(np.array(location)[:,blended_idx[:,1]])
             flux_blend = fluxes[blended_idx[:,0]]
             flux_blend2 = fluxes[blended_idx[:,1]]
             
             #TODO: implement more efficient way of logging 
             # Write data to CSV file
-            writer.writerow([i_gen, f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev", contains_blended_sources, frac_blended_sources,fluxes, np.array(location), blended_idx, flux_blend, flux_blend2, loc_blend, loc_blend2, blended_dist])
-        
+            
+            writer.writerow([i_gen, f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev", contains_blended_sources, frac_blended_sources, fluxes, np.transpose(np.array(location))*3600, blended_idx, flux_blend, flux_blend2, loc_blend*3600, loc_blend2*3600, blended_dist*3600])
+
             for i, flux in enumerate(fluxes):
                 
                 logger.info(f"Creating AGN with flux={flux}")
