@@ -98,6 +98,7 @@ class _SimputAgn(BaseModel):
     deblending_min_sep: NonNegativeFloat
     deblending_max_sep: NonNegativeFloat
     deblending_max_flux_delta: NonNegativeFloat
+    put_source_in_center: NonNegativeInt
 
 
 class _SimputBkg(BaseModel):
