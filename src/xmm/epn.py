@@ -14,8 +14,8 @@ def get_img_width_height(res_mult: int = 1) -> tuple[int, int]:
 
     p_delt = get_pixel_size(res_mult)
 
-    max_x = round(float(np.max(xrval)), 3)
-    max_y = round(float(np.max(yrval)), 3)
+    max_x = np.round(np.max(xrval), 3)
+    max_y = np.round(np.max(yrval), 3)
 
     size_x = np.floor((max_x * 2 + 64 * p_delt * res_mult) / p_delt)
     size_y = np.floor((max_y * 2 + 200 * p_delt * res_mult) / p_delt)
@@ -52,8 +52,8 @@ def get_plate_scale_xy() -> tuple[float, float]:
     with fits.open(name=xmm_miscdata, mode="readonly") as file:
         miscdata = file[1].data
         epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
-        plate_scale_x = epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
-        plate_scale_y = epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].astype(float).item()
+        plate_scale_x = epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].item()
+        plate_scale_y = epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].item()
     return plate_scale_x, plate_scale_y
 
 
@@ -61,8 +61,15 @@ def get_xyrval() -> tuple[np.ndarray, np.ndarray]:
     epn_lincoord = get_epn_lincoord()
     with fits.open(name=epn_lincoord, mode="readonly") as file:
         lincoord = file[1].data
-        xrval = lincoord["X0"].astype(float)
-        yrval = lincoord["Y0"].astype(float)
+        # TODO This is a temporary fix.
+        # The two rows should be perfectly aligned on the x-axis,
+        # but for whatever reason they are not. XMM-Newton Helpdesk
+        # has been contacted. Answer is still pending.
+        # This is the "correct" version:
+        xrval = lincoord["X0"]
+        yrval = lincoord["Y0"]
+        # The following steps can be deleted when the issue is fixed
+        xrval[-6:] = -xrval[-6:]
 
     return xrval, yrval
 
@@ -75,7 +82,7 @@ def get_pixel_size(res_mult: int = 1) -> float:
         miscdata = file[1].data
         epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
         # Size of one pixel
-        p_delt = epn[epn["PARM_ID"] == "MM_PER_PIXEL_X"]["PARM_VAL"].astype(float).item()
+        p_delt = epn[epn["PARM_ID"] == "MM_PER_PIXEL_X"]["PARM_VAL"].item()
 
     return round(p_delt / res_mult, 3)
 
@@ -85,7 +92,7 @@ def get_cdelt(res_mult: int = 1) -> float:
     # cdelt from XMM_MISCDATA_0022.CCF PLATE_SCALE_X, the unit is in arsec, arsec to degree by deciding it by 3600
     plate_scale_x, _ = get_plate_scale_xy()
 
-    c_delt = round((plate_scale_x / 3600) / res_mult, 6)
+    c_delt = np.round((plate_scale_x / 3600) / res_mult, 6)
 
     return c_delt
 
@@ -98,7 +105,7 @@ def get_focal_length() -> float:
         miscdata = file[1].data
         telescope = get_telescope("epn")
         xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
-        focallength = xrt[xrt["PARM_ID"] == "FOCAL_LENGTH"]["PARM_VAL"].astype(float).item()
+        focallength = xrt[xrt["PARM_ID"] == "FOCAL_LENGTH"]["PARM_VAL"].item()
 
     return focallength
 
@@ -112,7 +119,7 @@ def get_fov() -> float:
         telescope = get_telescope("epn")
         xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
         # Notice the 'RADIUS'
-        fov = xrt[xrt["PARM_ID"] == "FOV_RADIUS"]["PARM_VAL"].astype(float).item() * 2
+        fov = xrt[xrt["PARM_ID"] == "FOV_RADIUS"]["PARM_VAL"].item() * 2
 
     return fov
 
@@ -183,11 +190,11 @@ def create_xml(
     fov = get_fov()
 
     if sim_separate_ccds:
-        max_x, max_y = get_ccd_width_height(res_mult=res_mult)
-        xrval, yrval = get_xyrval()
+        max_y, max_x = get_ccd_width_height(res_mult=res_mult)
+        yrval, xrval = get_xyrval()
         cc12tx, cc12ty = get_cc12_txy()
-        xrval = (xrval - cc12tx) * 1e-3
-        yrval = (yrval - cc12ty) * 1e-3
+        xrval = np.round(xrval + cc12tx, 3) * 1e-3
+        yrval = np.round(yrval - cc12ty, 3) * 1e-3
     else:
         max_x, max_y = get_img_width_height(res_mult=res_mult)
         xrval, yrval = get_cc12_txy()
@@ -215,8 +222,7 @@ def create_xml(
         filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name='epn').name}",
     )
 
-    loops = 12 if sim_separate_ccds else 1
-    for i in range(loops):
+    for i in range(len(xrval)):
         detector = SubElement(instrument, "detector", type="ccd", chip=f"{i}")
         SubElement(detector, "dimensions", xwidth=f"{max_x}", ywidth=f"{max_y}")
         # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota

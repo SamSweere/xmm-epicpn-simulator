@@ -69,8 +69,9 @@ def run_simulation(
     )
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
-    naxis2, naxis1 = get_width_height(instrument_name=instrument_name, res_mult=res_mult)
-    cdelt1 = cdelt2 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
+    naxis1, naxis2 = get_width_height(instrument_name=instrument_name, res_mult=res_mult)
+    cdelt1 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
+    cdelt2 = -cdelt1
 
     if instrument_name == "epn":
         from src.xmm.epn import get_shift_xy

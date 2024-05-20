@@ -137,14 +137,14 @@ def create_xml(
 
         if emos_num == 1:
             rotas = ["0.0", "90.0", "90.0", "90.0", "270.0", "270.0", "270.0"]
+            yrval = -yrval
         else:
             rotas = ["0.0", "270.0", "270.0", "270.0", "90.0", "90.0", "90.0"]
             # We need to switch the axis for EMOS2 to be orthogonal to EMOS1
             # In SIXTE the x-axis points north and y-axis points west.
-            # We need to set x = y and y = -x.
             # See https://xmmweb.esac.esa.int/docs/documents/CAL-MAN-0001.pdf
             # on page 5 for a visualisation.
-            xrval, yrval = yrval, -xrval
+            xrval, yrval = yrval, xrval
 
     else:
         width, height = get_img_width_height(emos_num=emos_num, res_mult=res_mult)
