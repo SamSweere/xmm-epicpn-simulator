@@ -9,7 +9,7 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_cdelt, get_width_height, get_xml_file
+from src.xmm.utils import get_cdelt, get_naxis12, get_xml_file
 from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
 
 
@@ -69,7 +69,7 @@ def run_simulation(
     )
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
-    naxis1, naxis2 = get_width_height(instrument_name=instrument_name, res_mult=res_mult)
+    naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
     cdelt1 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
     cdelt2 = -cdelt1
 

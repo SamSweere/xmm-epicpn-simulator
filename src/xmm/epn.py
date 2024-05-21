@@ -89,12 +89,24 @@ def get_pixel_size(res_mult: int = 1) -> float:
 
 def get_cdelt(res_mult: int = 1) -> float:
     # cdelt give the pixel sizes in degrees
-    # cdelt from XMM_MISCDATA_0022.CCF PLATE_SCALE_X, the unit is in arsec, arsec to degree by deciding it by 3600
-    plate_scale_x, _ = get_plate_scale_xy()
-
-    c_delt = np.round((plate_scale_x / 3600) / res_mult, 6)
+    # The correct way would be to use get_plate_scale_xy()
+    # BUT: When creating the dataset based on real observations
+    # one has to give a binSize. This binSize is calculated as
+    # follows: binSize = plate_scale / 0.05
+    # Since the binSize has to be an integer, we can't use
+    # the plate_scale given by the CCF (4.12838) and to
+    # make our lifes easier for higher resolution images
+    # we choose to set plate_scale to 4.0, which results
+    # in binSize = 80
+    c_delt = np.round((4.0 / 3600) / res_mult, 6)
 
     return c_delt
+
+
+def get_naxis12(res_mult: int = 1) -> tuple[int, int]:
+    # 403x411 is the image size one gets when creating
+    # images from real observations with binSize = 80
+    return (403 * res_mult, 411 * res_mult)
 
 
 def get_focal_length() -> float:

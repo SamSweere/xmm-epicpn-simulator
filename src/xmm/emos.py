@@ -74,18 +74,35 @@ def get_pixel_size(emos_num: Literal[1, 2], res_mult: int = 1) -> float:
     return round(p_delt / res_mult, 3)
 
 
-def get_cdelt(emos_num: Literal[1, 2], res_mult: int = 1) -> float:
+def get_cdelt(res_mult: int = 1) -> float:
     # cdelt give the pixel sizes in degrees
-    # cdelt from XMM_MISCDATA_0022.CCF PLATE_SCALE_X, the unit is in arsec, arsec to degree by deciding it by 3600
-    xmm_miscdata = get_xmm_miscdata()
-    with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        miscdata = file[1].data
-        emos = miscdata[miscdata["INSTRUMENT_ID"] == f"EMOS{emos_num}"]
-        c_delt = emos[emos["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
-
-    c_delt = round((c_delt / 3600) / res_mult, 6)
+    # The correct way would be to use get_plate_scale_xy()
+    # BUT: When creating the dataset based on real observations
+    # one has to give a binSize. This binSize is calculated as
+    # follows: binSize = plate_scale / 0.05
+    # Since the binSize has to be an integer, we can't use
+    # the plate_scale given by the CCF (1.1008) and to
+    # make our lifes easier for higher resolution images
+    # we choose to set plate_scale to 1.0, which results
+    # in binSize = 20
+    c_delt = np.round((1.0 / 3600) / res_mult, 6)
 
     return c_delt
+
+
+def get_naxis12(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[int, int]:
+    if emos_num == 1:
+        # 1985x2006 is the image size one gets when creating
+        # images from real observations with binSize = 20
+        # Since we rotate the image to represent the orientation
+        # of EMOS1 relative to EPN we have to switch the axis
+        return (2006 * res_mult, 1985 * res_mult)
+    if emos_num == 2:
+        # 1993x2003 is the image size one gets when creating
+        # images from real observations with binSize = 20
+        # Since we rotate the image to represent the orientation
+        # of EMOS2 relative to EPN we don't have to switch the axis
+        return (1993 * res_mult, 2003 * res_mult)
 
 
 def get_focal_length(emos_num: Literal[1, 2]) -> float:
