@@ -30,7 +30,7 @@ def decompress_targz(in_file_path: Path, out_file_dir: Path):
 
 
 def filter_event_pattern(eventlist_path: Path, max_event_pattern: int):
-    if max_event_pattern == -1:
+    if max_event_pattern == -1 or max_event_pattern == 12:
         # Use all event patterns
         return eventlist_path
 
