@@ -144,18 +144,36 @@ def run_simulation(
                 det_mask = det_mask[0].data
                 
                 # Compute difference in size 
-                y_diff =  data.shape[0]- det_mask.shape[0]
+                y_diff =  det_mask.shape[0] - data.shape[0]
                 y_top_pad = int(np.floor(y_diff / 2.0))
                 y_bottom_pad = y_diff - y_top_pad
 
-                x_diff = data.shape[1]- det_mask.shape[1]
+                x_diff = det_mask.shape[1] - data.shape[1] 
                 x_left_pad = int(np.floor(x_diff / 2.0))
                 x_right_pad = x_diff - x_left_pad
                 
-                # Crop the image in the y direction
-                data = data[abs(y_top_pad) : data.shape[0] - abs(y_bottom_pad)]
-                data = data[:, abs(x_left_pad) : data.shape[1] - abs(x_right_pad)]
+             
                 
+                
+                if y_diff >= 0:
+                    # Pad the image in the y direction
+                    data = np.pad(
+                        data, ((y_top_pad, y_bottom_pad), (0, 0)), "constant", constant_values=0.0
+                    )
+                else:
+                    # Crop the image in the y direction
+                    data = data[abs(y_top_pad) : data.shape[0] - abs(y_bottom_pad)]
+
+                if x_diff >= 0:
+                    # Pad the image in the x direction
+                    data = np.pad(
+                        data, ((0, 0), (x_left_pad, x_right_pad)), "constant", constant_values=0.0
+                    )
+                else:
+                    # Crop the image in the x direction
+                    data = data[:, abs(x_left_pad) : data.shape[1] - abs(x_right_pad)]
+       
+                        
                 
                 data = data * det_mask
             
