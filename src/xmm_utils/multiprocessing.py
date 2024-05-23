@@ -20,7 +20,7 @@ def mp_run(func, kwds_generator: Generator, num_processes: int, debug: bool = Fa
     end = datetime.now()
     results = []
     for apply_result in apply_results:
-        result = apply_result.get()
+        result = apply_result if debug else apply_result.get()
         if result is not None:
             if isinstance(result, list):
                 results.extend(result)
