@@ -21,7 +21,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     libcmocka-dev libexpat1-dev libgsl0-dev libfile-which-perl \
     libdevel-checklib-perl make ncurses-dev perl perl-modules xorg-dev \
     # SIMPUT
-    autoconf libboost-dev libtool && \
+    autoconf libboost-dev libtool libcgal-dev cmake && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 USER 1000
@@ -37,16 +37,20 @@ RUN conda init bash && \
     conda create -y -n xmm python=3.11.8 numpy astropy scipy matplotlib
 
 # Build and install SIMPUT
-COPY --chown=xmm_user: --chmod=777 downloads/simput_git $HOME/simput_git/
-RUN cd ${HOME}/simput_git && \
-    autoreconf --install --force && ./configure --prefix=${SIMPUT} && make && make install && \
-    rm -rf ${HOME}/simput_git
+COPY --chown=xmm_user: --chmod=777 downloads/simput $HOME/simput_src/
+RUN cd ${HOME}/simput_src && \
+    cmake -S . -B build -DCMAKE_INSTALL_PREFIX=${SIMPUT} && \
+    cmake --build build && \
+    cmake --install build && \
+    rm -rf ${HOME}/simput_src
 
 # Build and install SIXTE
-COPY --chown=xmm_user: --chmod=777 downloads/sixte_git $HOME/sixte_git/
-RUN cd ${HOME}/sixte_git && \
-    autoreconf --install --force && ./configure --prefix=${SIXTE} && make && make install && \
-    rm -rf ${HOME}/sixte_git
+COPY --chown=xmm_user: --chmod=777 downloads/sixte-3.0.1 $HOME/sixte_src/
+RUN cd ${HOME}/sixte_src && \
+    cmake -S . -B build -DCMAKE_INSTALL_PREFIX=${SIXTE} && \
+    cmake --build build && \
+    cmake --install build && \
+    rm -rf ${HOME}/sixte_src
 
 # Extract and setup xmm instruments
 WORKDIR $SIXTE
@@ -131,7 +135,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get dist-upgrade -y && \
     libcmocka-dev libexpat1-dev libgsl0-dev libfile-which-perl \
     libdevel-checklib-perl make ncurses-dev perl perl-modules xorg-dev \
     # SIMPUT
-    libboost-dev \
+    libboost-dev libcgal-dev \
     # General tools
     nano vim wget && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
