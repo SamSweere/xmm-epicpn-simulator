@@ -27,7 +27,7 @@ def run_simulation(
     rollangle: float = 0.0,
     sim_separate_ccds: bool = False,
     consume_data: bool = True,
-):
+) -> list[tuple[Path, int]] | None:
     xml_file = get_xml_file(
         xml_dir=xml_dir,
         instrument_name=instrument_name,
@@ -56,7 +56,13 @@ def run_simulation(
 
     evt_filepaths = []
     for evt_filepath in run_dir.glob("*_none"):
-        evt_filepaths.append(filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern))
+        evt_filepath = filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern)
+        if evt_filepath is not None:
+            evt_filepaths.append(evt_filepath)
+
+    if not evt_filepath:
+        logger.warning(f"No events have been detected for detector {instrument_name} for {simput_path}!")
+        return None
 
     merged = merge_ccd_eventlists(evt_filepaths, run_dir, consume_data)
 
@@ -173,6 +179,9 @@ def run_xmm_simulation(
             sim_separate_ccds=sim_separate_ccds,
             consume_data=consume_data,
         )
+
+        if tmp_split_img_paths_exps is None:
+            return
 
         for p in tmp_split_img_paths_exps:
             file_path: Path = p[0]
