@@ -260,6 +260,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                     settings: dict = dict(simput_cfg.agn).copy()
                     settings["agn_counts_file"] = agn_counts_file
                     settings["instrument_name"] = instrument
+                    settings["n_gen"] = simput_cfg.agn.n_gen
                     if instrument == "epn" and sim_separate_ccds:
                         from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
 
@@ -268,13 +269,6 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                         settings["center_point"] = (cc12_tx * (plate_scale_x / 3600), cc12_ty * (plate_scale_y / 3600))
                     else:
                         settings["center_point"] = (0, 0)
-
-                    if env_cfg.debug:
-                        settings["n_gen"] = simput_cfg.agn.n_gen
-                        kwds = ({"img_settings": settings} for _ in range(1))
-                    else:
-                        settings["n_gen"] = 1
-                        kwds = ({"img_settings": settings} for _ in range(simput_cfg.agn.n_gen))
 
                     img_settings.append(settings)
 
