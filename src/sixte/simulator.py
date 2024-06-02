@@ -9,7 +9,7 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_cdelt, get_naxis12, get_xml_file
+from src.xmm.utils import get_cdelt, get_crpix12, get_naxis12, get_xml_file
 from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
 
 
@@ -79,15 +79,7 @@ def run_simulation(
     cdelt1 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
     cdelt2 = -cdelt1
 
-    if instrument_name == "epn":
-        from src.xmm.epn import get_shift_xy
-
-        shift_y, shift_x = get_shift_xy(res_mult=res_mult)
-        crpix1 = round(((naxis1 + 1) / 2.0) - shift_x, 6)
-        crpix2 = round(((naxis2 + 1) / 2.0) + shift_y, 6)
-    else:
-        crpix1 = round(((naxis1 + 1) / 2.0), 6)
-        crpix2 = round(((naxis2 + 1) / 2.0), 6)
+    crpix1, crpix2 = get_crpix12(instrument_name, sim_separate_ccds, res_mult)
 
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
     split_img_paths_exps = []

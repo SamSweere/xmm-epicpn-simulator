@@ -40,6 +40,9 @@ def _simulate_mode(
 
     # Find the simput files
     mode_dir = sim_cfg.simput_dir / mode
+    if mode == "agn":
+        mode_dir = mode_dir / instrument_name
+
     if mode != "bkg":
         mode_glob = mode_dir.rglob("*.simput.gz")
         simputs = []
@@ -147,6 +150,7 @@ def run(path_to_cfg: Path) -> None:
                         decompress_targz(
                             in_file_path=simput_compressed,
                             out_file_dir=sim_cfg.simput_dir / mode[0],
+                            tar_options="--strip-components=1",
                         )
                         logger.success("DONE\tDecompressing SIMPUT files.")
 

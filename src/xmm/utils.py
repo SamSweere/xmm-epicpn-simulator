@@ -54,20 +54,6 @@ def get_pixel_size(instrument_name: str, res_mult: int) -> float:
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_surface(instrument_name: str, res_mult: int) -> float:
-    if instrument_name == "epn":
-        from src.xmm.epn import get_surface
-
-        return get_surface(res_mult=res_mult)
-
-    if instrument_name == "emos1" or instrument_name == "emos2":
-        from src.xmm.emos import get_surface
-
-        return get_surface(emos_num=int(instrument_name[-1]), res_mult=res_mult)
-
-    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
-
 def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
     if instrument_name == "epn":
         from src.xmm.epn import get_naxis12
@@ -80,6 +66,22 @@ def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
         return get_naxis12(emos_num=int(instrument_name[-1]), res_mult=res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+
+def get_crpix12(instrument_name: str, sim_separate_ccds: bool, res_mult: int):
+    naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
+
+    if instrument_name == "epn" and sim_separate_ccds:
+        from src.xmm.epn import get_shift_xy
+
+        shift_y, shift_x = get_shift_xy(res_mult=res_mult)
+        crpix1 = round(((naxis1 + 1) / 2.0) - shift_x, 6)
+        crpix2 = round(((naxis2 + 1) / 2.0) + shift_y, 6)
+    else:
+        crpix1 = round(((naxis1 + 1) / 2.0), 6)
+        crpix2 = round(((naxis2 + 1) / 2.0), 6)
+
+    return crpix1, crpix2
 
 
 def get_focal_length(instrument_name: str) -> float:

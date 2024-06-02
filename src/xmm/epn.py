@@ -23,17 +23,6 @@ def get_img_width_height(res_mult: int = 1) -> tuple[int, int]:
     return int(size_x), int(size_y)
 
 
-def get_surface(res_mult: int = 1) -> float:
-    """
-    Returns:
-        float: The surface of EPIC-pn in mm²
-    """
-    pixel_size = get_pixel_size(res_mult=res_mult)
-    x, y = get_img_width_height(res_mult=res_mult)
-
-    return (pixel_size**2) * x * y
-
-
 def get_ccd_width_height(res_mult: int = 1) -> tuple[int, int]:
     return 64 * res_mult, 200 * res_mult
 

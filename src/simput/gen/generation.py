@@ -15,6 +15,7 @@ from src.xmm_utils.file_utils import compress_gzip
 
 def create_background(
     instrument_name: Literal["epn", "emos1", "emos2"],
+    sim_separate_ccds: bool,
     emin: float,
     emax: float,
     run_dir: Path,
@@ -25,6 +26,7 @@ def create_background(
             run_dir=run_dir,
             spectrum_file=spectrum_file,
             instrument_name=instrument_name,
+            sim_separate_ccds=sim_separate_ccds,
             emin=emin,
             emax=emax,
         )
@@ -60,7 +62,7 @@ def create_agn_sources(
             pass
 
         for i, flux in enumerate(fluxes):
-            logger.info(f"Creating AGN with flux={flux}")
+            logger.debug(f"Creating AGN with flux={flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
             output_file = simput_ps(
                 emin=emin,
@@ -68,6 +70,7 @@ def create_agn_sources(
                 output_file=output_file,
                 src_flux=flux,
                 xspec_file=xspec_file,
+                center_point=img_settings["center_point"],
                 offset="random",
             )
             simput_files.append(output_file)
@@ -102,6 +105,7 @@ def simput_generate(
                 img_settings=img_settings,
                 xspec_file=spectrum_file,
             )
+            output_dir.mkdir(parents=True, exist_ok=True)
 
         if mode == "img":
             file_names = simput_image(
@@ -124,6 +128,7 @@ def simput_generate(
                 emax=emax,
                 run_dir=run_dir,
                 spectrum_file=spectrum_file,
+                sim_separate_ccds=img_settings["sim_separate_ccds"],
             )
 
         for file_name in file_names:

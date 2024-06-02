@@ -179,7 +179,9 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
 
             for _, satellite in satellites.items():
                 for instrument in satellite:
-                    filter = satellite[instrument].filter_abbrv
+                    inst = satellite[instrument]
+                    filter = inst.filter_abbrv
+                    sim_separate_ccds = inst.sim_separate_ccds
 
                     spectrum_name = f"{instrument[1]}{instrument[-1]}{filter}ffg_spectrum.fits"
                     spectrum_file = spectrum_dir / instrument / spectrum_name
@@ -200,6 +202,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                             "fov": fov,
                             "instrument_name": instrument,
                             "output_dir": bkg_path,
+                            "sim_separate_ccds": sim_separate_ccds,
                         }
                     )
 
@@ -246,17 +249,42 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             agn_path.mkdir(parents=True, exist_ok=True)
 
             logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs.")
+            img_settings = []
 
-            # Get the fluxes from the agn distribution
-            img_settings: dict = dict(simput_cfg.agn).copy()
-            img_settings["agn_counts_file"] = agn_counts_file
+            for _, satellite in satellites.items():
+                for instrument in satellite:
+                    inst = satellite[instrument]
+                    sim_separate_ccds = inst.sim_separate_ccds
 
-            if env_cfg.debug:
-                img_settings["n_gen"] = simput_cfg.agn.n_gen
-                kwds = ({"img_settings": img_settings} for _ in range(1))
-            else:
-                img_settings["n_gen"] = 1
-                kwds = ({"img_settings": img_settings} for _ in range(simput_cfg.agn.n_gen))
+                    # Get the fluxes from the agn distribution
+                    settings: dict = dict(simput_cfg.agn).copy()
+                    settings["agn_counts_file"] = agn_counts_file
+                    settings["instrument_name"] = instrument
+                    if instrument == "epn" and sim_separate_ccds:
+                        from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
+
+                        cc12_tx, cc12_ty = get_cc12_txy()
+                        plate_scale_x, plate_scale_y = get_plate_scale_xy()
+                        settings["center_point"] = (cc12_tx * (plate_scale_x / 3600), cc12_ty * (plate_scale_y / 3600))
+                    else:
+                        settings["center_point"] = (0, 0)
+
+                    if env_cfg.debug:
+                        settings["n_gen"] = simput_cfg.agn.n_gen
+                        kwds = ({"img_settings": settings} for _ in range(1))
+                    else:
+                        settings["n_gen"] = 1
+                        kwds = ({"img_settings": settings} for _ in range(simput_cfg.agn.n_gen))
+
+                    img_settings.append(settings)
+
+            kwds = (
+                {
+                    "img_settings": img_setting,
+                    "output_dir": agn_path / img_setting.pop("instrument_name"),
+                }
+                for img_setting in img_settings
+            )
 
             # Get the spectrum file
             spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)

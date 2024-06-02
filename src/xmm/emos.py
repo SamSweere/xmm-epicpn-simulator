@@ -23,13 +23,6 @@ def get_img_width_height(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[in
     return int(size_x), int(size_y)
 
 
-def get_surface(emos_num: Literal[1, 2], res_mult: int = 1) -> float:
-    pixel_size = get_pixel_size(emos_num, res_mult)
-    width, height = get_img_width_height(emos_num, res_mult)
-
-    return (pixel_size**2) * width * height
-
-
 def get_ccd_width_height(res_mult: int = 1) -> tuple[int, int]:
     """
     Returns:

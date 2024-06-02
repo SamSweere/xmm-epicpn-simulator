@@ -8,7 +8,13 @@ from loguru import logger
 
 
 def ones_like_xmm(
-    resolution: int | tuple[int, int], cdelt: float, crpix1: float, crpix2: float, run_dir: Path, filename: str
+    resolution: int | tuple[int, int],
+    cdelt1: float,
+    cdelt2: float,
+    crpix1: float,
+    crpix2: float,
+    run_dir: Path,
+    filename: str,
 ) -> Path:
     if isinstance(resolution, int):
         resolution = (resolution, resolution)
@@ -24,8 +30,8 @@ def ones_like_xmm(
         "CRVAL2": 0.0,
         "CUNIT1": "deg",
         "CUNIT2": "deg",
-        "CDELT1": cdelt,
-        "CDELT2": cdelt,
+        "CDELT1": cdelt1,
+        "CDELT2": cdelt2,
         "comment": "This fits image has all pixel value as 1 and has a similar resolution as xmm",
     }
 
