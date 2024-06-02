@@ -260,6 +260,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                     settings: dict = dict(simput_cfg.agn).copy()
                     settings["agn_counts_file"] = agn_counts_file
                     settings["instrument_name"] = instrument
+                    settings["n_gen"] = simput_cfg.agn.n_gen if env_cfg.debug else 1
                     if instrument == "epn" and sim_separate_ccds:
                         from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
 
@@ -269,22 +270,25 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                     else:
                         settings["center_point"] = (0, 0)
 
-                    if env_cfg.debug:
-                        settings["n_gen"] = simput_cfg.agn.n_gen
-                        kwds = ({"img_settings": settings} for _ in range(1))
-                    else:
-                        settings["n_gen"] = 1
-                        kwds = ({"img_settings": settings} for _ in range(simput_cfg.agn.n_gen))
-
                     img_settings.append(settings)
 
-            kwds = (
-                {
-                    "img_settings": img_setting,
-                    "output_dir": agn_path / img_setting.pop("instrument_name"),
-                }
-                for img_setting in img_settings
-            )
+            if env_cfg.debug:
+                kwds = (
+                    {
+                        "img_settings": img_setting,
+                        "output_dir": agn_path / img_setting.pop("instrument_name"),
+                    }
+                    for img_setting in img_settings
+                )
+            else:
+                kwds = (
+                    {
+                        "img_settings": img_setting,
+                        "output_dir": agn_path / img_setting["instrument_name"],
+                    }
+                    for img_setting in img_settings
+                    for _ in range(simput_cfg.agn.n_gen)
+                )
 
             # Get the spectrum file
             spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
