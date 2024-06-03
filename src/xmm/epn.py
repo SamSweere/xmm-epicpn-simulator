@@ -1,12 +1,19 @@
+import os
+import shutil
+import tarfile
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Literal
 
 import numpy as np
 from astropy.io import fits
 from lxml.etree import Element, ElementTree, SubElement
+from pysas.wrapper import Wrapper as sas
 
+from src import xsa
 from src.xmm.ccf import get_epn_lincoord, get_telescope, get_xmm_miscdata
 from src.xmm.utils import get_psf_file, get_vignet_file
+from src.xmm_utils.file_utils import decompress_targz
 
 
 def get_img_width_height(res_mult: int = 1) -> tuple[int, int]:
@@ -93,9 +100,16 @@ def get_cdelt(res_mult: int = 1) -> float:
 
 
 def get_naxis12(res_mult: int = 1) -> tuple[int, int]:
-    # 403x411 is the image size one gets when creating
-    # images from real observations with binSize = 80
-    return (403 * res_mult, 411 * res_mult)
+    # These are the sizes one gets when creating the detector mask
+    # images from real observation 0935190401 with binSize = 80
+    if res_mult == 1:
+        return 403, 411
+    if res_mult == 2:
+        return 805, 822
+    if res_mult == 4:
+        return 1609, 1643
+
+    raise NotImplementedError
 
 
 def get_focal_length() -> float:
@@ -125,47 +139,98 @@ def get_fov() -> float:
     return fov
 
 
-# WARNING: THE FOLLOWING FUNCTION WILL CREATE A THEORETICAL MASK FOR THE EPIC-PN DETECTOR
-# FOR REALISM USE THE ACTUAL CALIBRATED DETECTOR MASK
-def create_detector_mask(res_mult: int = 1) -> np.ndarray:
-    width, height = get_img_width_height(res_mult)
-    pixel_size = get_pixel_size(res_mult)
-    xrval, yrval = get_xyrval()
+def create_mask(
+    emin: float, emax: float, observation_id: str, out_dir: Path, mask_level: str, res_mults: list[int]
+) -> dict[int, Path]:
+    inst = "PN"
+    old_cwd = os.getcwd()
+    with TemporaryDirectory() as tmp_dir:
+        tmp_dir = Path(tmp_dir)
+        obs_dir = tmp_dir / observation_id
+        os.chdir(tmp_dir)
+        xsa.download_data(observation_id, "FTZ", observation_id)
+        with tarfile.open(f"{observation_id}.tar") as tar:
+            tar.extractall()
+        pps_dir = obs_dir / "pps"
+        files = xsa.check_pps_dir(pps_dir)
+        gtis = xsa.make_gti_pps(files, verbose=False)
 
-    mask = np.zeros((width, height))
+        assert len(gtis) > 0
 
-    small_gap = int(np.ceil((round(float(yrval[1] - yrval[0]), 3) - (64 * pixel_size * res_mult)) / pixel_size))
-    large_gap = int(np.ceil((round(float(yrval[0] - yrval[3]), 3) - (64 * pixel_size * res_mult)) / pixel_size))
-    vertical_gap = int(np.ceil((round(float(xrval[0] - xrval[9]), 3) - (200 * pixel_size * res_mult)) / pixel_size))
+        evl = None
+        for file in files["evl_files"]:
+            if inst in file.stem.upper():
+                evl = file
+                break
+        assert evl is not None
 
-    drows = int(np.ceil(round(float(yrval[9] - yrval[0]), 3) / pixel_size))
+        gti = None
+        for file in gtis:
+            if inst in file.stem.upper():
+                gti = file
+                break
+        assert gti is not None
 
-    # --- Upper row ---
-    start = drows
-    end = start + 64 * res_mult
-    for i in range(6):
-        mask[start : end + 1, : (200 * res_mult + 1)] = 1
-        gap = small_gap if i != 2 else large_gap
-        start = end + gap
-        end = start + 64 * res_mult
+        filtered = xsa.filter_events_gti(evl, gti, files, output_name=f"{observation_id}_cleaned.fits", w_dir=obs_dir)
 
-    # --- Bottom row ---
-    start = 0
-    end = start + 64 * res_mult
-    for i in range(6):
-        mask[start : end + 1, (200 * res_mult + vertical_gap) :] = 1
-        gap = small_gap if i != 2 else large_gap
-        start = end + gap
-        end = start + 64 * res_mult
+        assert filtered
 
-    # TODO
-    # For whatever reason the images in the fits files are flipped -> We also have to flip the detector mask
-    # mask = np.flipud(np.fliplr(mask))
+        # Create atthkset
+        odf_dir = obs_dir / "odf"
+        os.chdir(odf_dir)
+        decompress_targz(odf_dir / f"{observation_id}.tar.gz", odf_dir)
+        sas("odfingest", [f"odfdir={odf_dir}", "withodfdir=true"]).run()
 
-    return mask
+        sum_file = next(odf_dir.glob("*SUM.SAS"))
+        sas("atthkgen", ["-o", f"{sum_file}"]).run()
 
+        masks = {}
+        for res_mult in res_mults:
+            bin_size = 80 / res_mult
 
-# TODO Add get_bad_pixels
+            imageset = xsa.make_detxy_image(
+                filtered,
+                pps_dir=pps_dir,
+                pps_files=files,
+                bin_size=bin_size,
+                output_name=f"{observation_id}_detxy.fits",
+                w_dir=obs_dir,
+                radec_image=False,
+            )
+
+            os.chdir(obs_dir)
+            # Create eexpmap
+            expimgset = f"pn_expmap_{res_mult}x.fits"
+            args = [
+                f"imageset={imageset.resolve()}",
+                f"attitudeset={odf_dir / 'atthk.dat'}",
+                f"eventset={filtered.resolve()}",
+                f"expimageset={expimgset}",
+                f"pimin={int(emin * 1000)}",
+                f"pimax={int(emax * 1000)}",
+                "withdetcoords=true",
+            ]
+            sas("eexpmap", args, os.devnull).run()
+            # Create emask
+            emask = f"pn_emask_{res_mult}x.fits"
+            sas("emask", [f"expimageset={expimgset}", f"detmaskset={emask}"], os.devnull).run()
+
+            # Move to out_dir
+            if mask_level == "expmap":
+                mask_path = Path(out_dir) / "expmap" / expimgset
+                with fits.open(Path.cwd() / expimgset, mode="update") as f:
+                    f[0].data[f[0].data > 0] = 1
+
+            if mask_level == "emask":
+                mask_path = Path(out_dir) / "emask" / emask
+
+            mask_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(mask_path.name, mask_path)
+
+            masks[res_mult] = mask_path
+
+    os.chdir(old_cwd)
+    return masks
 
 
 def get_shift_xy(res_mult: int = 1) -> tuple[float, float]:
@@ -194,8 +259,8 @@ def create_xml(
         max_y, max_x = get_ccd_width_height(res_mult=res_mult)
         yrval, xrval = get_xyrval()
         cc12tx, cc12ty = get_cc12_txy()
-        xrval = np.round(xrval + cc12tx, 3) * 1e-3
-        yrval = np.round(yrval - cc12ty, 3) * 1e-3
+        xrval = np.round(xrval + cc12ty, 3) * 1e-3
+        yrval = np.round(yrval - cc12tx, 3) * 1e-3
     else:
         max_x, max_y = get_img_width_height(res_mult=res_mult)
         xrval, yrval = get_cc12_txy()
@@ -279,5 +344,8 @@ def get_xml(
 
     glob_pattern = f"seperate_ccds_{xmm_filter}.xml" if sim_separate_ccds else "combined.xml"
     xml_path: Path = next(root.glob(glob_pattern))
+
+    if not xml_path:
+        raise FileNotFoundError(f"Couldn't find {glob_pattern} for EPN in {root.resolve()}!")
 
     return xml_path

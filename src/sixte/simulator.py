@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from typing import Literal
 from uuid import uuid4
 
+import numpy as np
 from astropy.io import fits
 from loguru import logger
 
@@ -27,6 +28,7 @@ def run_simulation(
     rollangle: float = 0.0,
     sim_separate_ccds: bool = False,
     consume_data: bool = True,
+    emask: Path = None,
 ) -> list[tuple[Path, int]] | None:
     xml_file = get_xml_file(
         xml_dir=xml_dir,
@@ -82,6 +84,13 @@ def run_simulation(
     crpix1, crpix2 = get_crpix12(instrument_name, sim_separate_ccds, res_mult)
 
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
+    if emask is not None:
+        with fits.open(emask, mode="readonly") as f:
+            emask = f["MASK"].data if "MASK" in f else f[0].data
+            if instrument_name == "epn":
+                emask = np.fliplr(emask)
+            if instrument_name == "emos1":
+                emask = np.rot90(emask)
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
         split_evt_file: Path = split_dict["outfile"]
@@ -116,7 +125,7 @@ def run_simulation(
 
         split_img_paths_exps.append((final_img_path, split_exposure))
 
-        # Add specifics to the simput file
+        # Add specifics to the simput file and apply emask if requested
         with fits.open(final_img_path, mode="update") as hdu:
             header = hdu["PRIMARY"].header
             header["EXPOSURE"] = (split_exposure, "Exposure in seconds")
@@ -132,6 +141,9 @@ def run_simulation(
                 f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at "
                 f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
             )
+
+            if emask is not None:
+                hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
 
     return split_img_paths_exps
 
@@ -149,6 +161,7 @@ def run_xmm_simulation(
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
     consume_data: bool,
+    emask: Path = None,
 ):
     logger.info(f"Running simulations for {simput_file.resolve()}")
     with TemporaryDirectory(dir=tmp_dir) as tmp:
@@ -170,6 +183,7 @@ def run_xmm_simulation(
             exposure=exposure,
             sim_separate_ccds=sim_separate_ccds,
             consume_data=consume_data,
+            emask=emask,
         )
 
         if tmp_split_img_paths_exps is None:

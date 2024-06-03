@@ -61,6 +61,6 @@ agn = -1
 bkg = 25000
 
 [instruments.xmm]
-emos1 = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12}
-emos2 = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12}
-epn = {use = true, filter = "thin", sim_separate_ccds = true, max_event_pattern = 4}
+emos1 = {use = true, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12, mask_level = "emask"}
+emos2 = {use = true, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12, mask_level = "expmap"}
+epn = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 4, mask_level = "expmap"}

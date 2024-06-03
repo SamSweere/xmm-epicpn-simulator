@@ -11,9 +11,9 @@ from typing import Literal
 
 from loguru import logger
 
-from src.config import EnvironmentCfg, SimulationCfg
+from src.config import EnergySettings, EnvironmentCfg, SimulationCfg
 from src.sixte.simulator import run_xmm_simulation
-from src.xmm.utils import create_psf_file, create_vinget_file, create_xml_files
+from src.xmm.utils import create_mask, create_psf_file, create_vinget_file, create_xml_files
 from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.multiprocessing import mp_run
 from src.xmm_utils.run_utils import configure_logger, load_satellites
@@ -67,7 +67,9 @@ def _simulate_mode(
         consume_data=env_cfg.consume_data,
     )
     kwds = (
-        {"simput_file": simput.resolve(), "res_mult": res_mult} for res_mult in sim_cfg.res_mults for simput in simputs
+        {"simput_file": simput.resolve(), "res_mult": res_mult, "emask": emasks[instrument_name][res_mult]}
+        for res_mult in sim_cfg.res_mults
+        for simput in simputs
     )
     _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
     logger.success(f"DONE\tSimulating {instrument_name} for {mode.upper()}. Duration: {duration}")
@@ -105,6 +107,7 @@ def run(path_to_cfg: Path) -> None:
         simput_dir=env_cfg.working_dir / "simput",
         out_dir=env_cfg.working_dir / "xmm_sim_dataset",
     )
+    energies = EnergySettings(**cfg.pop("energy"))
 
     satellites = load_satellites(cfg.pop("instruments"))
 
@@ -135,7 +138,6 @@ def run(path_to_cfg: Path) -> None:
         # Decrompress SIMPUT files if needed
         if env_cfg.working_dir != env_cfg.output_dir:
             for mode in sim_cfg.modes:
-                print(f"mode: {mode}")
                 if mode[1] == 0:
                     logger.debug(f"Skipping {mode[0]} since simulation ammount is set to 0.")
                     continue
@@ -156,19 +158,22 @@ def run(path_to_cfg: Path) -> None:
 
         logger.info("START\tCreating all PSF files.")
         to_run = partial(create_psf_file, xml_dir=xml_dir)
-        for _, satellite in satellites.items():
-            kwds = (
-                {"instrument_name": instrument_name, "res_mult": res_mult}
-                for instrument_name in satellite
-                for res_mult in sim_cfg.res_mults
-            )
+
+        kwds = (
+            {"instrument_name": instrument_name, "res_mult": res_mult}
+            for _, satellite in satellites.items()
+            for instrument_name in satellite
+            for res_mult in sim_cfg.res_mults
+        )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
         logger.success(f"DONE\tPSF files have been created. Duration: {duration}")
 
         logger.info("START\tCreating all vignetting files.")
         to_run = partial(create_vinget_file, xml_dir=xml_dir)
-        for _, satellite in satellites.items():
-            kwds = ({"instrument_name": instrument_name} for instrument_name in satellite)
+
+        kwds = (
+            {"instrument_name": instrument_name} for _, satellite in satellites.items() for instrument_name in satellite
+        )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
         logger.success(f"DONE\tVignetting files have been created. Duration: {duration}")
 
@@ -178,19 +183,42 @@ def run(path_to_cfg: Path) -> None:
             xml_dir=xml_dir,
             wait_time=sim_cfg.wait_time,
         )
-        for _, satellite in satellites.items():
-            kwds = (
-                {
-                    "instrument_name": instrument_name,
-                    "xmm_filter": values.filter,
-                    "sim_separate_ccds": values.sim_separate_ccds,
-                    "res_mult": res_mult,
-                }
-                for res_mult in sim_cfg.res_mults
-                for instrument_name, values in satellite.items()
-            )
+
+        kwds = (
+            {
+                "instrument_name": instrument_name,
+                "xmm_filter": values.filter,
+                "sim_separate_ccds": values.sim_separate_ccds,
+                "res_mult": res_mult,
+            }
+            for _, satellite in satellites.items()
+            for res_mult in sim_cfg.res_mults
+            for instrument_name, values in satellite.items()
+        )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
         logger.success(f"DONE\tXML files have been created. Duration: {duration}")
+
+        logger.info("START\tCreating all EMASKs.")
+        to_run = partial(
+            create_mask,
+            observation_id="0935190401",
+            res_mults=sim_cfg.res_mults,
+            energies=energies,
+        )
+
+        kwds = (
+            {
+                "instrument_name": instrument_name,
+                "mask_level": values.mask_level,
+            }
+            for _, satellite in satellites.items()
+            for instrument_name, values in satellite.items()
+        )
+        global emasks
+        emasks, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
+        logger.success(rf"DONE\EMASKs have been created. Duration: {duration}")
+
+        emasks = {key: value for d in emasks for key, value in d.items()}
 
         if sim_cfg.modes.img != 0:
             mode = "img"
