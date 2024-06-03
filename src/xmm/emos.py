@@ -1,12 +1,19 @@
+import os
+import shutil
+import tarfile
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Literal
 
 import numpy as np
 from astropy.io import fits
 from lxml.etree import Element, ElementTree, SubElement
+from pysas.wrapper import Wrapper as sas
 
+from src import xsa
 from src.xmm.ccf import get_emos_lincoord, get_telescope, get_xmm_miscdata
 from src.xmm.utils import get_psf_file, get_vignet_file
+from src.xmm_utils.file_utils import decompress_targz
 
 
 def get_img_width_height(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[int, int]:
@@ -84,18 +91,31 @@ def get_cdelt(res_mult: int = 1) -> float:
 
 
 def get_naxis12(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[int, int]:
+    if res_mult not in [1, 2, 4]:
+        raise NotImplementedError
     if emos_num == 1:
-        # 1985x2006 is the image size one gets when creating
-        # images from real observations with binSize = 20
+        # These are the sizes one gets when creating the detector mask
+        # images from real observation 0935190401 with binSize = 20
         # Since we rotate the image to represent the orientation
         # of EMOS1 relative to EPN we have to switch the axis
-        return (2006 * res_mult, 1985 * res_mult)
+        if res_mult == 1:
+            return 2007, 1316
+        if res_mult == 2:
+            return 4012, 2634
+        if res_mult == 4:
+            return 8024, 5267
+
     if emos_num == 2:
-        # 1993x2003 is the image size one gets when creating
-        # images from real observations with binSize = 20
+        # These are the sizes one gets when creating the detector mask
+        # images from real observation 0935190401 with binSize = 20
         # Since we rotate the image to represent the orientation
         # of EMOS2 relative to EPN we don't have to switch the axis
-        return (1993 * res_mult, 2003 * res_mult)
+        if res_mult == 1:
+            return 1993, 2003
+        if res_mult == 2:
+            return 3986, 4006
+        if res_mult == 4:
+            return 7971, 8012
 
 
 def get_focal_length(emos_num: Literal[1, 2]) -> float:
@@ -122,6 +142,98 @@ def get_fov(emos_num: Literal[1, 2]) -> float:
         fov = xrt[xrt["PARM_ID"] == "FOV_RADIUS"]["PARM_VAL"].astype(float).item() * 2
 
     return fov
+
+
+def create_expmap_emask(
+    emos_num: Literal[1, 2], observation_id: str, out_dir: Path, res_mults: list[int] = None
+) -> list[tuple[Path, Path]]:
+    if res_mults is None:
+        res_mults = [1]
+    inst = f"M{emos_num}"
+    old_cwd = os.getcwd()
+    with TemporaryDirectory() as tmp_dir:
+        tmp_dir = Path(tmp_dir)
+        obs_dir = tmp_dir / observation_id
+        os.chdir(tmp_dir)
+        xsa.download_data(observation_id, "FTZ", observation_id)
+        with tarfile.open(f"{observation_id}.tar") as tar:
+            tar.extractall()
+        pps_dir = obs_dir / "pps"
+        files = xsa.check_pps_dir(pps_dir)
+        gtis = xsa.make_gti_pps(files, out_dir=tmp_dir, verbose=False)
+
+        assert len(gtis) > 0
+
+        evl = None
+        for file in files["evl_files"]:
+            if inst in file.stem.upper():
+                evl = file
+                break
+        assert evl is not None
+
+        gti = None
+        for file in gtis:
+            if inst in file.stem.upper():
+                gti = file
+                break
+        assert gti is not None
+
+        filtered = xsa.filter_events_gti(evl, gti, files, output_name=f"{observation_id}_cleaned.fits", w_dir=obs_dir)
+
+        assert filtered
+
+        # Create atthkset
+        odf_dir = obs_dir / "odf"
+        os.chdir(odf_dir)
+        decompress_targz(odf_dir / f"{observation_id}.tar.gz", odf_dir)
+        sas("odfingest", [f"odfdir={odf_dir}", "withodfdir=true"]).run()
+
+        sum_file = next(odf_dir.glob("*SUM.SAS"))
+        sas("atthkgen", ["-o", f"{sum_file}"]).run()
+
+        files = []
+        for res_mult in res_mults:
+            bin_size = 20 / res_mult
+
+            imageset = xsa.make_detxy_image(
+                filtered,
+                pps_dir=pps_dir,
+                pps_files=files,
+                bin_size=bin_size,
+                output_name=f"{observation_id}_detxy.fits",
+                w_dir=obs_dir,
+                radec_image=False,
+            )
+
+            os.chdir(obs_dir)
+            # Create eexpmap
+            expimgset = f"{inst}_expmap_{res_mult}x.fits"
+            args = [
+                f"imageset={imageset.resolve()}",
+                f"attitudeset={odf_dir / 'atthk.dat'}",
+                f"eventset={filtered.resolve()}",
+                f"expimageset={expimgset}",
+                "withdetcoords=true",
+            ]
+            sas("eexpmap", args, os.devnull).run()
+            # Create emask
+            emask = f"{inst}_emask_{res_mult}x.fits"
+            sas("emask", [f"expimageset={expimgset}", f"detmaskset={emask}"], os.devnull).run()
+
+            # Move to out_dir
+            expmap_path = Path(out_dir / "expmap" / expimgset)
+            emask_path = Path(out_dir / "emask" / emask)
+            expmap_path.parent.mkdir(parents=True, exist_ok=True)
+            emask_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(expimgset, expmap_path)
+            shutil.move(emask, emask_path)
+            files.append((expmap_path, emask_path))
+
+        # TODO DO NOT FORGET TO np.fliplr, np.flipud THE EXPMAP
+        # shutil.rmtree(pps_dir)
+
+    os.chdir(old_cwd)
+    return files
 
 
 def create_xml(
@@ -186,6 +298,9 @@ def create_xml(
     )
 
     for i in range(len(rotas)):
+        if (emos_num == 1) and (i == 2 or i == 5):
+            # TODO Make the choice if CCD3 and CCD6 for EMOS1 should be used a config parameter
+            continue
         detector = SubElement(instrument, "detector", type="ccd", chip=f"{i}")
         SubElement(detector, "dimensions", xwidth=f"{width}", ywidth=f"{height}")
         SubElement(
@@ -248,5 +363,8 @@ def get_xml(
 
     glob_pattern = f"seperate_ccds_{xmm_filter}.xml" if sim_separate_ccds else "combined.xml"
     xml_path: Path = next(root.glob(glob_pattern))
+
+    if not xml_path:
+        raise FileNotFoundError(f"Couldn't find {glob_pattern} for EMOS{emos_num} in {root.resolve()}!")
 
     return xml_path
