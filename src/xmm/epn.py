@@ -139,7 +139,7 @@ def get_fov() -> float:
     return fov
 
 
-def create_expmap_emask(observation_id: str, out_dir: Path, res_mults: list[int] = None) -> list[tuple[Path, Path]]:
+def create_emask(observation_id: str, out_dir: Path, res_mults: list[int] = None) -> dict[int, Path]:
     if res_mults is None:
         res_mults = [1]
     inst = "PN"
@@ -184,7 +184,7 @@ def create_expmap_emask(observation_id: str, out_dir: Path, res_mults: list[int]
         sum_file = next(odf_dir.glob("*SUM.SAS"))
         sas("atthkgen", ["-o", f"{sum_file}"]).run()
 
-        files = []
+        emasks = {}
         for res_mult in res_mults:
             bin_size = 80 / res_mult
 
@@ -214,19 +214,13 @@ def create_expmap_emask(observation_id: str, out_dir: Path, res_mults: list[int]
             sas("emask", [f"expimageset={expimgset}", f"detmaskset={emask}"], os.devnull).run()
 
             # Move to out_dir
-            expmap_path = Path(out_dir / "expmap" / expimgset)
             emask_path = Path(out_dir / "emask" / emask)
-            expmap_path.parent.mkdir(parents=True, exist_ok=True)
             emask_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(expimgset, expmap_path)
             shutil.move(emask, emask_path)
-            files.append((expmap_path, emask_path))
-
-            # TODO DO NOT FORGET TO np.fliplr, np.flipud THE EXPMAP
-            # shutil.rmtree(pps_dir)
+            emasks[res_mult] = emask_path
 
     os.chdir(old_cwd)
-    return files
+    return emasks
 
 
 def get_shift_xy(res_mult: int = 1) -> tuple[float, float]:

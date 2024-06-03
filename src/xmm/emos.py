@@ -99,7 +99,7 @@ def get_naxis12(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[int, int]:
         # Since we rotate the image to represent the orientation
         # of EMOS1 relative to EPN we have to switch the axis
         if res_mult == 1:
-            return 2007, 1316
+            return 2006, 1317
         if res_mult == 2:
             return 4012, 2634
         if res_mult == 4:
@@ -144,9 +144,9 @@ def get_fov(emos_num: Literal[1, 2]) -> float:
     return fov
 
 
-def create_expmap_emask(
+def create_emask(
     emos_num: Literal[1, 2], observation_id: str, out_dir: Path, res_mults: list[int] = None
-) -> list[tuple[Path, Path]]:
+) -> dict[int, Path]:
     if res_mults is None:
         res_mults = [1]
     inst = f"M{emos_num}"
@@ -191,7 +191,7 @@ def create_expmap_emask(
         sum_file = next(odf_dir.glob("*SUM.SAS"))
         sas("atthkgen", ["-o", f"{sum_file}"]).run()
 
-        files = []
+        emasks = {}
         for res_mult in res_mults:
             bin_size = 20 / res_mult
 
@@ -221,19 +221,13 @@ def create_expmap_emask(
             sas("emask", [f"expimageset={expimgset}", f"detmaskset={emask}"], os.devnull).run()
 
             # Move to out_dir
-            expmap_path = Path(out_dir / "expmap" / expimgset)
             emask_path = Path(out_dir / "emask" / emask)
-            expmap_path.parent.mkdir(parents=True, exist_ok=True)
             emask_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(expimgset, expmap_path)
             shutil.move(emask, emask_path)
-            files.append((expmap_path, emask_path))
-
-        # TODO DO NOT FORGET TO np.fliplr, np.flipud THE EXPMAP
-        # shutil.rmtree(pps_dir)
+            emasks[res_mult] = emask_path.resolve()
 
     os.chdir(old_cwd)
-    return files
+    return emasks
 
 
 def create_xml(
