@@ -81,7 +81,7 @@ def run_simulation(
     cdelt1 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
     cdelt2 = -cdelt1
 
-    crpix1, crpix2 = get_crpix12(instrument_name, sim_separate_ccds, res_mult)
+    crpix1, crpix2 = get_crpix12(instrument_name, res_mult)
 
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
     if emask is not None:

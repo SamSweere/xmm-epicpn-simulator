@@ -15,7 +15,6 @@ from src.xmm_utils.file_utils import compress_gzip
 
 def create_background(
     instrument_name: Literal["epn", "emos1", "emos2"],
-    sim_separate_ccds: bool,
     emin: float,
     emax: float,
     run_dir: Path,
@@ -26,7 +25,6 @@ def create_background(
             run_dir=run_dir,
             spectrum_file=spectrum_file,
             instrument_name=instrument_name,
-            sim_separate_ccds=sim_separate_ccds,
             emin=emin,
             emax=emax,
         )
@@ -128,7 +126,6 @@ def simput_generate(
                 emax=emax,
                 run_dir=run_dir,
                 spectrum_file=spectrum_file,
-                sim_separate_ccds=img_settings["sim_separate_ccds"],
             )
 
         for file_name in file_names:

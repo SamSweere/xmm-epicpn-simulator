@@ -181,7 +181,6 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 for instrument in satellite:
                     inst = satellite[instrument]
                     filter = inst.filter_abbrv
-                    sim_separate_ccds = inst.sim_separate_ccds
 
                     spectrum_name = f"{instrument[1]}{instrument[-1]}{filter}ffg_spectrum.fits"
                     spectrum_file = spectrum_dir / instrument / spectrum_name
@@ -202,7 +201,6 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                             "fov": fov,
                             "instrument_name": instrument,
                             "output_dir": bkg_path,
-                            "sim_separate_ccds": sim_separate_ccds,
                         }
                     )
 
@@ -254,14 +252,13 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             for _, satellite in satellites.items():
                 for instrument in satellite:
                     inst = satellite[instrument]
-                    sim_separate_ccds = inst.sim_separate_ccds
 
                     # Get the fluxes from the agn distribution
                     settings: dict = dict(simput_cfg.agn).copy()
                     settings["agn_counts_file"] = agn_counts_file
                     settings["instrument_name"] = instrument
                     settings["n_gen"] = simput_cfg.agn.n_gen if env_cfg.debug else 1
-                    if instrument == "epn" and sim_separate_ccds:
+                    if instrument == "epn":
                         from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
 
                         cc12_tx, cc12_ty = get_cc12_txy()
