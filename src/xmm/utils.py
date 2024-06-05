@@ -69,10 +69,10 @@ def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_crpix12(instrument_name: str, sim_separate_ccds: bool, res_mult: int):
+def get_crpix12(instrument_name: str, res_mult: int):
     naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
 
-    if instrument_name == "epn" and sim_separate_ccds:
+    if instrument_name == "epn":
         from src.xmm.epn import get_shift_xy
 
         shift_y, shift_x = get_shift_xy(res_mult=res_mult)

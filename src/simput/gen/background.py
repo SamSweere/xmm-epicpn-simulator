@@ -38,7 +38,6 @@ def background(
     run_dir: Path,
     spectrum_file: Path,
     instrument_name: Literal["epn", "emos1", "emos2"],
-    sim_separate_ccds: bool,
     emin: float,
     emax: float,
     suffix=None,
@@ -50,7 +49,7 @@ def background(
     cdelt2 = -cdelt1
     naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=1)
 
-    crpix1, crpix2 = get_crpix12(instrument_name, sim_separate_ccds, 1)
+    crpix1, crpix2 = get_crpix12(instrument_name, 1)
 
     image_file = ones_like_xmm(
         resolution=(naxis1, naxis2),
