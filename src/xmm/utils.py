@@ -6,6 +6,7 @@ from typing import Literal
 import numpy as np
 from astropy.io import fits
 
+from src.config import EnergySettings
 from src.xmm.ccf import get_xrt_xareaef
 
 available_instruments = ["epn", "emos1", "emos2"]
@@ -249,17 +250,35 @@ def create_psf_file(instrument_name: str, xml_dir: Path, res_mult: int) -> None:
                 primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT2"] / res_mult
 
 
-def create_emask(instrument_name: str, observation_id: str, res_mults: list[int] = None) -> dict[str, dict[int, Path]]:
+def create_mask(
+    instrument_name: str,
+    observation_id: str,
+    mask_level: str | None,
+    energies: EnergySettings,
+    res_mults: list[int] = None,
+) -> dict[str, dict[int, Path]] | None:
+    if mask_level is None:
+        return None
+
+    if res_mults is None:
+        res_mults = [1]
+
     out_dir = Path("res").resolve()
     if instrument_name == "epn":
-        from src.xmm.epn import create_emask
+        from src.xmm.epn import create_mask
 
-        return {instrument_name: create_emask(observation_id, out_dir, res_mults)}
+        return {
+            instrument_name: create_mask(energies.emin, energies.emax, observation_id, out_dir, mask_level, res_mults)
+        }
 
     if instrument_name == "emos1" or instrument_name == "emos2":
-        from src.xmm.emos import create_emask
+        from src.xmm.emos import create_mask
 
-        return {instrument_name: create_emask(instrument_name[-1], observation_id, out_dir, res_mults)}
+        return {
+            instrument_name: create_mask(
+                energies.emin, energies.emax, instrument_name[-1], observation_id, out_dir, mask_level, res_mults
+            )
+        }
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 

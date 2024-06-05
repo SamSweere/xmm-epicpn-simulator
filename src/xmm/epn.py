@@ -139,9 +139,9 @@ def get_fov() -> float:
     return fov
 
 
-def create_emask(observation_id: str, out_dir: Path, res_mults: list[int] = None) -> dict[int, Path]:
-    if res_mults is None:
-        res_mults = [1]
+def create_mask(
+    emin: float, emax: float, observation_id: str, out_dir: Path, mask_level: str, res_mults: list[int]
+) -> dict[int, Path]:
     inst = "PN"
     old_cwd = os.getcwd()
     with TemporaryDirectory() as tmp_dir:
@@ -184,7 +184,7 @@ def create_emask(observation_id: str, out_dir: Path, res_mults: list[int] = None
         sum_file = next(odf_dir.glob("*SUM.SAS"))
         sas("atthkgen", ["-o", f"{sum_file}"]).run()
 
-        emasks = {}
+        masks = {}
         for res_mult in res_mults:
             bin_size = 80 / res_mult
 
@@ -206,6 +206,8 @@ def create_emask(observation_id: str, out_dir: Path, res_mults: list[int] = None
                 f"attitudeset={odf_dir / 'atthk.dat'}",
                 f"eventset={filtered.resolve()}",
                 f"expimageset={expimgset}",
+                f"pimin={int(emin * 1000)}",
+                f"pimax={int(emax * 1000)}",
                 "withdetcoords=true",
             ]
             sas("eexpmap", args, os.devnull).run()
@@ -214,13 +216,21 @@ def create_emask(observation_id: str, out_dir: Path, res_mults: list[int] = None
             sas("emask", [f"expimageset={expimgset}", f"detmaskset={emask}"], os.devnull).run()
 
             # Move to out_dir
-            emask_path = Path(out_dir / "emask" / emask)
-            emask_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(emask, emask_path)
-            emasks[res_mult] = emask_path
+            if mask_level == "expmap":
+                mask_path = Path(out_dir) / "expmap" / expimgset
+                with fits.open(Path.cwd() / expimgset, mode="update") as f:
+                    f[0].data[f[0].data > 0] = 1
+
+            if mask_level == "emask":
+                mask_path = Path(out_dir) / "emask" / emask
+
+            mask_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(mask_path.name, mask_path)
+
+            masks[res_mult] = mask_path
 
     os.chdir(old_cwd)
-    return emasks
+    return masks
 
 
 def get_shift_xy(res_mult: int = 1) -> tuple[float, float]:

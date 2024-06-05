@@ -11,9 +11,9 @@ from typing import Literal
 
 from loguru import logger
 
-from src.config import EnvironmentCfg, SimulationCfg
+from src.config import EnergySettings, EnvironmentCfg, SimulationCfg
 from src.sixte.simulator import run_xmm_simulation
-from src.xmm.utils import create_emask, create_psf_file, create_vinget_file, create_xml_files
+from src.xmm.utils import create_mask, create_psf_file, create_vinget_file, create_xml_files
 from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.multiprocessing import mp_run
 from src.xmm_utils.run_utils import configure_logger, load_satellites
@@ -107,6 +107,7 @@ def run(path_to_cfg: Path) -> None:
         simput_dir=env_cfg.working_dir / "simput",
         out_dir=env_cfg.working_dir / "xmm_sim_dataset",
     )
+    energies = EnergySettings(**cfg.pop("energy"))
 
     satellites = load_satellites(cfg.pop("instruments"))
 
@@ -199,17 +200,19 @@ def run(path_to_cfg: Path) -> None:
 
         logger.info("START\tCreating all EMASKs.")
         to_run = partial(
-            create_emask,
+            create_mask,
             observation_id="0935190401",
             res_mults=sim_cfg.res_mults,
+            energies=energies,
         )
 
         kwds = (
             {
                 "instrument_name": instrument_name,
+                "mask_level": values.mask_level,
             }
             for _, satellite in satellites.items()
-            for instrument_name in satellite
+            for instrument_name, values in satellite.items()
         )
         global emasks
         emasks, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)

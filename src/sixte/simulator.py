@@ -86,7 +86,7 @@ def run_simulation(
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
     if emask is not None:
         with fits.open(emask, mode="readonly") as f:
-            emask = f["MASK"].data
+            emask = f["MASK"].data if "MASK" in f else f[0].data
             if instrument_name == "epn":
                 emask = np.fliplr(emask)
             if instrument_name == "emos1":
