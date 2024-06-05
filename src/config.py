@@ -114,7 +114,7 @@ class _SimputAgn(BaseModel):
 
 
 class _SimputBkg(BaseModel):
-    n_gen: NonNegativeInt
+    n_gen: int = 0 | 1
 
 
 class SimputCfg(BaseModel):
@@ -187,7 +187,7 @@ class _EPN(BaseModel):
         return filters[self.filter]
 
 
-class XMMInstrument(BaseModel):
+class XMM(BaseModel):
     emos1: _EMOS
     emos2: _EMOS
     epn: _EPN

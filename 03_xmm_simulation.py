@@ -32,10 +32,6 @@ def _simulate_mode(
     xmm_filter_dir: Path,
     xml_dir: Path,
 ) -> None:
-    if amount == 0:
-        logger.info(f"Skipping {mode.upper()} simulation for {instrument_name} since n_gen is set to {amount}.")
-        return
-
     logger.info(f"START\tSimulating {instrument_name} for {mode.upper()}.")
 
     # Find the simput files
@@ -128,21 +124,22 @@ def run(path_to_cfg: Path) -> None:
         sim_dir = Path(sim_dir)
 
         # Create all needed directories
-        for _, satellite in satellites.items():
-            for instrument_name, values in satellite.items():
-                instrument_dir = xml_dir / instrument_name
+        for sat in satellites:
+            for name, instrument in sat:
+                if not instrument.use:
+                    continue
+                filter_dir: Path = xml_dir / name / instrument.filter
                 for res_mult in sim_cfg.res_mults:
-                    res_mult_dir = instrument_dir / values.filter / f"{res_mult}x"
-                    res_mult_dir.mkdir(exist_ok=True, parents=True)
+                    (filter_dir / f"{res_mult}x").mkdir(exist_ok=True, parents=True)
 
         # Decrompress SIMPUT files if needed
         if env_cfg.working_dir != env_cfg.output_dir:
-            for mode in sim_cfg.modes:
-                if mode[1] == 0:
-                    logger.debug(f"Skipping {mode[0]} since simulation ammount is set to 0.")
+            for mode, amount in sim_cfg.modes:
+                if amount == 0:
+                    logger.debug(f"Skipping {mode} since simulation ammount is set to 0.")
                     continue
 
-                simput_dir = env_cfg.output_dir / "simput" / mode[0]
+                simput_dir = env_cfg.output_dir / "simput" / mode
 
                 simput_compressed_files = [next(simput_dir.rglob("*.tar.gz"))]
 
@@ -151,7 +148,7 @@ def run(path_to_cfg: Path) -> None:
                         logger.info(f"Found compressed SIMPUT files in {simput_compressed.resolve()}. Decompressing...")
                         decompress_targz(
                             in_file_path=simput_compressed,
-                            out_file_dir=sim_cfg.simput_dir / mode[0],
+                            out_file_dir=sim_cfg.simput_dir / mode,
                             tar_options="--strip-components=1",
                         )
                         logger.success("DONE\tDecompressing SIMPUT files.")
@@ -160,9 +157,10 @@ def run(path_to_cfg: Path) -> None:
         to_run = partial(create_psf_file, xml_dir=xml_dir)
 
         kwds = (
-            {"instrument_name": instrument_name, "res_mult": res_mult}
-            for _, satellite in satellites.items()
-            for instrument_name in satellite
+            {"instrument_name": name, "res_mult": res_mult}
+            for sat in satellites
+            for name, instrument in sat
+            if instrument.use
             for res_mult in sim_cfg.res_mults
         )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
@@ -171,9 +169,7 @@ def run(path_to_cfg: Path) -> None:
         logger.info("START\tCreating all vignetting files.")
         to_run = partial(create_vinget_file, xml_dir=xml_dir)
 
-        kwds = (
-            {"instrument_name": instrument_name} for _, satellite in satellites.items() for instrument_name in satellite
-        )
+        kwds = ({"instrument_name": name} for name, instrument in sat if instrument.use)
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
         logger.success(f"DONE\tVignetting files have been created. Duration: {duration}")
 
@@ -186,14 +182,15 @@ def run(path_to_cfg: Path) -> None:
 
         kwds = (
             {
-                "instrument_name": instrument_name,
-                "xmm_filter": values.filter,
-                "sim_separate_ccds": values.sim_separate_ccds,
+                "instrument_name": name,
+                "xmm_filter": instrument.filter,
+                "sim_separate_ccds": instrument.sim_separate_ccds,
                 "res_mult": res_mult,
             }
-            for _, satellite in satellites.items()
+            for sat in satellites
+            for name, instrument in sat
+            if instrument.use
             for res_mult in sim_cfg.res_mults
-            for instrument_name, values in satellite.items()
         )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
         logger.success(f"DONE\tXML files have been created. Duration: {duration}")
@@ -208,77 +205,39 @@ def run(path_to_cfg: Path) -> None:
 
         kwds = (
             {
-                "instrument_name": instrument_name,
-                "mask_level": values.mask_level,
+                "instrument_name": name,
+                "mask_level": instrument.mask_level,
             }
-            for _, satellite in satellites.items()
-            for instrument_name, values in satellite.items()
+            for sat in satellites
+            for name, instrument in sat
+            if instrument.use
         )
         global emasks
         emasks, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-        logger.success(rf"DONE\EMASKs have been created. Duration: {duration}")
+        logger.success(f"DONE\tEMASKs have been created. Duration: {duration}")
 
         emasks = {key: value for d in emasks for key, value in d.items()}
 
-        if sim_cfg.modes.img != 0:
-            mode = "img"
-            for _, satellite in satellites.items():
-                for instrument_name, values in satellite.items():
-                    xmm_filter_dir = sim_cfg.out_dir / instrument_name / values.filter
+        for mode, amount in sim_cfg.modes:
+            if amount == 0:
+                logger.info(f"Skipping {mode.upper()} simulation since amount is 0.")
+                continue
+
+            for sat in satellites:
+                for name, instrument in sat:
+                    if not instrument.use:
+                        continue
+                    xmm_filter_dir = sim_cfg.out_dir / name / instrument.filter
                     xmm_filter_dir.mkdir(exist_ok=True, parents=True)
 
                     _simulate_mode(
-                        instrument_name=instrument_name,
-                        max_event_pattern=values.max_event_pattern,
+                        instrument_name=name,
+                        max_event_pattern=instrument.max_event_pattern,
                         mode=mode,
-                        amount=sim_cfg.modes.img,
+                        amount=amount,
                         sim_dir=sim_dir,
-                        xmm_filter=values.filter,
-                        sim_separate_ccds=values.sim_separate_ccds,
-                        xmm_filter_dir=xmm_filter_dir,
-                        xml_dir=xml_dir,
-                    )
-
-            if env_cfg.working_dir != env_cfg.output_dir:
-                shutil.rmtree(sim_cfg.simput_dir / f"{mode}")
-
-        if sim_cfg.modes.agn != 0:
-            mode = "agn"
-            for _, satellite in satellites.items():
-                for instrument_name, values in satellite.items():
-                    xmm_filter_dir = sim_cfg.out_dir / instrument_name / values.filter
-                    xmm_filter_dir.mkdir(exist_ok=True, parents=True)
-
-                    _simulate_mode(
-                        instrument_name=instrument_name,
-                        max_event_pattern=values.max_event_pattern,
-                        mode=mode,
-                        amount=sim_cfg.modes.agn,
-                        sim_dir=sim_dir,
-                        xmm_filter=values.filter,
-                        sim_separate_ccds=values.sim_separate_ccds,
-                        xmm_filter_dir=xmm_filter_dir,
-                        xml_dir=xml_dir,
-                    )
-
-            if env_cfg.working_dir != env_cfg.output_dir:
-                shutil.rmtree(sim_cfg.simput_dir / f"{mode}")
-
-        if sim_cfg.modes.bkg != 0:
-            mode = "bkg"
-            for _, satellite in satellites.items():
-                for instrument_name, values in satellite.items():
-                    xmm_filter_dir = sim_cfg.out_dir / instrument_name / values.filter
-                    xmm_filter_dir.mkdir(exist_ok=True, parents=True)
-
-                    _simulate_mode(
-                        instrument_name=instrument_name,
-                        max_event_pattern=values.max_event_pattern,
-                        mode=mode,
-                        amount=sim_cfg.modes.bkg,
-                        sim_dir=sim_dir,
-                        xmm_filter=values.filter,
-                        sim_separate_ccds=values.sim_separate_ccds,
+                        xmm_filter=instrument.filter,
+                        sim_separate_ccds=instrument.sim_separate_ccds,
                         xmm_filter_dir=xmm_filter_dir,
                         xml_dir=xml_dir,
                     )
