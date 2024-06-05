@@ -342,7 +342,7 @@ def get_xml(
     instrument_path = xml_dir / "epn"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
-    glob_pattern = f"seperate_ccds_{xmm_filter}.xml" if sim_separate_ccds else "combined.xml"
+    glob_pattern = f"seperate_ccds_{xmm_filter}.xml" if sim_separate_ccds else f"combined_ccd_{xmm_filter}.xml"
     xml_path: Path = next(root.glob(glob_pattern))
 
     if not xml_path:
