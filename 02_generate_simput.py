@@ -178,6 +178,9 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
 
             for sat in satellites:
                 for name, instrument in sat:
+                    if not instrument.use:
+                        continue
+
                     filter = instrument.filter_abbrv
 
                     spectrum_name = f"{name[1]}{name[-1]}{filter}ffg_spectrum.fits"
@@ -248,8 +251,10 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             img_settings = []
 
             for sat in satellites:
-                for name, _ in sat:
-                    # Get the fluxes from the agn distribution
+                for name, instrument in sat:
+                    if not instrument.use:
+                        continue
+
                     settings: dict = dict(simput_cfg.agn).copy()
                     settings["agn_counts_file"] = agn_counts_file
                     settings["instrument_name"] = name

@@ -126,6 +126,8 @@ def run(path_to_cfg: Path) -> None:
         # Create all needed directories
         for sat in satellites:
             for name, instrument in sat:
+                if not instrument.use:
+                    continue
                 filter_dir: Path = xml_dir / name / instrument.filter
                 for res_mult in sim_cfg.res_mults:
                     (filter_dir / f"{res_mult}x").mkdir(exist_ok=True, parents=True)
@@ -157,7 +159,8 @@ def run(path_to_cfg: Path) -> None:
         kwds = (
             {"instrument_name": name, "res_mult": res_mult}
             for sat in satellites
-            for name, _ in sat
+            for name, instrument in sat
+            if instrument.use
             for res_mult in sim_cfg.res_mults
         )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
@@ -166,7 +169,7 @@ def run(path_to_cfg: Path) -> None:
         logger.info("START\tCreating all vignetting files.")
         to_run = partial(create_vinget_file, xml_dir=xml_dir)
 
-        kwds = ({"instrument_name": name} for sat in satellites for name, _ in sat)
+        kwds = ({"instrument_name": name} for name, instrument in sat if instrument.use)
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
         logger.success(f"DONE\tVignetting files have been created. Duration: {duration}")
 
@@ -185,8 +188,9 @@ def run(path_to_cfg: Path) -> None:
                 "res_mult": res_mult,
             }
             for sat in satellites
-            for res_mult in sim_cfg.res_mults
             for name, instrument in sat
+            if instrument.use
+            for res_mult in sim_cfg.res_mults
         )
         _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
         logger.success(f"DONE\tXML files have been created. Duration: {duration}")
@@ -206,19 +210,23 @@ def run(path_to_cfg: Path) -> None:
             }
             for sat in satellites
             for name, instrument in sat
+            if instrument.use
         )
         global emasks
         emasks, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-        logger.success(rf"DONE\EMASKs have been created. Duration: {duration}")
+        logger.success(f"DONE\tEMASKs have been created. Duration: {duration}")
 
         emasks = {key: value for d in emasks for key, value in d.items()}
 
         for mode, amount in sim_cfg.modes:
             if amount == 0:
                 logger.info(f"Skipping {mode.upper()} simulation since amount is 0.")
+                continue
 
             for sat in satellites:
                 for name, instrument in sat:
+                    if not instrument.use:
+                        continue
                     xmm_filter_dir = sim_cfg.out_dir / name / instrument.filter
                     xmm_filter_dir.mkdir(exist_ok=True, parents=True)
 
