@@ -71,7 +71,7 @@ def create_agn_simput(
                 offset=offset,
             )
             simput_files.append(output_file)
-        merged = merge_simputs(simput_files=simput_files, output_file=run_dir / "merged.simput")
+        merged = merge_simputs(simput_files=simput_files, output_file=run_dir / f"merged_{unique_id}.simput")
         compress_gzip(in_file_path=merged, out_file_path=output_dir / final_name, remove_file=True)
 
         for file in simput_files:

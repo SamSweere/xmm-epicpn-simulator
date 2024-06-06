@@ -63,6 +63,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 decompress_targz(
                     in_file_path=simput_cfg.fits_compressed,
                     out_file_dir=simput_cfg.fits_dir,
+                    tar_options="--strip-components=1",
                 )
 
             to_create: list[tuple[Path, int]] = []
