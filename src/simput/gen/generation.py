@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 from typing import Literal
 from uuid import uuid4
 
+import numpy as np
 from loguru import logger
 
 from src.simput.agn import get_fluxes
@@ -39,8 +40,10 @@ def create_agn_sources(
     run_dir: Path,
     img_settings: dict,
     xspec_file: Path,
+    rng: np.random.Generator,
 ):
     output_files = []
+    fov = img_settings["fov"]
 
     for _ in range(img_settings["n_gen"]):
         # Use the current time as id, such that clashes don't happen
@@ -69,7 +72,7 @@ def create_agn_sources(
                 src_flux=flux,
                 xspec_file=xspec_file,
                 center_point=img_settings["center_point"],
-                offset="random",
+                offset=rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=2),
             )
             simput_files.append(output_file)
         output_file = merge_simputs(simput_files=simput_files, output_file=output_file_path)
@@ -89,6 +92,7 @@ def simput_generate(
     tmp_dir: Path,
     output_dir: Path,
     spectrum_file: Path,
+    **kwargs,
 ) -> None:
     with TemporaryDirectory(dir=tmp_dir) as temp:
         run_dir = Path(temp)
@@ -102,6 +106,7 @@ def simput_generate(
                 run_dir=run_dir,
                 img_settings=img_settings,
                 xspec_file=spectrum_file,
+                rng=kwargs["rng"],
             )
             output_dir.mkdir(parents=True, exist_ok=True)
 

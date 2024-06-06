@@ -237,6 +237,8 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 shutil.rmtree(bkg_path)
 
         if simput_cfg.agn.n_gen > 0:
+            from src.xmm.utils import get_fov
+
             if agn_counts_file is None:
                 raise FileNotFoundError(f"{agn_counts_file} does not exist!")
 
@@ -259,6 +261,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                     settings["agn_counts_file"] = agn_counts_file
                     settings["instrument_name"] = name
                     settings["n_gen"] = simput_cfg.agn.n_gen if env_cfg.debug else 1
+                    settings["fov"] = get_fov(name)
                     if name == "epn":
                         from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
 
@@ -270,11 +273,15 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
 
                     img_settings.append(settings)
 
+            # Create a random generator instance and pass it around to make sure, that the AGNs are in the same place
+            # for all instruments
+            rng = np.random.default_rng()
             if env_cfg.debug:
                 kwds = (
                     {
                         "img_settings": img_setting,
                         "output_dir": agn_path / img_setting.pop("instrument_name"),
+                        "rng": rng,
                     }
                     for img_setting in img_settings
                 )
@@ -283,6 +290,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                     {
                         "img_settings": img_setting,
                         "output_dir": agn_path / img_setting["instrument_name"],
+                        "rng": rng,
                     }
                     for img_setting in img_settings
                     for _ in range(simput_cfg.agn.n_gen)
