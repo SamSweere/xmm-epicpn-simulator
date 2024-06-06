@@ -83,7 +83,7 @@ def get_pixel_size(res_mult: int = 1) -> float:
     return round(p_delt / res_mult, 3)
 
 
-def get_cdelt(res_mult: int = 1) -> float:
+def get_cdelt(res_mult: int = 1) -> tuple[float, float]:
     # cdelt give the pixel sizes in degrees
     # The correct way would be to use get_plate_scale_xy()
     # BUT: When creating the dataset based on real observations
@@ -96,7 +96,7 @@ def get_cdelt(res_mult: int = 1) -> float:
     # in binSize = 80
     c_delt = np.round((4.0 / 3600) / res_mult, 6)
 
-    return c_delt
+    return c_delt, -c_delt
 
 
 def get_naxis12(res_mult: int = 1) -> tuple[int, int]:

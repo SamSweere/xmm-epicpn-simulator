@@ -45,10 +45,8 @@ def background(
 ) -> Path:
     suffix = f"_{instrument_name}" if suffix is None else f"_{suffix}"
 
-    cdelt1 = get_cdelt(instrument_name=instrument_name, res_mult=1)
-    cdelt2 = -cdelt1
+    cdelt1, cdelt2 = get_cdelt(instrument_name=instrument_name, res_mult=1)
     naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=1)
-
     crpix1, crpix2 = get_crpix12(instrument_name, 1)
 
     image_file = ones_like_xmm(
