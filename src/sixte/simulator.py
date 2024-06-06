@@ -191,7 +191,7 @@ def run_xmm_simulation(
             file_path: Path = p[0]
             split_exp = p[1]
 
-            final_img_directory = out_dir / f"{round(split_exp / 1000)}ks" / mode
+            final_img_directory = out_dir / mode / f"{round(split_exp / 1000)}ks"
 
             if mode == "img":
                 tng_name = simput_file.parts[-3]

@@ -80,7 +80,7 @@ def _simulate_mode(
         )
 
         compress_targz(
-            in_path=xmm_filter_dir,
+            in_path=xmm_filter_dir / f"{mode}",
             out_file_path=sim_dir / f"{mode}.tar.gz",
             remove_files=True,
         )
