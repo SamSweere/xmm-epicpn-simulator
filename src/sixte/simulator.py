@@ -78,9 +78,7 @@ def run_simulation(
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
     naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
-    cdelt1 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
-    cdelt2 = -cdelt1
-
+    cdelt1, cdelt2 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
     crpix1, crpix2 = get_crpix12(instrument_name, res_mult)
 
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"

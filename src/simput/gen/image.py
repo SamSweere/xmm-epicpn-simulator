@@ -36,7 +36,7 @@ def _prepare_fits_image(
         "CUNIT1": "deg",
         "CUNIT2": "deg",
         "CDELT1": cdelt1,
-        "CDELT2": cdelt2,
+        "CDELT2": -cdelt2,
         "CRPIX1": crpix1,
         "CRPIX2": crpix2,
         "CRVAL1": 0.0,

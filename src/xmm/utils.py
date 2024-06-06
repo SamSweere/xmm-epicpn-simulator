@@ -27,7 +27,7 @@ def get_fov(instrument_name: str) -> float:
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_cdelt(instrument_name: str, res_mult: int) -> float:
+def get_cdelt(instrument_name: str, res_mult: int) -> tuple[float, float]:
     if instrument_name == "epn":
         from src.xmm.epn import get_cdelt
 
