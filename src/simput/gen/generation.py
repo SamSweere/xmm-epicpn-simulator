@@ -81,6 +81,7 @@ def simput_generate(
     tmp_dir: Path,
     output_dir: Path,
     spectrum_file: Path,
+    **kwargs,
 ) -> None:
     with TemporaryDirectory(dir=tmp_dir) as temp:
         run_dir = Path(temp)
