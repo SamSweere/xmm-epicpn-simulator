@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 from typing import Literal
 from uuid import uuid4
 
+import numpy as np
 from loguru import logger
 
 from src.simput.agn import get_fluxes
@@ -33,33 +34,31 @@ def create_background(
     return output_files
 
 
-def create_agn_sources(
+def create_agn_simput(
+    agn_counts_file: Path,
     emin: float,
     emax: float,
     run_dir: Path,
     img_settings: dict,
     xspec_file: Path,
-):
-    output_files = []
+) -> None:
+    fov = img_settings["fov"]
+    instruments = img_settings["instruments"]
+    center_points = img_settings["center_points"]
+    output_dirs = img_settings["output_dirs"]
 
-    for _ in range(img_settings["n_gen"]):
-        # Use the current time as id, such that clashes don't happen
-        unique_id = uuid4().int
-        output_file_path = run_dir / f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput"
-        simput_files: list[Path] = []
+    rng = np.random.default_rng()
+    unique_id = uuid4().int
+    final_name = f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput.gz"
+    simput_files: list[Path] = []
 
-        # Get the fluxes from the agn distribution
-        fluxes = get_fluxes(img_settings["agn_counts_file"])
+    # Get the fluxes from the agn distribution
+    fluxes = get_fluxes(agn_counts_file)
+    offsets = rng.uniform(low=-fov / 2.0, high=fov / 2.0, size=(fluxes.shape[0], 2))
 
-        # TODO: make an option to make agns that are close together
-        if img_settings["deblending_n_gen"] > 0:
-            # TODO:
-            # img_settings["deblending_min_sep"]
-            # img_settings["deblending_max_sep"]
-            # img_settings["deblending_max_flux_delta"]
-            pass
-
-        for i, flux in enumerate(fluxes):
+    for instrument, center_point, output_dir in zip(instruments, center_points, output_dirs, strict=False):
+        logger.info(f"Creating AGN SIMPUTs for {instrument} with id {unique_id}.")
+        for i, (flux, offset) in enumerate(zip(fluxes, offsets, strict=False)):
             logger.debug(f"Creating AGN with flux={flux}")
             output_file = run_dir / f"ps_{unique_id}_{i}.simput"
             output_file = simput_ps(
@@ -68,17 +67,15 @@ def create_agn_sources(
                 output_file=output_file,
                 src_flux=flux,
                 xspec_file=xspec_file,
-                center_point=img_settings["center_point"],
-                offset="random",
+                center_point=center_point,
+                offset=offset,
             )
             simput_files.append(output_file)
-        output_file = merge_simputs(simput_files=simput_files, output_file=output_file_path)
-        output_files.append(output_file)
+        merged = merge_simputs(simput_files=simput_files, output_file=run_dir / f"merged_{unique_id}.simput")
+        compress_gzip(in_file_path=merged, out_file_path=output_dir / final_name, remove_file=True)
 
         for file in simput_files:
             file.unlink(missing_ok=True)
-
-    return output_files
 
 
 def simput_generate(
@@ -94,16 +91,6 @@ def simput_generate(
         run_dir = Path(temp)
 
         file_names = []
-
-        if mode == "agn":
-            file_names = create_agn_sources(
-                emin=emin,
-                emax=emax,
-                run_dir=run_dir,
-                img_settings=img_settings,
-                xspec_file=spectrum_file,
-            )
-            output_dir.mkdir(parents=True, exist_ok=True)
 
         if mode == "img":
             file_names = simput_image(

@@ -63,6 +63,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 decompress_targz(
                     in_file_path=simput_cfg.fits_compressed,
                     out_file_dir=simput_cfg.fits_dir,
+                    tar_options="--strip-components=1",
                 )
 
             to_create: list[tuple[Path, int]] = []
@@ -237,6 +238,9 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 shutil.rmtree(bkg_path)
 
         if simput_cfg.agn.n_gen > 0:
+            from src.simput.gen.generation import create_agn_simput
+            from src.xmm.utils import get_fov
+
             if agn_counts_file is None:
                 raise FileNotFoundError(f"{agn_counts_file} does not exist!")
 
@@ -247,58 +251,42 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             agn_path = simput_cfg.simput_dir / "agn"
             agn_path.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs.")
-            img_settings = []
-
-            for sat in satellites:
-                for name, instrument in sat:
-                    if not instrument.use:
-                        continue
-
-                    settings: dict = dict(simput_cfg.agn).copy()
-                    settings["agn_counts_file"] = agn_counts_file
-                    settings["instrument_name"] = name
-                    settings["n_gen"] = simput_cfg.agn.n_gen if env_cfg.debug else 1
-                    if name == "epn":
-                        from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
-
-                        cc12_tx, cc12_ty = get_cc12_txy()
-                        plate_scale_x, plate_scale_y = get_plate_scale_xy()
-                        settings["center_point"] = (cc12_tx * (plate_scale_x / 3600), cc12_ty * (plate_scale_y / 3600))
-                    else:
-                        settings["center_point"] = (0, 0)
-
-                    img_settings.append(settings)
-
-            if env_cfg.debug:
-                kwds = (
-                    {
-                        "img_settings": img_setting,
-                        "output_dir": agn_path / img_setting.pop("instrument_name"),
-                    }
-                    for img_setting in img_settings
-                )
-            else:
-                kwds = (
-                    {
-                        "img_settings": img_setting,
-                        "output_dir": agn_path / img_setting["instrument_name"],
-                    }
-                    for img_setting in img_settings
-                    for _ in range(simput_cfg.agn.n_gen)
-                )
-
+            instruments = [name for sat in satellites for name, instrument in sat if instrument.use]
+            logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs for {instruments}.")
             # Get the spectrum file
             spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
+            img_settings = {
+                "instruments": instruments,
+                "fov": get_fov("epn"),
+                "center_points": [],
+                "output_dirs": [],
+            }
+
+            for name in instruments:
+                output_dir = agn_path / name
+                output_dir.mkdir(parents=True, exist_ok=True)
+                img_settings["output_dirs"].append(agn_path / name)
+
+                if name == "epn":
+                    from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
+
+                    cc12_tx, cc12_ty = get_cc12_txy()
+                    plate_scale_x, plate_scale_y = get_plate_scale_xy()
+                    img_settings["center_points"].append(
+                        (cc12_tx * (plate_scale_x / 3600), cc12_ty * (plate_scale_y / 3600))
+                    )
+                else:
+                    img_settings["center_points"].append((0, 0))
+
+            kwds = ({"img_settings": img_settings} for _ in range(simput_cfg.agn.n_gen))
 
             to_run = partial(
-                simput_generate,
+                create_agn_simput,
+                agn_counts_file=agn_counts_file,
                 emin=energies.emin,
                 emax=energies.emax,
-                mode="agn",
-                tmp_dir=tmp_dir,
-                output_dir=agn_path,
-                spectrum_file=spectrum_file,
+                run_dir=tmp_dir,
+                xspec_file=spectrum_file,
             )
             _, duration = mp_run(to_run, kwds, simput_cfg.num_processes, env_cfg.debug)
             logger.info(f"DONE\tGenerating SIMPUT for mode 'agn'. Duration: {duration}")
