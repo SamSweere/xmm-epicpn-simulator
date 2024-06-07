@@ -10,9 +10,9 @@ from astropy.io import fits
 from lxml.etree import Element, ElementTree, SubElement
 from pysas.wrapper import Wrapper as sas
 
-from src import xsa
 from src.xmm.ccf import get_emos_lincoord, get_telescope, get_xmm_miscdata
 from src.xmm.utils import get_psf_file, get_vignet_file
+from src.xmm_utils import xsa
 from src.xmm_utils.file_utils import decompress_targz
 
 
