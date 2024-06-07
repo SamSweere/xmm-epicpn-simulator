@@ -64,7 +64,7 @@ def _simulate_mode(
         consume_data=env_cfg.consume_data,
     )
     kwds = (
-        {"simput_file": simput.resolve(), "res_mult": res_mult} for res_mult in sim_cfg.res_mults for simput in simputs
+        {"simput_file": simput.resolve(), "res_mult": res_mult} for simput in simputs for res_mult in sim_cfg.res_mults
     )
     _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
     logger.success(f"DONE\tSimulating {instrument_name} for {mode.upper()}. Duration: {duration}")
