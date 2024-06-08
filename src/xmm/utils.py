@@ -257,11 +257,11 @@ def create_mask(
     energies: EnergySettings,
     res_mults: list[int] = None,
 ) -> dict[str, dict[int, Path]] | None:
-    if mask_level is None:
-        return None
-
     if res_mults is None:
         res_mults = [1]
+
+    if mask_level is None:
+        return {instrument_name: {res_mult: None for res_mult in res_mults}}
 
     out_dir = Path("res").resolve()
     if instrument_name == "epn":
