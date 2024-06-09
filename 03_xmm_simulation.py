@@ -136,7 +136,7 @@ def run(path_to_cfg: Path) -> None:
         if env_cfg.working_dir != env_cfg.output_dir:
             for mode, amount in sim_cfg.modes:
                 if amount == 0:
-                    logger.debug(f"Skipping {mode} since simulation ammount is set to 0.")
+                    logger.debug(f"Skipping {mode} since simulation amount is set to 0.")
                     continue
 
                 simput_dir = env_cfg.output_dir / "simput" / mode
