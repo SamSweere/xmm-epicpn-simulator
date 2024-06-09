@@ -62,7 +62,7 @@ def run_simulation(
         if evt_filepath is not None:
             evt_filepaths.append(evt_filepath)
 
-    if not evt_filepath:
+    if not evt_filepaths:
         logger.warning(f"No events have been detected for detector {instrument_name} for {simput_path}!")
         return None
 
