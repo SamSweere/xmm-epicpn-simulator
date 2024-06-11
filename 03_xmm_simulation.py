@@ -17,6 +17,7 @@ from src.xmm.utils import create_psf_file, create_vinget_file, create_xml_files
 from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.multiprocessing import mp_run
 from src.xmm_utils.run_utils import configure_logger, load_satellites
+from astropy.io import fits
 
 logger.remove()
 
@@ -49,6 +50,13 @@ def _simulate_mode(
                 break
     else:
         simputs = [next(mode_dir.rglob(f"*{instrument_name}.simput.gz"))] * amount
+        
+        
+    with fits.open(simputs[0]) as hdul:
+        bin_table_hdu = hdul[1]
+        data = bin_table_hdu.data
+        columns = bin_table_hdu.columns.names 
+   
 
     to_run = partial(
         run_xmm_simulation,
