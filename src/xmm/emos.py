@@ -3,7 +3,6 @@ from typing import Literal
 
 import numpy as np
 from astropy.io import fits
-from loguru import logger
 from lxml.etree import Element, ElementTree, SubElement
 
 from src.xmm.ccf import get_emos_lincoord, get_telescope, get_xmm_miscdata
@@ -75,18 +74,35 @@ def get_pixel_size(emos_num: Literal[1, 2], res_mult: int = 1) -> float:
     return round(p_delt / res_mult, 3)
 
 
-def get_cdelt(emos_num: Literal[1, 2], res_mult: int = 1) -> float:
+def get_cdelt(res_mult: int = 1) -> float:
     # cdelt give the pixel sizes in degrees
-    # cdelt from XMM_MISCDATA_0022.CCF PLATE_SCALE_X, the unit is in arsec, arsec to degree by deciding it by 3600
-    xmm_miscdata = get_xmm_miscdata()
-    with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        miscdata = file[1].data
-        emos = miscdata[miscdata["INSTRUMENT_ID"] == f"EMOS{emos_num}"]
-        c_delt = emos[emos["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].astype(float).item()
-
-    c_delt = round((c_delt / 3600) / res_mult, 6)
+    # The correct way would be to use get_plate_scale_xy()
+    # BUT: When creating the dataset based on real observations
+    # one has to give a binSize. This binSize is calculated as
+    # follows: binSize = plate_scale / 0.05
+    # Since the binSize has to be an integer, we can't use
+    # the plate_scale given by the CCF (1.1008) and to
+    # make our lifes easier for higher resolution images
+    # we choose to set plate_scale to 1.0, which results
+    # in binSize = 20
+    c_delt = np.round((1.0 / 3600) / res_mult, 6)
 
     return c_delt
+
+
+def get_naxis12(emos_num: Literal[1, 2], res_mult: int = 1) -> tuple[int, int]:
+    if emos_num == 1:
+        # 1985x2006 is the image size one gets when creating
+        # images from real observations with binSize = 20
+        # Since we rotate the image to represent the orientation
+        # of EMOS1 relative to EPN we have to switch the axis
+        return (2006 * res_mult, 1985 * res_mult)
+    if emos_num == 2:
+        # 1993x2003 is the image size one gets when creating
+        # images from real observations with binSize = 20
+        # Since we rotate the image to represent the orientation
+        # of EMOS2 relative to EPN we don't have to switch the axis
+        return (1993 * res_mult, 2003 * res_mult)
 
 
 def get_focal_length(emos_num: Literal[1, 2]) -> float:
@@ -138,14 +154,14 @@ def create_xml(
 
         if emos_num == 1:
             rotas = ["0.0", "90.0", "90.0", "90.0", "270.0", "270.0", "270.0"]
+            yrval = -yrval
         else:
             rotas = ["0.0", "270.0", "270.0", "270.0", "90.0", "90.0", "90.0"]
             # We need to switch the axis for EMOS2 to be orthogonal to EMOS1
             # In SIXTE the x-axis points north and y-axis points west.
-            # We need to set x = y and y = -x.
             # See https://xmmweb.esac.esa.int/docs/documents/CAL-MAN-0001.pdf
             # on page 5 for a visualisation.
-            xrval, yrval = yrval, -xrval
+            xrval, yrval = yrval, xrval
 
     else:
         width, height = get_img_width_height(emos_num=emos_num, res_mult=res_mult)
@@ -158,26 +174,26 @@ def create_xml(
     xrpix = round((width + 1) / 2.0, 6)
     yrpix = round((height + 1) / 2.0, 6)
 
-    xml_paths: list[Path] = []
+    instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
+
+    telescope = SubElement(instrument, "telescope")
+    SubElement(telescope, "rmf", filename=f"mos{emos_num}-{xmm_filter}-10.rmf")
+    SubElement(telescope, "arf", filename=f"mos{emos_num}-{xmm_filter}-10.arf")
+    SubElement(telescope, "focallength", value=f"{focallength}")
+    SubElement(telescope, "fov", diameter=f"{fov}")
+    SubElement(
+        telescope,
+        "psf",
+        filename=f"{get_psf_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}', res_mult=res_mult).name}",
+    )
+    SubElement(
+        telescope,
+        "vignetting",
+        filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}').name}",
+    )
 
     for i in range(len(rotas)):
-        instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
-
-        telescope = SubElement(instrument, "telescope")
-        # Based on the pixel fov and the biggest axis
-        SubElement(telescope, "focallength", value=f"{focallength}")
-        SubElement(telescope, "fov", diameter=f"{fov}")
-        SubElement(
-            telescope,
-            "psf",
-            filename=f"{get_psf_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}', res_mult=res_mult).name}",
-        )
-        SubElement(
-            telescope,
-            "vignetting",
-            filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}').name}",
-        )
-        detector = SubElement(instrument, "detector", type=f"EM{emos_num}")
+        detector = SubElement(instrument, "detector", type="ccd", chip=f"{i}")
         SubElement(detector, "dimensions", xwidth=f"{width}", ywidth=f"{height}")
         SubElement(
             detector,
@@ -191,8 +207,6 @@ def create_xml(
             rota=f"{rotas[i]}",
         )
         SubElement(detector, "cte", value="1")
-        SubElement(detector, "rmf", filename=f"mos{emos_num}-{xmm_filter}-10.rmf")
-        SubElement(detector, "arf", filename=f"mos{emos_num}-{xmm_filter}-10.arf")
         SubElement(detector, "split", type="gauss", par1=f"{11.e-6 / res_mult}")
         SubElement(detector, "threshold_readout_lo_keV", value="0.")
         SubElement(detector, "threshold_event_lo_keV", value="200.e-3")
@@ -217,16 +231,16 @@ def create_xml(
 
         SubElement(readout, "newframe")
 
-        tree = ElementTree(instrument)
-        if sim_separate_ccds:
-            xml_path = out_dir / f"ccd{i + 1:02d}.xml"
-            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
-        else:
-            xml_path = out_dir / "combined.xml"
-            tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
+    tree = ElementTree(instrument)
 
-        xml_paths.append(xml_path)
-    return xml_paths
+    if sim_separate_ccds:
+        xml_path = out_dir / f"seperate_ccds_{xmm_filter}.xml"
+    else:
+        xml_path = out_dir / f"combined_ccd_{xmm_filter}.xml"
+
+    tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
+
+    return xml_path
 
 
 def get_xml(
@@ -235,19 +249,11 @@ def get_xml(
     res_mult: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
-) -> list[Path]:
+) -> Path:
     instrument_path = xml_dir / f"emos{emos_num}"
     root = instrument_path / xmm_filter / f"{res_mult}x"
 
-    glob_pattern = "ccd*.xml" if sim_separate_ccds else "combined.xml"
-    xml_paths: list[Path] = list(root.glob(glob_pattern))
+    glob_pattern = f"seperate_ccds_{xmm_filter}.xml" if sim_separate_ccds else "combined.xml"
+    xml_path: Path = next(root.glob(glob_pattern))
 
-    if sim_separate_ccds and len(xml_paths) != 7:
-        logger.warning(
-            f"'sim_separate_ccds' is set to 'True', but I could find only {len(xml_paths)} of the 7 CCDs."
-            f"I will simulate only the CCDs given in these files. If that was intentional, then you can "
-            f"ignore this warning. Otherwise abort the execution, create all XML files and re-run the"
-            f"code."
-        )
-
-    return xml_paths
+    return xml_path

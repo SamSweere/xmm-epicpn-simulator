@@ -9,7 +9,7 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_cdelt, get_width_height, get_xml_files
+from src.xmm.utils import get_cdelt, get_naxis12, get_xml_file
 from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
 import numpy as np 
 
@@ -29,7 +29,7 @@ def run_simulation(
     sim_separate_ccds: bool = False,
     consume_data: bool = True,
 ):
-    xml_paths = get_xml_files(
+    xml_file = get_xml_file(
         xml_dir=xml_dir,
         instrument_name=instrument_name,
         res_mult=res_mult,
@@ -37,30 +37,29 @@ def run_simulation(
         sim_separate_ccds=sim_separate_ccds,
     )
 
-    if not xml_paths:
+    if not xml_file:
         raise FileNotFoundError(
-            f"It looks like you have not created the corresponding XML files for instrument " f"'{instrument_name}'"
+            f"It looks like you have not created the corresponding XML file for instrument " f"'{instrument_name}'"
         )
 
-    evt_filepaths: list[Path] = []
-    for xml_path in xml_paths:
-        ccd_name = xml_path.stem
-        evt_filepath = run_dir / f"{ccd_name}_evt.fits"
-        commands.runsixt(
-            raw_data=run_dir / f"{ccd_name}_raw.fits",
-            evt_file=evt_filepath,
-            xml_file=xml_path.resolve(),
-            ra=ra,
-            dec=dec,
-            rollangle=rollangle,
-            simput=simput_path,
-            exposure=exposure,
-        )
-        evt_filepath = filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern)
-        evt_filepaths.append(evt_filepath)
+    commands.sixtesim(
+        output_path=run_dir.resolve(),
+        xml_file=xml_file.resolve(),
+        ra=ra,
+        dec=dec,
+        rollangle=rollangle,
+        simput=simput_path,
+        exposure=exposure,
+    )
 
-    # Merge all the ccd.py eventlists into one eventlist
-    merged = merge_ccd_eventlists(infiles=evt_filepaths, out_dir=run_dir, consume_data=consume_data)
+    for raw_filepath in run_dir.glob("*_raw.fits"):
+        raw_filepath.unlink()
+
+    evt_filepaths = []
+    for evt_filepath in run_dir.glob("*_none"):
+        evt_filepaths.append(filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern))
+
+    merged = merge_ccd_eventlists(evt_filepaths, run_dir, consume_data)
 
     # split the eventlist
     split_exposure_evt_files = split_eventlist(
@@ -71,8 +70,9 @@ def run_simulation(
     )
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
-    naxis2, naxis1 = get_width_height(instrument_name=instrument_name, res_mult=res_mult)
-    cdelt1 = cdelt2 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
+    naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
+    cdelt1 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
+    cdelt2 = -cdelt1
 
     if instrument_name == "epn":
         from src.xmm.epn import get_shift_xy

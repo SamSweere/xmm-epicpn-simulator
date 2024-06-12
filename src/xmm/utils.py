@@ -35,7 +35,7 @@ def get_cdelt(instrument_name: str, res_mult: int) -> float:
     if instrument_name == "emos1" or instrument_name == "emos2":
         from src.xmm.emos import get_cdelt
 
-        return get_cdelt(int(instrument_name[-1]), res_mult)
+        return get_cdelt(res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -68,34 +68,16 @@ def get_surface(instrument_name: str, res_mult: int) -> float:
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_width_height(instrument_name: str, res_mult: int) -> tuple[int, int]:
-    """
-    Returns:
-        Tuple[int, int]: The width and height of the instrument in pixels.
-    """
-    if instrument_name == "epn":
-        from src.xmm.epn import get_img_width_height
-
-        return get_img_width_height(res_mult=res_mult)
-
-    if instrument_name == "emos1" or instrument_name == "emos2":
-        from src.xmm.emos import get_img_width_height
-
-        return get_img_width_height(emos_num=int(instrument_name[-1]), res_mult=res_mult)
-
-    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
-
 def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
     if instrument_name == "epn":
-        from src.xmm.epn import get_img_width_height
+        from src.xmm.epn import get_naxis12
 
-        return get_img_width_height(res_mult=res_mult)
+        return get_naxis12(res_mult=res_mult)
 
     if instrument_name == "emos1" or instrument_name == "emos2":
-        from src.xmm.emos import get_img_width_height
+        from src.xmm.emos import get_naxis12
 
-        return get_img_width_height(emos_num=int(instrument_name[-1]), res_mult=res_mult)
+        return get_naxis12(emos_num=int(instrument_name[-1]), res_mult=res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
@@ -327,13 +309,13 @@ def create_xml_files(
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_xml_files(
+def get_xml_file(
     instrument_name: str,
     xml_dir: Path,
     res_mult: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
-) -> list[Path]:
+) -> Path:
     """
     Returns:
         List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list

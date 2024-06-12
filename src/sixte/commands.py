@@ -31,9 +31,8 @@ def imgev(
     run_command(cmd=imgev)
 
 
-def runsixt(
-    raw_data: Path,
-    evt_file: Path,
+def sixtesim(
+    output_path: Path,
     xml_file: Path,
     ra: float,
     dec: float,
@@ -45,7 +44,7 @@ def runsixt(
     history: bool = True,
 ) -> None:
     runsixt = (
-        f"runsixt Rawdata={raw_data.resolve()} EvtFile={evt_file.resolve()} XMLFile={xml_file.resolve()} "
+        f"sixtesim Prefix={output_path.resolve()}/ XMLFile={xml_file.resolve()} "
         f"RA={ra} DEC={dec} rollangle={rollangle} Simput={simput.resolve()} Exposure={exposure} "
         f"chatter={chatter} clobber={str(clobber).lower()} history={str(history).lower()}"
     )
@@ -73,13 +72,13 @@ def simputfile(
     )
 
     if xspec_file is not None:
-        simputfile += f" XSPECFile={xspec_file.resolve()}"
+        simputfile = f"{simputfile} XSPECFile={xspec_file.resolve()}"
 
     if ascii_file is not None:
-        simputfile += f" ASCIIFile={ascii_file.resolve()}"
+        simputfile = f"{simputfile} ASCIIFile={ascii_file.resolve()}"
 
     if image_file is not None:
-        simputfile += f" ImageFile={image_file.resolve()}"
+        simputfile = f"{simputfile} ImageFile={image_file.resolve()}"
 
     run_command(cmd=simputfile)
 
