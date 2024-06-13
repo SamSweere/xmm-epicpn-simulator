@@ -33,11 +33,10 @@ def simput_ps(
     if src_flux == "random":
         src_flux = rng.uniform(low=1.0e-13, high=1.0e-10)
 
-    # The FOV is the same for EPN, EMOS1, and EMOS2
-    fov = get_fov("epn")
-
     # Randomly position the point source within the fov
-    if offset == "random":
+    if isinstance(offset, str) and offset == "random":
+        # The FOV is the same for EPN, EMOS1, and EMOS2
+        fov = get_fov("epn")
         offset = rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=2)
 
     location = (center_point[0] + offset[0], center_point[1] + offset[1])

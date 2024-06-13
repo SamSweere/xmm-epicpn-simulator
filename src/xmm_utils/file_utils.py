@@ -24,12 +24,12 @@ def compress_targz(in_path: Path, out_file_path: Path, remove_files: bool = Fals
     )
 
 
-def decompress_targz(in_file_path: Path, out_file_dir: Path):
+def decompress_targz(in_file_path: Path, out_file_dir: Path, tar_options: str = ""):
     out_file_dir.mkdir(parents=True, exist_ok=True)
-    run_command(f"tar -xzf {in_file_path.resolve()} -C {out_file_dir.resolve()} --strip-components=1")
+    run_command(f"tar -xzf {in_file_path.resolve()} -C {out_file_dir.resolve()} {tar_options}")
 
 
-def filter_event_pattern(eventlist_path: Path, max_event_pattern: int):
+def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path | None:
     if max_event_pattern == -1 or max_event_pattern == 12:
         # Use all event patterns
         return eventlist_path
@@ -42,6 +42,10 @@ def filter_event_pattern(eventlist_path: Path, max_event_pattern: int):
 
         # Filter the events data, remove every event with pattern type > max pattern type
         filtered_events_data = events_data[events_data["TYPE"] <= max_event_pattern]
+
+        if filtered_events_data.size == 0:
+            # No events left after filtering
+            return None
 
         # Since we filtered the events, set the patterns to 0
         for i in range(max_event_pattern + 1, 13):

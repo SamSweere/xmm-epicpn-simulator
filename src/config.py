@@ -61,6 +61,14 @@ def _check_modes(v: dict[str, list]) -> dict[str, list]:
     return v
 
 
+def _check_mask(v: str) -> str | None:
+    if v == "emask" or v == "expmap":
+        return v
+    if v == "" or v == "none":
+        return None
+    raise ValueError
+
+
 CfgPath = Annotated[Path, AfterValidator(_expanduser), AfterValidator(_mkdir)]
 ProcessCount = Annotated[NonNegativeInt, AfterValidator(_get_num_processes)]
 
@@ -106,7 +114,7 @@ class _SimputAgn(BaseModel):
 
 
 class _SimputBkg(BaseModel):
-    n_gen: NonNegativeInt
+    n_gen: int = 0 | 1
 
 
 class SimputCfg(BaseModel):
@@ -156,6 +164,7 @@ class _EMOS(BaseModel):
     filter: Annotated[str, AfterValidator(_check_xmm_filter)]
     sim_separate_ccds: bool
     max_event_pattern: Annotated[int, Field(ge=-1, le=12)]
+    mask_level: Annotated[str, AfterValidator(_check_mask)]
 
     @computed_field
     @property
@@ -169,6 +178,7 @@ class _EPN(BaseModel):
     filter: Annotated[str, AfterValidator(_check_xmm_filter)]
     sim_separate_ccds: bool
     max_event_pattern: Annotated[int, Field(ge=-1, le=4)]
+    mask_level: Annotated[str, AfterValidator(_check_mask)]
 
     @computed_field
     @property
@@ -177,7 +187,7 @@ class _EPN(BaseModel):
         return filters[self.filter]
 
 
-class XMMInstrument(BaseModel):
+class XMM(BaseModel):
     emos1: _EMOS
     emos2: _EMOS
     epn: _EPN

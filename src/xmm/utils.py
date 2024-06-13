@@ -6,6 +6,7 @@ from typing import Literal
 import numpy as np
 from astropy.io import fits
 
+from src.config import EnergySettings
 from src.xmm.ccf import get_xrt_xareaef
 
 available_instruments = ["epn", "emos1", "emos2"]
@@ -26,7 +27,7 @@ def get_fov(instrument_name: str) -> float:
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_cdelt(instrument_name: str, res_mult: int) -> float:
+def get_cdelt(instrument_name: str, res_mult: int) -> tuple[float, float]:
     if instrument_name == "epn":
         from src.xmm.epn import get_cdelt
 
@@ -54,20 +55,6 @@ def get_pixel_size(instrument_name: str, res_mult: int) -> float:
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_surface(instrument_name: str, res_mult: int) -> float:
-    if instrument_name == "epn":
-        from src.xmm.epn import get_surface
-
-        return get_surface(res_mult=res_mult)
-
-    if instrument_name == "emos1" or instrument_name == "emos2":
-        from src.xmm.emos import get_surface
-
-        return get_surface(emos_num=int(instrument_name[-1]), res_mult=res_mult)
-
-    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
-
 def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
     if instrument_name == "epn":
         from src.xmm.epn import get_naxis12
@@ -80,6 +67,22 @@ def get_naxis12(instrument_name: str, res_mult: int) -> tuple[int, int]:
         return get_naxis12(emos_num=int(instrument_name[-1]), res_mult=res_mult)
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+
+def get_crpix12(instrument_name: str, res_mult: int):
+    naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
+
+    if instrument_name == "epn":
+        from src.xmm.epn import get_shift_xy
+
+        shift_y, shift_x = get_shift_xy(res_mult=res_mult)
+        crpix1 = round(((naxis1 + 1) / 2.0) - shift_y, 6)
+        crpix2 = round(((naxis2 + 1) / 2.0) + shift_x, 6)
+    else:
+        crpix1 = round(((naxis1 + 1) / 2.0), 6)
+        crpix2 = round(((naxis2 + 1) / 2.0), 6)
+
+    return crpix1, crpix2
 
 
 def get_focal_length(instrument_name: str) -> float:
@@ -245,6 +248,39 @@ def create_psf_file(instrument_name: str, xml_dir: Path, res_mult: int) -> None:
             for primary_hdu in hdu_list:
                 primary_hdu.header["CDELT1"] = primary_hdu.header["CDELT1"] / res_mult
                 primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT2"] / res_mult
+
+
+def create_mask(
+    instrument_name: str,
+    observation_id: str,
+    mask_level: str | None,
+    energies: EnergySettings,
+    res_mults: list[int] = None,
+) -> dict[str, dict[int, Path]] | None:
+    if res_mults is None:
+        res_mults = [1]
+
+    if mask_level is None:
+        return {instrument_name: {res_mult: None for res_mult in res_mults}}
+
+    out_dir = Path("res").resolve()
+    if instrument_name == "epn":
+        from src.xmm.epn import create_mask
+
+        return {
+            instrument_name: create_mask(energies.emin, energies.emax, observation_id, out_dir, mask_level, res_mults)
+        }
+
+    if instrument_name == "emos1" or instrument_name == "emos2":
+        from src.xmm.emos import create_mask
+
+        return {
+            instrument_name: create_mask(
+                energies.emin, energies.emax, instrument_name[-1], observation_id, out_dir, mask_level, res_mults
+            )
+        }
+
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def create_xml_files(

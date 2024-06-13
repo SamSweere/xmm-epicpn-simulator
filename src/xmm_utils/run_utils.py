@@ -4,7 +4,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from src.config import XMMInstrument
+from src.config import XMM
 
 
 def _opener(file, flags):
@@ -39,21 +39,11 @@ def configure_logger(
     )
 
 
-def load_satellites(instruments: dict) -> dict[dict]:
-    loaded_satellites = {}
+def load_satellites(instruments: dict) -> list:
+    loaded_satellites = []
 
     if "xmm" in instruments:
-        xmm = {}
-        xmm_instruments: dict[str, dict] = XMMInstrument(**instruments.pop("xmm"))
-        if xmm_instruments.emos1.use:
-            xmm["emos1"] = xmm_instruments.emos1
-        if xmm_instruments.emos2.use:
-            xmm["emos2"] = xmm_instruments.emos2
-        if xmm_instruments.epn.use:
-            xmm["epn"] = xmm_instruments.epn
-
-        if xmm:
-            loaded_satellites["xmm"] = xmm
+        loaded_satellites.append(XMM(**instruments.pop("xmm")))
 
     if not loaded_satellites:
         raise RuntimeError()

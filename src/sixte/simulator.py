@@ -4,12 +4,13 @@ from tempfile import TemporaryDirectory
 from typing import Literal
 from uuid import uuid4
 
+import numpy as np
 from astropy.io import fits
 from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_cdelt, get_naxis12, get_xml_file
+from src.xmm.utils import get_cdelt, get_crpix12, get_naxis12, get_xml_file
 from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
 
 
@@ -27,7 +28,8 @@ def run_simulation(
     rollangle: float = 0.0,
     sim_separate_ccds: bool = False,
     consume_data: bool = True,
-):
+    emask: Path = None,
+) -> list[tuple[Path, int]] | None:
     xml_file = get_xml_file(
         xml_dir=xml_dir,
         instrument_name=instrument_name,
@@ -56,7 +58,13 @@ def run_simulation(
 
     evt_filepaths = []
     for evt_filepath in run_dir.glob("*_none"):
-        evt_filepaths.append(filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern))
+        evt_filepath = filter_event_pattern(eventlist_path=evt_filepath, max_event_pattern=max_event_pattern)
+        if evt_filepath is not None:
+            evt_filepaths.append(evt_filepath)
+
+    if not evt_filepaths:
+        logger.warning(f"No events have been detected for detector {instrument_name} for {simput_path}!")
+        return None
 
     merged = merge_ccd_eventlists(evt_filepaths, run_dir, consume_data)
 
@@ -70,20 +78,17 @@ def run_simulation(
 
     # See https://www.sternwarte.uni-erlangen.de/research/sixte/data/simulator_manual_v1.3.11.pdf for information
     naxis1, naxis2 = get_naxis12(instrument_name=instrument_name, res_mult=res_mult)
-    cdelt1 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
-    cdelt2 = -cdelt1
-
-    if instrument_name == "epn":
-        from src.xmm.epn import get_shift_xy
-
-        shift_y, shift_x = get_shift_xy(res_mult=res_mult)
-        crpix1 = round(((naxis1 + 1) / 2.0) - shift_x, 6)
-        crpix2 = round(((naxis2 + 1) / 2.0) + shift_y, 6)
-    else:
-        crpix1 = round(((naxis1 + 1) / 2.0), 6)
-        crpix2 = round(((naxis2 + 1) / 2.0), 6)
+    cdelt1, cdelt2 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
+    crpix1, crpix2 = get_crpix12(instrument_name, res_mult)
 
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
+    if emask is not None:
+        with fits.open(emask, mode="readonly") as f:
+            emask = f["MASK"].data if "MASK" in f else f[0].data
+            if instrument_name == "epn":
+                emask = np.fliplr(emask)
+            if instrument_name == "emos1":
+                emask = np.rot90(emask)
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
         split_evt_file: Path = split_dict["outfile"]
@@ -118,7 +123,7 @@ def run_simulation(
 
         split_img_paths_exps.append((final_img_path, split_exposure))
 
-        # Add specifics to the simput file
+        # Add specifics to the simput file and apply emask if requested
         with fits.open(final_img_path, mode="update") as hdu:
             header = hdu["PRIMARY"].header
             header["EXPOSURE"] = (split_exposure, "Exposure in seconds")
@@ -134,6 +139,9 @@ def run_simulation(
                 f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at "
                 f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
             )
+
+            if emask is not None:
+                hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
 
     return split_img_paths_exps
 
@@ -151,6 +159,7 @@ def run_xmm_simulation(
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
     consume_data: bool,
+    emask: Path = None,
 ):
     logger.info(f"Running simulations for {simput_file.resolve()}")
     with TemporaryDirectory(dir=tmp_dir) as tmp:
@@ -172,13 +181,17 @@ def run_xmm_simulation(
             exposure=exposure,
             sim_separate_ccds=sim_separate_ccds,
             consume_data=consume_data,
+            emask=emask,
         )
+
+        if tmp_split_img_paths_exps is None:
+            return
 
         for p in tmp_split_img_paths_exps:
             file_path: Path = p[0]
             split_exp = p[1]
 
-            final_img_directory = out_dir / f"{round(split_exp / 1000)}ks" / mode
+            final_img_directory = out_dir / mode / f"{round(split_exp / 1000)}ks"
 
             if mode == "img":
                 tng_name = simput_file.parts[-3]
