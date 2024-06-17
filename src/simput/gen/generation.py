@@ -43,9 +43,7 @@ def create_agn_simput(
     xspec_file: Path,
 ) -> None:
     fov = img_settings["fov"]
-    instruments = img_settings["instruments"]
-    center_points = img_settings["center_points"]
-    output_dirs = img_settings["output_dirs"]
+    output_dir = img_settings["output_dir"]
 
     rng = np.random.default_rng()
     unique_id = uuid4().int
@@ -56,26 +54,23 @@ def create_agn_simput(
     fluxes = get_fluxes(agn_counts_file)
     offsets = rng.uniform(low=-fov / 2.0, high=fov / 2.0, size=(fluxes.shape[0], 2))
 
-    for instrument, center_point, output_dir in zip(instruments, center_points, output_dirs, strict=False):
-        logger.info(f"Creating AGN SIMPUTs for {instrument} with id {unique_id}.")
-        for i, (flux, offset) in enumerate(zip(fluxes, offsets, strict=False)):
-            logger.debug(f"Creating AGN with flux={flux}")
-            output_file = run_dir / f"ps_{unique_id}_{i}.simput"
-            output_file = simput_ps(
-                emin=emin,
-                emax=emax,
-                output_file=output_file,
-                src_flux=flux,
-                xspec_file=xspec_file,
-                center_point=center_point,
-                offset=offset,
-            )
-            simput_files.append(output_file)
-        merged = merge_simputs(simput_files=simput_files, output_file=run_dir / f"merged_{unique_id}.simput")
-        compress_gzip(in_file_path=merged, out_file_path=output_dir / final_name, remove_file=True)
+    for i, (flux, offset) in enumerate(zip(fluxes, offsets, strict=False)):
+        logger.debug(f"Creating AGN with flux={flux}")
+        output_file = run_dir / f"ps_{unique_id}_{i}.simput"
+        output_file = simput_ps(
+            emin=emin,
+            emax=emax,
+            output_file=output_file,
+            src_flux=flux,
+            xspec_file=xspec_file,
+            offset=offset,
+        )
+        simput_files.append(output_file)
+    merged = merge_simputs(simput_files=simput_files, output_file=run_dir / f"merged_{unique_id}.simput")
+    compress_gzip(in_file_path=merged, out_file_path=output_dir / final_name, remove_file=True)
 
-        for file in simput_files:
-            file.unlink(missing_ok=True)
+    for file in simput_files:
+        file.unlink(missing_ok=True)
 
 
 def simput_generate(

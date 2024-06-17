@@ -251,32 +251,13 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             agn_path = simput_cfg.simput_dir / "agn"
             agn_path.mkdir(parents=True, exist_ok=True)
 
-            instruments = [name for sat in satellites for name, instrument in sat if instrument.use]
-            logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs for {instruments}.")
+            logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs")
             # Get the spectrum file
             spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
             img_settings = {
-                "instruments": instruments,
                 "fov": get_fov("epn"),
-                "center_points": [],
-                "output_dirs": [],
+                "output_dir": agn_path,
             }
-
-            for name in instruments:
-                output_dir = agn_path / name
-                output_dir.mkdir(parents=True, exist_ok=True)
-                img_settings["output_dirs"].append(agn_path / name)
-
-                if name == "epn":
-                    from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
-
-                    cc12_tx, cc12_ty = get_cc12_txy()
-                    plate_scale_x, plate_scale_y = get_plate_scale_xy()
-                    img_settings["center_points"].append(
-                        (cc12_tx * (plate_scale_x / 3600), cc12_ty * (plate_scale_y / 3600))
-                    )
-                else:
-                    img_settings["center_points"].append((0, 0))
 
             kwds = ({"img_settings": img_settings} for _ in range(simput_cfg.agn.n_gen))
 
