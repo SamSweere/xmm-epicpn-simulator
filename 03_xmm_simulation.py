@@ -36,9 +36,6 @@ def _simulate_mode(
 
     # Find the simput files
     mode_dir = sim_cfg.simput_dir / mode
-    if mode == "agn":
-        mode_dir = mode_dir / instrument_name
-
     if mode != "bkg":
         mode_glob = mode_dir.rglob("*.simput.gz")
         simputs = []

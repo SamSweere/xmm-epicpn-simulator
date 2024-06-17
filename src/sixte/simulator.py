@@ -82,16 +82,13 @@ def run_simulation(
     crpix1, crpix2 = get_crpix12(instrument_name, res_mult)
 
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
-    if emask is not None:
+    if emask is not None and instrument_name == "emos1":
         with fits.open(emask, mode="readonly") as f:
-            emask = f["MASK"].data if "MASK" in f else f[0].data
-            if instrument_name == "epn":
-                emask = np.fliplr(emask)
-            if instrument_name == "emos1":
-                emask = np.rot90(emask)
+            emask = f["mask"].data if "mask" in f else f[0].data
+            emask = np.rot90(emask)
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
-        split_evt_file: Path = split_dict["outfile"]
+        split_evt_file: path = split_dict["outfile"]
         split_name = split_dict["base_name"]
         t_start = split_dict["t_start"]
         t_stop = split_dict["t_stop"]
