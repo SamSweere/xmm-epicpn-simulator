@@ -3,7 +3,7 @@ working_dir = "/home/xmm_user/xmm-epicpn-simulator/data/tmp"
 output_dir = "/home/xmm_user/xmm-epicpn-simulator/data"
 log_dir = "/home/xmm_user/xmm-epicpn-simulator/data/logs"
 debug = true
-verbose = true
+verbose = false
 fail_on_error = true
 overwrite = true
 consume_data = false
@@ -40,7 +40,7 @@ n_gen = 0 # -1 for all
 
 [simput.agn]
 n_gen = 1 #25000
-deblending_n_gen = 1 # Fraction of n_gen
+deblending_n_gen = 1.0 # Fraction of n_gen
 deblending_n_flux = 0.5 # Fraction of all blended agns (must be <= 0.5)
 deblending_min_sep = 4.9 # in arcsec
 deblending_max_sep = 5.0 # in arcsec # TODO: determine this value
@@ -63,10 +63,10 @@ wait_time = 0.00002304 # Correct separate wait_time = 0.00002304
 
 [simulation.modes]
 img = 0
-agn = -1
+agn = 1
 bkg = 0
 
 [instruments.xmm]
-emos1 = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12}
-emos2 = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12}
-epn = {use = true, filter = "thin", sim_separate_ccds = true, max_event_pattern = 4}
+emos1 = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12, mask_level = "emask"}
+emos2 = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12, mask_level = "expmap"}
+epn = {use = true, filter = "thin", sim_separate_ccds = false, max_event_pattern = 4, mask_level = "expmap"}

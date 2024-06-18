@@ -5,6 +5,8 @@ import numpy as np
 from src.sixte import commands
 from src.xmm.utils import get_fov
 
+import warnings
+
 
 def simput_ps(
     emin: float,
@@ -14,7 +16,6 @@ def simput_ps(
     # center_point: tuple[float, float] = (0.0, 0.0),
     location: tuple[float, float],
     src_flux: float | str = 1.0e-12,
-    offset: tuple[float, float] | str = (0.0, 0.0),
     verbose: bool = True,
 ) -> Path:
     """
@@ -23,25 +24,18 @@ def simput_ps(
     Returns:
         Path: Path to the file containing the generated single point-source
     """
-    if isinstance(offset, str) and offset != "random":
-        raise ValueError(f'Value of offset is unknown string "{offset}"!')
-
+   
     if isinstance(src_flux, str) and src_flux != "random":
         raise ValueError(f'Value of src_flux is unknown string "{src_flux}"!')
 
     rng = np.random.default_rng()
     # TODO these values are only based on the tutorial values, no thought if they are realistic
+    # TODO: make sure that this also works for deblending, right now it only works if non-random
     if src_flux == "random":
         src_flux = rng.uniform(low=1.0e-13, high=1.0e-10)
+        warnings.warn("The deblending option is not properly implemented for random fluxes!", UserWarning)
+        
 
-    # # The FOV is the same for EPN, EMOS1, and EMOS2
-    # fov = get_fov("epn")
-
-    # # Randomly position the point source within the fov
-    # if offset == "random":
-    #     offset = rng.uniform(low=-1.0 * fov / 2, high=fov / 2, size=2)
-
-    # location = (center_point[0] + offset[0], center_point[1] + offset[1])
     ra = location[0]
     if ra < 0:
         ra = 360 + ra

@@ -72,3 +72,20 @@ def add_columns_to_simput(simput_file: Path, additional_columns: dict[str, np.nd
         # Replace the old HDU with the new one
         hdul[hdul.index_of(source_hdu)] = new_hdu
         hdul.flush()
+        
+        
+def make_deblending_img_settings(i, n_blended, img_settings):
+    """Change the 'deblending' parameter in 'img_settings' to True if the index of the current image is smaller than the absolute number of images that shall contain blended sources.  
+
+    Args:
+        i (int): index of the current image
+        n_blended (_type_): absolute number of images containing blended sources 
+
+    Returns:
+        _type_: 
+    """                
+
+    if i<n_blended:
+        img_settings.update({"deblending":True})
+        
+    return img_settings

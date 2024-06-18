@@ -1,4 +1,3 @@
-import pathlib
 import shutil
 import tomllib
 from argparse import ArgumentParser
@@ -12,7 +11,7 @@ from loguru import logger
 
 from src.config import EnergySettings, EnvironmentCfg, SimputCfg
 from src.simput.gen import simput_generate
-from src.simput.utils import get_spectrumfile
+from src.simput.utils import get_spectrumfile, make_deblending_img_settings
 from src.xmm_utils.external_run import run_command
 from src.xmm_utils.file_utils import compress_targz, decompress_targz
 from src.xmm_utils.multiprocessing import mp_run
@@ -33,6 +32,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
         fits_dir=env_cfg.working_dir / "fits",
         fits_compressed=env_cfg.output_dir / "fits.tar.gz",
     )
+    
     energies = EnergySettings(**cfg.pop("energy"))
 
     satellites = load_satellites(cfg.pop("instruments"))
@@ -64,6 +64,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 decompress_targz(
                     in_file_path=simput_cfg.fits_compressed,
                     out_file_dir=simput_cfg.fits_dir,
+                    tar_options="--strip-components=1",
                 )
 
             to_create: list[tuple[Path, int]] = []
@@ -177,12 +178,15 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             bkg_path.mkdir(parents=True, exist_ok=True)
             img_settings = []
 
-            for _, satellite in satellites.items():
-                for instrument in satellite:
-                    filter = satellite[instrument].filter_abbrv
+            for sat in satellites:
+                for name, instrument in sat:
+                    if not instrument.use:
+                        continue
 
-                    spectrum_name = f"{instrument[1]}{instrument[-1]}{filter}ffg_spectrum.fits"
-                    spectrum_file = spectrum_dir / instrument / spectrum_name
+                    filter = instrument.filter_abbrv
+
+                    spectrum_name = f"{name[1]}{name[-1]}{filter}ffg_spectrum.fits"
+                    spectrum_file = spectrum_dir / name / spectrum_name
 
                     if not spectrum_file.exists():
                         logger.info(f"Could not find {spectrum_file.resolve()}. Creating it...")
@@ -192,13 +196,13 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                             "This will be done only once as long as the file exists."
                         )
 
-                    fov = get_fov(instrument)
+                    fov = get_fov(name)
 
                     img_settings.append(
                         {
                             "spectrum_file": spectrum_file,
                             "fov": fov,
-                            "instrument_name": instrument,
+                            "instrument_name": name,
                             "output_dir": bkg_path,
                         }
                     )
@@ -235,6 +239,9 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                 shutil.rmtree(bkg_path)
 
         if simput_cfg.agn.n_gen > 0:
+            from src.simput.gen.generation import create_agn_simput
+            from src.xmm.utils import get_fov
+
             if agn_counts_file is None:
                 raise FileNotFoundError(f"{agn_counts_file} does not exist!")
 
@@ -245,30 +252,55 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             agn_path = simput_cfg.simput_dir / "agn"
             agn_path.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs.")
-
-            # Get the fluxes from the agn distribution
-            img_settings: dict = dict(simput_cfg.agn).copy()
-            img_settings["agn_counts_file"] = agn_counts_file
-
-            if env_cfg.debug:
-                img_settings["n_gen"] = simput_cfg.agn.n_gen
-                kwds = ({"img_settings": img_settings} for _ in range(1))
-            else:
-                img_settings["n_gen"] = 1
-                kwds = ({"img_settings": img_settings} for _ in range(simput_cfg.agn.n_gen))
-
+            instruments = [name for sat in satellites for name, instrument in sat if instrument.use]
+            logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs for {instruments}.")
             # Get the spectrum file
             spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
+            img_settings = {
+                "instruments": instruments,
+                "fov": get_fov("epn"),
+                "center_points": [],
+                "output_dirs": [],
+                "simput_agn_settings": simput_cfg.agn,
+                "deblending": False,
+            }
 
+            for name in instruments:
+                output_dir = agn_path / name
+                output_dir.mkdir(parents=True, exist_ok=True)
+                img_settings["output_dirs"].append(agn_path / name)
+
+                if name == "epn":
+                    from src.xmm.epn import get_cc12_txy, get_plate_scale_xy
+
+                    cc12_tx, cc12_ty = get_cc12_txy()
+                    plate_scale_x, plate_scale_y = get_plate_scale_xy()
+                    img_settings["center_points"].append(
+                        (cc12_tx * (plate_scale_x / 3600), cc12_ty * (plate_scale_y / 3600))
+                    )
+                else:
+                    img_settings["center_points"].append((0, 0))
+                    
+                      
+            # Make sure that deblending fraction was defined correctly
+            if not (0 <= simput_cfg.agn.deblending_n_gen <= 1):
+                raise ValueError("'deblending_n_gen' must be between 0 and 1")
+            
+            # Compute absolute number of images that should contain blended sources 
+            n_blended = int(simput_cfg.agn.deblending_n_gen *simput_cfg.agn.n_gen)
+            
+            # Create keywords taking into accoung whether ith image should contain blended sources        
+            kwds = ({"img_settings": make_deblending_img_settings(i, n_blended, img_settings)} for i in range(simput_cfg.agn.n_gen))
+            # kwds = ({"img_settings": img_settings} for _ in range(simput_cfg.agn.n_gen))
+            
             to_run = partial(
-                simput_generate,
+                create_agn_simput,
+                agn_counts_file=agn_counts_file,
                 emin=energies.emin,
                 emax=energies.emax,
-                mode="agn",
-                tmp_dir=tmp_dir,
-                output_dir=agn_path,
-                spectrum_file=spectrum_file,
+                run_dir=tmp_dir,
+                xspec_file=spectrum_file,
+                offset = "random"
             )
             _, duration = mp_run(to_run, kwds, simput_cfg.num_processes, env_cfg.debug)
             logger.info(f"DONE\tGenerating SIMPUT for mode 'agn'. Duration: {duration}")
@@ -294,7 +326,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-a",
         "--agn_counts_file",
-        default=pathlib.Path(__file__).parent.resolve() / "res" / "agn_counts.cgi",
+        default=Path(__file__).parent.resolve() / "res" / "agn_counts.cgi",
         type=Path,
         help="Path to agn_counts_cgi.",
     )
@@ -302,13 +334,13 @@ if __name__ == "__main__":
         "-p",
         "--config_path",
         type=Path,
-        default=pathlib.Path(__file__).parent.resolve() / "config.toml",
+        default=Path(__file__).parent.resolve() / "config.toml",
         help="Path to config file.",
     )
     parser.add_argument(
         "-s",
         "--spectrum_dir",
-        default=pathlib.Path(__file__).parent.resolve() / "res" / "spectrums",
+        default=Path(__file__).parent.resolve() / "res" / "spectrums",
         type=Path,
         help="Path to spectrum directory.",
     )
