@@ -4,6 +4,7 @@ from typing import Literal
 from uuid import uuid4
 
 import numpy as np
+import numpy as np
 from loguru import logger
 
 from src.simput.agn import get_fluxes
@@ -42,6 +43,8 @@ def create_background(
     return output_files
 
 
+def create_agn_simput(
+    agn_counts_file: Path,
 def create_agn_simput(
     agn_counts_file: Path,
     emin: float,

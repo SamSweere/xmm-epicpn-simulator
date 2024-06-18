@@ -188,6 +188,9 @@ def run_simulation(
             if emask is not None:
                 hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
 
+            if emask is not None:
+                hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
+
     return split_img_paths_exps
 
 

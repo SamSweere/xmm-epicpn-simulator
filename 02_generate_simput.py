@@ -65,6 +65,7 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                     in_file_path=simput_cfg.fits_compressed,
                     out_file_dir=simput_cfg.fits_dir,
                     tar_options="--strip-components=1",
+                    tar_options="--strip-components=1",
                 )
 
             to_create: list[tuple[Path, int]] = []
@@ -184,7 +185,15 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                         continue
 
                     filter = instrument.filter_abbrv
+            for sat in satellites:
+                for name, instrument in sat:
+                    if not instrument.use:
+                        continue
 
+                    filter = instrument.filter_abbrv
+
+                    spectrum_name = f"{name[1]}{name[-1]}{filter}ffg_spectrum.fits"
+                    spectrum_file = spectrum_dir / name / spectrum_name
                     spectrum_name = f"{name[1]}{name[-1]}{filter}ffg_spectrum.fits"
                     spectrum_file = spectrum_dir / name / spectrum_name
 
@@ -197,11 +206,13 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                         )
 
                     fov = get_fov(name)
+                    fov = get_fov(name)
 
                     img_settings.append(
                         {
                             "spectrum_file": spectrum_file,
                             "fov": fov,
+                            "instrument_name": name,
                             "instrument_name": name,
                             "output_dir": bkg_path,
                         }
@@ -242,6 +253,9 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             from src.simput.gen.generation import create_agn_simput
             from src.xmm.utils import get_fov
 
+            from src.simput.gen.generation import create_agn_simput
+            from src.xmm.utils import get_fov
+
             if agn_counts_file is None:
                 raise FileNotFoundError(f"{agn_counts_file} does not exist!")
 
@@ -252,6 +266,8 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             agn_path = simput_cfg.simput_dir / "agn"
             agn_path.mkdir(parents=True, exist_ok=True)
 
+            instruments = [name for sat in satellites for name, instrument in sat if instrument.use]
+            logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs for {instruments}.")
             instruments = [name for sat in satellites for name, instrument in sat if instrument.use]
             logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs for {instruments}.")
             # Get the spectrum file
@@ -296,6 +312,8 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             to_run = partial(
                 create_agn_simput,
                 agn_counts_file=agn_counts_file,
+                create_agn_simput,
+                agn_counts_file=agn_counts_file,
                 emin=energies.emin,
                 emax=energies.emax,
                 run_dir=tmp_dir,
@@ -327,6 +345,7 @@ if __name__ == "__main__":
         "-a",
         "--agn_counts_file",
         default=Path(__file__).parent.resolve() / "res" / "agn_counts.cgi",
+        default=Path(__file__).parent.resolve() / "res" / "agn_counts.cgi",
         type=Path,
         help="Path to agn_counts_cgi.",
     )
@@ -335,11 +354,13 @@ if __name__ == "__main__":
         "--config_path",
         type=Path,
         default=Path(__file__).parent.resolve() / "config.toml",
+        default=Path(__file__).parent.resolve() / "config.toml",
         help="Path to config file.",
     )
     parser.add_argument(
         "-s",
         "--spectrum_dir",
+        default=Path(__file__).parent.resolve() / "res" / "spectrums",
         default=Path(__file__).parent.resolve() / "res" / "spectrums",
         type=Path,
         help="Path to spectrum directory.",
