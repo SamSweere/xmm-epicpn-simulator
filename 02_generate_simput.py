@@ -65,7 +65,6 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
                     in_file_path=simput_cfg.fits_compressed,
                     out_file_dir=simput_cfg.fits_dir,
                     tar_options="--strip-components=1",
-                    tar_options="--strip-components=1",
                 )
 
             to_create: list[tuple[Path, int]] = []
@@ -312,8 +311,6 @@ def run(path_to_cfg: Path, agn_counts_file: Path | None, spectrum_dir: Path | No
             to_run = partial(
                 create_agn_simput,
                 agn_counts_file=agn_counts_file,
-                create_agn_simput,
-                agn_counts_file=agn_counts_file,
                 emin=energies.emin,
                 emax=energies.emax,
                 run_dir=tmp_dir,
@@ -345,7 +342,6 @@ if __name__ == "__main__":
         "-a",
         "--agn_counts_file",
         default=Path(__file__).parent.resolve() / "res" / "agn_counts.cgi",
-        default=Path(__file__).parent.resolve() / "res" / "agn_counts.cgi",
         type=Path,
         help="Path to agn_counts_cgi.",
     )
@@ -354,13 +350,11 @@ if __name__ == "__main__":
         "--config_path",
         type=Path,
         default=Path(__file__).parent.resolve() / "config.toml",
-        default=Path(__file__).parent.resolve() / "config.toml",
         help="Path to config file.",
     )
     parser.add_argument(
         "-s",
         "--spectrum_dir",
-        default=Path(__file__).parent.resolve() / "res" / "spectrums",
         default=Path(__file__).parent.resolve() / "res" / "spectrums",
         type=Path,
         help="Path to spectrum directory.",

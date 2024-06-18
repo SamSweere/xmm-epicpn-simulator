@@ -43,8 +43,7 @@ def create_background(
     return output_files
 
 
-def create_agn_simput(
-    agn_counts_file: Path,
+
 def create_agn_simput(
     agn_counts_file: Path,
     emin: float,
