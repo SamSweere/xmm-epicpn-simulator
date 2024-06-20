@@ -76,8 +76,8 @@ def get_crpix12(instrument_name: str, res_mult: int):
         from src.xmm.epn import get_shift_xy
 
         shift_y, shift_x = get_shift_xy(res_mult=res_mult)
-        crpix1 = round(((naxis1 + 1) / 2.0) - shift_y, 6)
-        crpix2 = round(((naxis2 + 1) / 2.0) - shift_x, 6)
+        crpix1 = round(((naxis1 + 1) / 2.0) + shift_y, 6)
+        crpix2 = round(((naxis2 + 1) / 2.0) + shift_x, 6)
     else:
         crpix1 = round(((naxis1 + 1) / 2.0), 6)
         crpix2 = round(((naxis2 + 1) / 2.0), 6)

@@ -259,13 +259,13 @@ def create_xml(
         max_y, max_x = get_ccd_width_height(res_mult=res_mult)
         yrval, xrval = get_xyrval()
         cc12ty, cc12tx = get_cc12_txy()
-        xrval = np.round(xrval - cc12tx, 3) * 1e-3
-        yrval = np.round(yrval - cc12ty, 3) * 1e-3
+        xrval = np.round(xrval + cc12tx, 3) * 1e-3
+        yrval = np.round(yrval + cc12ty, 3) * 1e-3
     else:
         max_x, max_y = get_img_width_height(res_mult=res_mult)
         yrval, xrval = get_cc12_txy()
-        xrval = np.asarray([-xrval * 1e-3])
-        yrval = np.asarray([-yrval * 1e-3])
+        xrval = np.asarray([xrval * 1e-3])
+        yrval = np.asarray([yrval * 1e-3])
 
     xrpix = round((max_x + 1) / 2.0, 6)
     yrpix = round((max_y + 1) / 2.0, 6)
