@@ -23,13 +23,13 @@ If not already done, you need to [install](https://docs.docker.com/engine/instal
 mkdir downloads/ && cd downloads/ && \
 wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/simput-2.6.1_BETA.tar.gz && \
 tar xfz simput-2.6.1_BETA.tar.gz && rm simput-2.6.1_BETA.tar.gz && \
-wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/sixte-3.0.1_BETA.tar.gz && \
-tar xfz sixte-3.0.1_BETA.tar.gz && rm sixte-3.0.1_BETA.tar.gz && \
+wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/sixte-3.0.2_BETA.tar.gz && \
+tar xfz sixte-3.0.2_BETA.tar.gz && rm sixte-3.0.2_BETA.tar.gz && \
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
 wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/instruments/instruments_xmm-1.2.1.tar.gz && tar xfz instruments_xmm-1.2.1.tar.gz && rm instruments_xmm-1.2.1.tar.gz && \
 wget ftp://anonymous@sasdev-xmm.esac.esa.int/pub/sas/21.0.0/Linux/Ubuntu22.04/sas_21.0.0-Ubuntu22.04.tgz && mkdir sas/ && tar xfz sas_21.0.0-Ubuntu22.04.tgz -C sas && rm sas_21.0.0-Ubuntu22.04.tgz && \
 rsync -v -a --delete --delete-after --force --include='*.CCF' --exclude='*/' sasdev-xmm.esac.esa.int::XMM_VALID_CCF ccf/ && \
-wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.32.1/heasoft-6.32.1src.tar.gz && tar xfz heasoft-6.32.1src.tar.gz && rm heasoft-6.32.1src.tar.gz
+wget https://heasarc.gsfc.nasa.gov/FTP/software/lheasoft/lheasoft6.33.2/heasoft-6.33.2src.tar.gz && tar xfz heasoft-6.33.2src.tar.gz && rm heasoft-6.33.2src.tar.gz
 ```
 
 3. Build the image given by the `Dockerfile` in this repo: `docker build -t {your_own_tag} .` This will take an hour or two.
