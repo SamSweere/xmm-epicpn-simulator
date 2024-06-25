@@ -2,25 +2,26 @@
 working_dir = "/home/xmm_user/xmm-epicpn-simulator/data/tmp"
 output_dir = "/home/xmm_user/xmm-epicpn-simulator/data"
 log_dir = "/home/xmm_user/xmm-epicpn-simulator/data/logs"
-debug = true
+debug = false
 verbose = true
 fail_on_error = false
 overwrite = true
-consume_data = false
+consume_data = true
+
+[multiprocessing]
+num_cores = 12
+ram_gb = 16
 
 [energy]
 emin = 0.15
 emax = 15.0
 
 [download]
-num_processes = 4
-top_n = 400
+top_n = 2
 resolutions = [2048]
 snapshots.98 = 0.01
 
 [download.simulations]
-TNG50-1 = [[100, "kpc"], [400, "kpc"]]
-TNG100-1 = [[400, "kpc"], [1.6, "Mpc"]]
 TNG300-1 = [[1, "Mpc"], [4, "Mpc"]]
 
 [download.modes]
@@ -28,7 +29,7 @@ proj = ["x", "y", "z"]
 slice = []
 
 [simput]
-num_processes = 4
+num_processes = 12
 zoom_range = [ 1, 2 ]
 sigma_b_range = [ 5, 50 ]
 offset_std = 0.05
@@ -38,7 +39,7 @@ num_img_sample = 5
 n_gen = -1 # -1 for all
 
 [simput.agn]
-n_gen = 25000 #25000
+n_gen = 10 #25000
 deblending_n_gen = 0.5 # Fraction of n_gen
 deblending_min_sep = 0.0 # in arcsec
 deblending_max_sep = 5.0 # in arcsec # TODO: determine this value
@@ -49,18 +50,18 @@ n_gen = 1 # 0
 
 [simulation]
 num_processes = 2
-res_mults = [1, 2, 4]
+res_mults = [1]
 max_exposure = 100000
 # We create a very small wait time when the separate_ccds is false
 # in order to avoid readout artifacts.
 wait_time = 0.00002304 # Correct separate wait_time = 0.00002304
 
 [simulation.modes]
-img = -1
-agn = -1
-bkg = 25000
+img = 1
+agn = 1
+bkg = 1
 
 [instruments.xmm]
-emos1 = {use = true, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12, mask_level = "emask"}
-emos2 = {use = true, filter = "thin", sim_separate_ccds = false, max_event_pattern = 12, mask_level = "expmap"}
-epn = {use = false, filter = "thin", sim_separate_ccds = false, max_event_pattern = 4, mask_level = "expmap"}
+emos1 = {use = true, filter = "thin", sim_separate_ccds = true, max_event_pattern = 12, mask_level = "expmap"}
+emos2 = {use = false, filter = "thin", sim_separate_ccds = true, max_event_pattern = 12, mask_level = "expmap"}
+epn = {use = false, filter = "thin", sim_separate_ccds = true, max_event_pattern = 4, mask_level = "expmap"}

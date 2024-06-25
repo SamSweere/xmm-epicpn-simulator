@@ -70,11 +70,9 @@ def _check_mask(v: str) -> str | None:
 
 
 CfgPath = Annotated[Path, AfterValidator(_expanduser), AfterValidator(_mkdir)]
-ProcessCount = Annotated[NonNegativeInt, AfterValidator(_get_num_processes)]
 
 
 class DownloadCfg(BaseModel):
-    num_processes: ProcessCount
     top_n: PositiveInt
     resolutions: list[PositiveInt]
     snapshots: dict[Annotated[NonNegativeInt, Field(le=99)], PositiveFloat]
@@ -87,6 +85,16 @@ class DownloadCfg(BaseModel):
     cutouts_compressed: Path
     fits_path: CfgPath
     fits_compressed: Path
+
+    @computed_field
+    @property
+    def cutouts_tar(self) -> Path:
+        return self.cutouts_path.with_name("cutouts.tar")
+
+    @computed_field
+    @property
+    def fits_tar(self) -> Path:
+        return self.fits_path.with_name("fits.tar")
 
 
 # class _SimputModes(BaseModel):
@@ -132,21 +140,46 @@ class SimputCfg(BaseModel):
     fits_dir: CfgPath
     fits_compressed: Path
 
+    @computed_field
+    @property
+    def img_tar(self) -> Path:
+        return self.simput_dir / "img.tar"
 
-class EnergySettings(BaseModel):
+    @computed_field
+    @property
+    def bkg_tar(self) -> Path:
+        return self.simput_dir / "bkg.tar"
+
+    @computed_field
+    @property
+    def agn_tar(self) -> Path:
+        return self.simput_dir / "agn.tar"
+
+
+class EnergyCfg(BaseModel):
     emin: NonNegativeFloat
     emax: NonNegativeFloat
+
+
+class MultiprocessingCfg(BaseModel):
+    num_cores: NonNegativeInt
+    ram_gb: PositiveInt
 
 
 class EnvironmentCfg(BaseModel):
     working_dir: CfgPath
     output_dir: CfgPath
     log_dir: CfgPath
-    fail_on_error: bool = False
-    debug: bool = False
-    verbose: bool = True
-    overwrite: bool = False
-    consume_data: bool = False
+    fail_on_error: bool
+    debug: bool
+    verbose: bool
+    overwrite: bool
+    consume_data: bool
+
+    @computed_field
+    @property
+    def tar_and_compress(self) -> bool:
+        return self.working_dir != self.output_dir
 
 
 class SimulationCfg(BaseModel):
