@@ -43,6 +43,8 @@ def run_simulation(
         raise FileNotFoundError(
             f"It looks like you have not created the corresponding XML file for instrument " f"'{instrument_name}'"
         )
+        
+    
 
     commands.sixtesim(
         output_path=run_dir.resolve(),
@@ -123,10 +125,18 @@ def run_simulation(
             split_evt_file.unlink()
 
         split_img_paths_exps.append((final_img_path, split_exposure))
+        
+        # Read the source catalogue from the simput file 
+        #TODO: make sure that this also works when simulating other things but AGNs
+        with fits.open(simput_path) as hdul:
+            source_hdu = hdul[1]
+            source_data = source_hdu.data
+            source_header = source_hdu.header.copy()
+           
 
         # Add specifics to the simput file and apply emask if requested
         with fits.open(final_img_path, mode="update") as hdu:
-           
+            
             header = hdu["PRIMARY"].header
             header["EXPOSURE"] = (split_exposure, "Exposure in seconds")
             header["ORIG_EXP"] = (exposure, "Original exposure before split in seconds")
@@ -142,55 +152,16 @@ def run_simulation(
                 f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
             )
             
-            # Add the detector mask #JUST A TEST, REMOVE AGAIN11####
-            # data = hdu["PRIMARY"].data
-            # det_mask_path = f'res/detector_masks/pn_mask_500_2000_detxy_{res_mult}x.ds'
-            # with fits.open(det_mask_path) as det_mask:
-            #     det_mask = det_mask[0].data
-                
-            #     # Compute difference in size 
-            #     y_diff =  det_mask.shape[0] - data.shape[0]
-            #     y_top_pad = int(np.floor(y_diff / 2.0))
-            #     y_bottom_pad = y_diff - y_top_pad
-
-            #     x_diff = det_mask.shape[1] - data.shape[1] 
-            #     x_left_pad = int(np.floor(x_diff / 2.0))
-            #     x_right_pad = x_diff - x_left_pad
-                
-             
-                
-                
-            #     if y_diff >= 0:
-            #         # Pad the image in the y direction
-            #         data = np.pad(
-            #             data, ((y_top_pad, y_bottom_pad), (0, 0)), "constant", constant_values=0.0
-            #         )
-            #     else:
-            #         # Crop the image in the y direction
-            #         data = data[abs(y_top_pad) : data.shape[0] - abs(y_bottom_pad)]
-
-            #     if x_diff >= 0:
-            #         # Pad the image in the x direction
-            #         data = np.pad(
-            #             data, ((0, 0), (x_left_pad, x_right_pad)), "constant", constant_values=0.0
-            #         )
-            #     else:
-            #         # Crop the image in the x direction
-            #         data = data[:, abs(x_left_pad) : data.shape[1] - abs(x_right_pad)]
-       
-                        
-                
-            #     data = data * det_mask
-            
-            
-            test = hdu["PRIMARY"].data.shape
-
             if emask is not None:
                 hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
+                  
+            # Create a new BinTableHDU for the source catalog
+            new_hdu = fits.BinTableHDU(data=source_data, header=source_header)
 
-            if emask is not None:
-                hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
-
+            # Append the new HDU to the target FITS file
+            hdu.append(new_hdu)
+            hdu.flush()
+            
     return split_img_paths_exps
 
 

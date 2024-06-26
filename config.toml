@@ -42,8 +42,8 @@ n_gen = 0 # -1 for all
 n_gen = 1 #25000
 deblending_n_gen = 1.0 # Fraction of n_gen
 deblending_n_flux = 0.5 # Fraction of all blended agns (must be <= 0.5)
-deblending_min_sep = 4.9 # in arcsec
-deblending_max_sep = 5.0 # in arcsec # TODO: determine this value
+deblending_min_sep = 6.9 # in arcsec
+deblending_max_sep = 7.0 # in arcsec # TODO: determine this value
 deblending_max_flux_delta = 0.5 # the maximum difference between two sources in flux # TODO: determine this value
 put_source_in_center = 1
 

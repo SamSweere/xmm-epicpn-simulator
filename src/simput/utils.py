@@ -38,7 +38,7 @@ def merge_simputs(simput_files: list[Path], output_file: Path) -> Path:
     
 def add_columns_to_simput(simput_file: Path, additional_columns: dict[str, np.ndarray]) -> None:
     
-    with fits.open(simput_file, mode='update', memmap=False) as hdul:
+   with fits.open(simput_file, mode='update', memmap=False) as hdul:
         # Identify the extension with source data
         source_hdu = None
         for hdu in hdul:
@@ -48,6 +48,9 @@ def add_columns_to_simput(simput_file: Path, additional_columns: dict[str, np.nd
 
         if source_hdu is None:
             raise ValueError("No suitable extension with RA and DEC columns found in the SIMPUT file.")
+
+        # Preserve the header from the source HDU
+        original_header = source_hdu.header.copy()
 
         # Convert additional columns to fits.Columns
         new_columns = []
@@ -60,20 +63,21 @@ def add_columns_to_simput(simput_file: Path, additional_columns: dict[str, np.nd
         existing_columns = []
         for col in source_hdu.columns:
             col_data = np.array(source_hdu.data[col.name])  # Force load data
-            existing_col = fits.Column(name=col.name, format=col.format, array=col_data)
+            existing_col = fits.Column(name=col.name, format=col.format, array=col_data, unit = col.unit)
             existing_columns.append(existing_col)
 
         # Combine existing columns with new columns
         all_columns = fits.ColDefs(existing_columns + new_columns)
 
-        # Create a new BinTableHDU with all columns
-        new_hdu = fits.BinTableHDU.from_columns(all_columns)
+        # Create a new BinTableHDU with all columns and the preserved header
+        new_hdu = fits.BinTableHDU.from_columns(all_columns, header=original_header)
 
         # Replace the old HDU with the new one
         hdul[hdul.index_of(source_hdu)] = new_hdu
         hdul.flush()
-        
-        
+
+
+
 def make_deblending_img_settings(i, n_blended, img_settings):
     """Change the 'deblending' parameter in 'img_settings' to True if the index of the current image is smaller than the absolute number of images that shall contain blended sources.  
 

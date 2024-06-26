@@ -19,6 +19,7 @@ from src.simput.utils import add_columns_to_simput
 
 import csv
 import json
+from astropy.io import fits
 
 
 
@@ -140,8 +141,8 @@ def create_agn_simput(
         merged = merge_simputs(simput_files=simput_files, output_file=run_dir / f"merged_{unique_id}.simput")
         
         # Add additional information for deblending
-        add_columns_to_simput(output_file, deblend_columns)
-        
+        add_columns_to_simput(merged, deblend_columns)
+         
         compress_gzip(in_file_path=merged, out_file_path=output_dir / final_name, remove_file=True)
     
 
