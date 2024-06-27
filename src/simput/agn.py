@@ -7,7 +7,7 @@ from loguru import logger
 
 from src.simput.pointsource import create_pointsource
 from src.simput.tools import merge_simputs
-from src.xmm_utils.file_utils import compress_gzip
+from src.tools.files import compress_gzip
 
 
 def get_s_n_from_file(file_path: Path) -> tuple[np.ndarray, np.ndarray]:

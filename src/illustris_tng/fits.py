@@ -10,6 +10,7 @@ from yt.utilities.logger import set_log_level
 from yt.visualization.fits_image import FITSOffAxisProjection, FITSSlice
 
 from src.config import EnergyCfg, EnvironmentCfg
+from src.tools.files import compress_gzip
 
 set_log_level(50)
 
@@ -56,10 +57,10 @@ def cutout_to_xray_fits(
                         fits_filename_suffix = f"_m_{mode}_r_{r}_w_{w[0]}{w[1]}_n_{axis_str}"
                         fits_filename = f"{fits_filename_prefix}{fits_filename_suffix}.fits"
                         fits_path = output_dir / fits_filename
-                        fits_path = fits_path.resolve()
+                        compressed_path = fits_path.with_suffix(".fits.gz")
 
-                        if fits_path.exists():
-                            logger.info(f"FITS file already exists at {fits_path}. Skipping.")
+                        if compressed_path.exists():
+                            logger.info(f"FITS file already exists at {compressed_path.exists()}. Skipping.")
                             continue
                         try:
                             if mode == "proj":
@@ -92,14 +93,15 @@ def cutout_to_xray_fits(
                             yt_fits.update_header(field="all", key="REDSHIFT", value=redshift)
                             yt_fits.update_header(field="all", key="EMIN", value=energies.emin)
                             yt_fits.update_header(field="all", key="EMAX", value=energies.emax)
-                            yt_fits.writeto(f"{fits_path}", overwrite=environment.overwrite)
+                            yt_fits.writeto(f"{fits_path}")
+                            compress_gzip(in_file_path=fits_path, out_file_path=compressed_path, remove_file=True)
                         except Exception as e:
                             if environment.fail_on_error:
                                 logger.exception(f"Failed to process {cutout.resolve()} with error:\n" f"{e}")
                                 raise
                             else:
                                 logger.warning(f"Failed to process {cutout.resolve()} with error:\n" f"{e}")
-                        fits.append(fits_path)
+                        fits.append(compressed_path)
     if environment.consume_data:
         cutout.unlink()
         logger.success(f"Deleted {cutout}.")

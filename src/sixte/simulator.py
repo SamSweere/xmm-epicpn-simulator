@@ -10,8 +10,8 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
+from src.tools.files import compress_gzip, filter_event_pattern
 from src.xmm.tools import get_cdelt, get_crpix12, get_naxis12, get_xml_file
-from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
 
 
 def run_simulation(

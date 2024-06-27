@@ -6,8 +6,8 @@ import numpy as np
 from astropy.io import fits
 
 from src.sixte import commands
+from src.tools.files import compress_gzip
 from src.xmm.tools import get_fov
-from src.xmm_utils.file_utils import compress_gzip
 
 
 def _prepare_fits_image(

@@ -21,8 +21,8 @@ from src.illustris_tng.web_api import (
     get_subhalos,
 )
 from src.simput.tools import get_spectrumfile
+from src.tools.files import compress_gzip, decompress_targz
 from src.xmm.tools import get_spectrum_file
-from src.xmm_utils.file_utils import compress_gzip, decompress_targz
 
 
 @contextmanager

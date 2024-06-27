@@ -7,8 +7,8 @@ from loguru import logger
 
 from src.simput.tools import generate_ascii_spectrum, ones_like_xmm
 from src.sixte import commands
+from src.tools.files import compress_gzip
 from src.xmm.tools import get_cdelt, get_crpix12, get_naxis12, get_pixel_size
-from src.xmm_utils.file_utils import compress_gzip
 
 
 def get_ascii_spectrum(

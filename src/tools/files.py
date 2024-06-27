@@ -5,7 +5,7 @@ import numpy as np
 from astropy.io import fits
 from loguru import logger
 
-from src.xmm_utils.external_run import run_command
+from src.tools.external_run import run_command
 
 
 def compress_gzip(in_file_path: Path, out_file_path: Path, compresslevel=6, remove_file: bool = False):

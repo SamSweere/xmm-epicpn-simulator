@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from src.xmm_utils.external_run import run_command
+from src.tools.external_run import run_command
 
 
 def imgev(

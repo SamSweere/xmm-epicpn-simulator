@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from src.config import DownloadCfg, EnergyCfg, EnvironmentCfg, MultiprocessingCfg
-from src.xmm_utils.run_utils import configure_logger
-from src.xmm_utils.tools import download_data
+from src.tools import download_data
+from src.tools.run_utils import configure_logger
 
 logger.remove()
 

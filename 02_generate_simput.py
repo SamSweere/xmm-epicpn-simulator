@@ -6,8 +6,8 @@ from pathlib import Path
 from loguru import logger
 
 from src.config import EnergyCfg, EnvironmentCfg, MultiprocessingCfg, SimputCfg
-from src.xmm_utils.run_utils import configure_logger, load_satellites
-from src.xmm_utils.tools import generate_simput
+from src.tools import generate_simput
+from src.tools.run_utils import configure_logger, load_satellites
 
 logger.remove()
 
