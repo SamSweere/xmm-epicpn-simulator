@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from src.config import DownloadCfg, EnergyCfg, EnvironmentCfg, MultiprocessingCfg
-from src.tools import download_data
 from src.tools.run_utils import configure_logger
+from src.tools.tools import download_data
 
 logger.remove()
 
