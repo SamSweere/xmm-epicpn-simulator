@@ -6,7 +6,8 @@ import numpy as np
 from astropy.io import fits
 
 from src.sixte import commands
-from src.xmm.utils import get_fov
+from src.xmm.tools import get_fov
+from src.xmm_utils.file_utils import compress_gzip
 
 
 def _prepare_fits_image(
@@ -100,14 +101,21 @@ def _prepare_fits_image(
     return tmp_output_file, flux
 
 
-def simput_image(emin: float, emax: float, run_dir: Path, img_settings: dict, xspec_file: Path) -> list[Path]:
-    img_path_in: Path = img_settings["img_path"]
-    zooms = img_settings["zoom"]
-    sigmas_b = img_settings["sigma_b"]
-    offsets_x = img_settings["offset_x"]
-    offsets_y = img_settings["offset_y"]
-
+def simput_image(
+    img_path_in: Path,
+    emin: float,
+    emax: float,
+    zooms: np.ndarray,
+    sigmas_b: np.ndarray,
+    offsets_x: np.ndarray,
+    offsets_y: np.ndarray,
+    run_dir: Path,
+    output_dir: Path,
+    xspec_file: Path,
+    consume_data: bool,
+) -> list[Path]:
     output_files = []
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     for zoom, sigma_b, offset_x, offset_y in zip(zooms, sigmas_b, offsets_x, offsets_y, strict=False):
         img_path, flux = _prepare_fits_image(
@@ -124,6 +132,7 @@ def simput_image(emin: float, emax: float, run_dir: Path, img_settings: dict, xs
         output_file_name = f"{name}.simput"
 
         output_file = run_dir / output_file_name
+        compressed_path = output_dir / f"{output_file.name}.gz"
 
         commands.simputfile(
             simput=output_file,
@@ -158,9 +167,11 @@ def simput_image(emin: float, emax: float, run_dir: Path, img_settings: dict, xs
                 f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
             )
 
-        output_files.append(output_file.resolve())
+        compress_gzip(output_file, compressed_path, remove_file=True)
 
-    if img_settings["consume_data"]:
+        output_files.append(compressed_path.resolve())
+
+    if consume_data:
         img_path_in.unlink()
 
     return output_files

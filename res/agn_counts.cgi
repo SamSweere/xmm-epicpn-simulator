@@ -1,10 +1,10 @@
 Content-type: text/plain
 
 compute logN-logS
- 
+
          S            N(>S)
    [erg/cm**2/s]    [deg**-2]
- 
+
   1.5849E-15  3.8350E+02
   2.5119E-15  2.4970E+02
   3.9811E-15  1.4824E+02

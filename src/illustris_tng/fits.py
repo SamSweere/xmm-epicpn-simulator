@@ -9,7 +9,8 @@ from yt.loaders import load
 from yt.utilities.logger import set_log_level
 from yt.visualization.fits_image import FITSOffAxisProjection, FITSSlice
 
-# Turn of logging to console since it could lead to a deadlock when using multiprocessing
+from src.config import EnergyCfg, EnvironmentCfg
+
 set_log_level(50)
 
 
@@ -21,28 +22,26 @@ def cutout_to_xray_fits(
     cloudy_emissivity_root: Path,
     widths: list[tuple[float, str]],
     resolutions: list[int],
-    emin: float,
-    emax: float,
+    energies: EnergyCfg,
     redshift: float,
-    overwrite: bool = True,
-    fail_on_error: bool = False,
-    consume_data: bool = False,
-):
+    environment: EnvironmentCfg,
+) -> list[Path]:
     fits_filename_prefix = cutout.stem
     output_dir = output_dir / cutout.parts[-3] / cutout.parts[-2]  # Save in output_dir / TNG set / snapshot num
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.debug(
-        f"Processing cutout: {cutout.resolve()}. Arguments: mode={mode_dict}; emin={emin}; emax={emax}; "
-        f"widths={widths}; resolution={resolutions}; redshift={redshift}; overwrite={overwrite}; "
-        f"output_dir={output_dir}; cutout_datafolder={cutout.parent}"
+        f"Processing cutout: {cutout.resolve()}. Arguments: mode={mode_dict}; emin={energies.emin}; "
+        f"emax={energies.emax}; widths={widths}; resolution={resolutions}; redshift={redshift}; "
+        f"overwrite={environment.overwrite}; output_dir={output_dir}; cutout_datafolder={cutout.parent}"
     )
+    fits = []
     start = datetime.now()
 
     # Force turn off all logging from yt via redirecting stdout and stderr into /dev/null
     with open(os.devnull, "w") as f, redirect_stdout(f), redirect_stderr(f):
-        ds = load(f"{cutout.resolve()}", default_species_fields="ionized")
+        ds = load(cutout, default_species_fields="ionized")
 
-        add_xray_emissivity_field(ds, emin, emax, redshift, data_dir=cloudy_emissivity_root)
+        add_xray_emissivity_field(ds, energies.emin, energies.emax, redshift, data_dir=cloudy_emissivity_root)
 
         for mode in mode_dict:
             axes = mode_dict[mode]
@@ -59,8 +58,9 @@ def cutout_to_xray_fits(
                         fits_path = output_dir / fits_filename
                         fits_path = fits_path.resolve()
 
-                        if fits_path.exists() and not overwrite:
-                            raise FileExistsError(f"{fits_path} already exists and `overwrite` is False")
+                        if fits_path.exists():
+                            logger.info(f"FITS file already exists at {fits_path}. Skipping.")
+                            continue
                         try:
                             if mode == "proj":
                                 yt_fits = FITSOffAxisProjection(
@@ -68,7 +68,7 @@ def cutout_to_xray_fits(
                                     normal=axis,
                                     fields=(
                                         "gas",
-                                        f"xray_photon_intensity_{emin}_{emax}_keV",
+                                        f"xray_photon_intensity_" f"{energies.emin}_{energies.emax}_keV",
                                     ),
                                     center=(sub["pos_x"], sub["pos_y"], sub["pos_z"]),
                                     width=w,
@@ -80,7 +80,7 @@ def cutout_to_xray_fits(
                                     axis=axis,
                                     fields=(
                                         "gas",
-                                        f"xray_photon_intensity_{emin}_{emax}_keV",
+                                        f"xray_photon_intensity_" f"{energies.emin}_{energies.emax}_keV",
                                     ),
                                     center=(sub["pos_x"], sub["pos_y"], sub["pos_z"]),
                                     width=w,
@@ -90,16 +90,19 @@ def cutout_to_xray_fits(
                             yt_fits.update_header(field="all", key="AXIS", value=f"{axis}")
                             yt_fits.update_header(field="all", key="WIDTH", value=w)
                             yt_fits.update_header(field="all", key="REDSHIFT", value=redshift)
-                            yt_fits.update_header(field="all", key="EMIN", value=emin)
-                            yt_fits.update_header(field="all", key="EMAX", value=emax)
-                            yt_fits.writeto(f"{fits_path}", overwrite=overwrite)
+                            yt_fits.update_header(field="all", key="EMIN", value=energies.emin)
+                            yt_fits.update_header(field="all", key="EMAX", value=energies.emax)
+                            yt_fits.writeto(f"{fits_path}", overwrite=environment.overwrite)
                         except Exception as e:
-                            if fail_on_error:
+                            if environment.fail_on_error:
                                 logger.exception(f"Failed to process {cutout.resolve()} with error:\n" f"{e}")
                                 raise
                             else:
                                 logger.warning(f"Failed to process {cutout.resolve()} with error:\n" f"{e}")
-    if consume_data:
+                        fits.append(fits_path)
+    if environment.consume_data:
         cutout.unlink()
+        logger.success(f"Deleted {cutout}.")
     end = datetime.now()
     logger.info(f"Processing of {cutout} took {end - start}.")
+    return fits

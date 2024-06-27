@@ -4,9 +4,11 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
+import requests
 from astropy.io import fits
+from pysas.wrapper import Wrapper as sas
 
-from src.config import EnergySettings
+from src.config import EnergyCfg
 from src.xmm.ccf import get_xrt_xareaef
 
 available_instruments = ["epn", "emos1", "emos2"]
@@ -250,11 +252,58 @@ def create_psf_file(instrument_name: str, xml_dir: Path, res_mult: int) -> None:
                 primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT2"] / res_mult
 
 
+def get_spectrum_file(instrument_name: str, spectrum_dir: Path, filter_abbr: str) -> Path:
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    base_url = (
+        "https://xmm-tools.cosmos.esa.int/external/xmm_calibration/background/bs_repository/{0}{1}ffg_events.fits"
+    )
+    url = base_url.format(f"{instrument_name[1]}{instrument_name[-1]}", filter_abbr)
+    blank_sky_events = spectrum_dir / url.split("/")[-1]
+    out_file = spectrum_dir / f"{url.split('/')[-1].split('_')[0]}_spectrum.fits"
+
+    if out_file.exists():
+        return out_file
+
+    if not blank_sky_events.exists():
+        retries = 3
+        while retries > 0:
+            try:
+                with requests.get(url, stream=True) as r:
+                    r.raise_for_status()
+                    with open(blank_sky_events, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=int(1e6)):
+                            f.write(chunk)
+                retries = 0
+            except:  # noqa
+                retries = retries - 1
+
+    assert blank_sky_events.exists()
+
+    sas(
+        "evselect",
+        [
+            f"table={blank_sky_events}",
+            "energycolumn=PI",
+            f"spectrumset={out_file}",
+            "specchannelmin=0",
+            "specchannelmax=20479",
+            "withspectrumset=yes",
+        ],
+        os.devnull,
+    ).run()
+
+    blank_sky_events.unlink()
+
+    return out_file
+
+
 def create_mask(
     instrument_name: str,
     observation_id: str,
     mask_level: str | None,
-    energies: EnergySettings,
+    energies: EnergyCfg,
     res_mults: list[int] = None,
 ) -> dict[str, dict[int, Path]] | None:
     if res_mults is None:

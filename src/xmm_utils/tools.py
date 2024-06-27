@@ -255,7 +255,6 @@ def generate_simput(
                     decompress_targz(
                         in_file_path=simput_cfg.fits_compressed,
                         out_file_dir=simput_cfg.fits_dir,
-                        tar_options="--strip-components=1",
                     )
 
                 amount_img = simput_cfg.img.n_gen
@@ -263,7 +262,7 @@ def generate_simput(
                     if amount_img > 0:
                         amount_img = amount_img - 1
 
-                    tng_set, snapshot_num = in_file.parts[-2], in_file.parts[-1]
+                    tng_set, snapshot_num = in_file.parts[-3], in_file.parts[-2]
                     # Check how many files have already been generated and how many are left to generate
                     sample_num = simput_cfg.num_img_sample
                     for _ in (img_path / tng_set / snapshot_num).glob(f"{in_file.stem}*"):
@@ -288,16 +287,15 @@ def generate_simput(
                         ),
                         2,
                     )
-                    sigma_b = (
-                        np.round(
-                            rng.uniform(
-                                simput_cfg.sigma_b_range[0],
-                                simput_cfg.sigma_b_range[1],
-                                sample_num,
-                            ),
-                            2,
+                    sigma_b = np.round(
+                        rng.uniform(
+                            simput_cfg.sigma_b_range[0],
+                            simput_cfg.sigma_b_range[1],
+                            sample_num,
                         ),
+                        2,
                     )
+
                     offset_x = np.round(
                         rng.normal(
                             -simput_cfg.offset_std,
@@ -320,10 +318,9 @@ def generate_simput(
                         img_path_in=in_file,
                         zooms=zoom,
                         sigmas_b=sigma_b,
-                        offsests_x=offset_x,
+                        offsets_x=offset_x,
                         offsets_y=offset_y,
-                        output_dir=img_path,
-                        spectrum_file=xspec_file,
+                        output_dir=img_path / tng_set / snapshot_num,
                     )
 
                     generator_fs[fs] = "img"
@@ -341,6 +338,7 @@ def generate_simput(
                 _background = partial(
                     create_background,
                     run_dir=Path(mkdtemp(dir=tmp_dir, prefix="bkg_")),
+                    output_dir=bkg_path,
                     emin=energies.emin,
                     emax=energies.emax,
                 )
@@ -376,34 +374,34 @@ def generate_simput(
                 logger.success(f"DONE\tGetting spectrum files. Duration: {elapsed_time}")
 
             if simput_cfg.agn.n_gen > 0:
-                from src.simput.agn import create_agn
-                from src.xmm.tools import get_fov
-
-                if agn_counts_file is None or (agn_counts_file.exists() and agn_counts_file.is_dir()):
+                skip_agn = agn_counts_file is None or (agn_counts_file.exists() and agn_counts_file.is_dir())
+                if skip_agn:
                     logger.warning(f"{agn_counts_file} does not exist! Won't create any AGN SIMPUTs.")
-                    # TODO
+                else:
+                    from src.simput.agn import create_agn
+                    from src.xmm.tools import get_fov
 
-                logger.info("START\tGenerating SIMPUT for mode 'agn'...")
-                agn_path = simput_cfg.simput_dir / "agn"
-                agn_path.mkdir(parents=True, exist_ok=True)
+                    logger.info("START\tGenerating SIMPUT for mode 'agn'...")
+                    agn_path = simput_cfg.simput_dir / "agn"
+                    agn_path.mkdir(parents=True, exist_ok=True)
 
-                logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs")
-                # Get the spectrum file
-                spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
+                    logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs")
+                    # Get the spectrum file
+                    spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
 
-                for _ in range(simput_cfg.agn.n_gen):
-                    fs = executor.submit(
-                        create_agn,
-                        agn_counts_file=agn_counts_file,
-                        emin=energies.emin,
-                        emax=energies.emax,
-                        fov=get_fov("epn"),
-                        run_dir=Path(mkdtemp(dir=tmp_dir, prefix="bkg_")),
-                        output_dir=agn_path,
-                        xspec_file=spectrum_file,
-                    )
+                    for _ in range(simput_cfg.agn.n_gen):
+                        fs = executor.submit(
+                            create_agn,
+                            agn_counts_file=agn_counts_file,
+                            emin=energies.emin,
+                            emax=energies.emax,
+                            fov=get_fov("epn"),
+                            run_dir=Path(mkdtemp(dir=tmp_dir, prefix="bkg_")),
+                            output_dir=agn_path,
+                            xspec_file=spectrum_file,
+                        )
 
-                    generator_fs[fs] = "agn"
+                        generator_fs[fs] = "agn"
 
             img_total = countOf(generator_fs.values(), "img")
             bkg_total = countOf(generator_fs.values(), "bkg")
@@ -412,17 +410,17 @@ def generate_simput(
             pbars = {}
             tars = {}
             if img_total:
-                pbars["img"] = tqdm(total=img_total)
+                pbars["img"] = tqdm(total=img_total, desc="Creating SIMPUTs for IMG")
                 if env_cfg.tar_and_compress:
                     tars["img"] = (tarfile.open(simput_cfg.img_tar, "a"), simput_cfg.img_tar)
 
             if bkg_total:
-                pbars["bkg"] = tqdm(total=bkg_total)
+                pbars["bkg"] = tqdm(total=bkg_total, desc="Creating SIMPUTs for BKG")
                 if env_cfg.tar_and_compress:
                     tars["bkg"] = (tarfile.open(simput_cfg.bkg_tar, "a"), simput_cfg.bkg_tar)
 
             if agn_total:
-                pbars["agn"] = tqdm(total=agn_total)
+                pbars["agn"] = tqdm(total=agn_total, desc="Creating SIMPUTs for AGN")
                 if env_cfg.tar_and_compress:
                     tars["agn"] = (tarfile.open(simput_cfg.agn_tar, "a"), simput_cfg.agn_tar)
 
@@ -452,7 +450,7 @@ def generate_simput(
 
             for mode, tar in tars.items():
                 tar, tar_path = tar
-                compressed = env_cfg.output_dir / "simput" / mode / f"{mode}.tar.gz"
+                compressed = env_cfg.output_dir / "simput" / f"{mode}.tar.gz"
                 compressed.parent.mkdir(parents=True, exist_ok=True)
                 compressed.unlink(missing_ok=True)
                 compress_gzip(tar_path, compressed, remove_file=True)

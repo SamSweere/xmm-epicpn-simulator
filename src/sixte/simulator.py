@@ -10,7 +10,7 @@ from loguru import logger
 
 from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
-from src.xmm.utils import get_cdelt, get_crpix12, get_naxis12, get_xml_file
+from src.xmm.tools import get_cdelt, get_crpix12, get_naxis12, get_xml_file
 from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
 
 
@@ -89,7 +89,7 @@ def run_simulation(
                 emask = np.rot90(emask)
     split_img_paths_exps = []
     for split_dict in split_exposure_evt_files:
-        split_evt_file: path = split_dict["outfile"]
+        split_evt_file: Path = split_dict["outfile"]
         split_name = split_dict["base_name"]
         t_start = split_dict["t_start"]
         t_stop = split_dict["t_stop"]
@@ -158,7 +158,7 @@ def run_xmm_simulation(
     sim_separate_ccds: bool,
     consume_data: bool,
     emask: Path = None,
-):
+) -> list[Path]:
     logger.info(f"Running simulations for {simput_file.resolve()}")
     with TemporaryDirectory(dir=tmp_dir) as tmp:
         run_dir = Path(tmp)
@@ -182,8 +182,9 @@ def run_xmm_simulation(
             emask=emask,
         )
 
+        res = []
         if tmp_split_img_paths_exps is None:
-            return
+            return res
 
         for p in tmp_split_img_paths_exps:
             file_path: Path = p[0]
@@ -213,3 +214,5 @@ def run_xmm_simulation(
             final_compressed_file_path = final_img_directory / f"{file_path.name}.gz"
             compress_gzip(in_file_path=file_path, out_file_path=final_compressed_file_path)
             file_path.unlink()
+            res.append(final_compressed_file_path)
+        return res

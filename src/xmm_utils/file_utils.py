@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 from astropy.io import fits
+from loguru import logger
 
 from src.xmm_utils.external_run import run_command
 
@@ -27,6 +28,7 @@ def compress_targz(in_path: Path, out_file_path: Path, remove_files: bool = Fals
 def decompress_targz(in_file_path: Path, out_file_dir: Path, tar_options: str = ""):
     out_file_dir.mkdir(parents=True, exist_ok=True)
     run_command(f"tar -xzf {in_file_path.resolve()} -C {out_file_dir.resolve()} {tar_options}")
+    logger.success(f"Decompressed {in_file_path} to {out_file_dir}")
 
 
 def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path | None:
