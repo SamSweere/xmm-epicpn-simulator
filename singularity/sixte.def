@@ -1,0 +1,32 @@
+Bootstrap: localimage
+From: /home/todorkov/projects/xmm-epicpn-simulator/singularity/ubuntu.sif
+
+%post
+    export SIMPUT=/simput
+    export SIXTE=$SIMPUT
+
+    mkdir $SIMPUT
+
+    mkdir src && cd src
+    wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/simput-2.6.1_BETA.tar.gz && \
+    tar xfz simput-2.6.1_BETA.tar.gz && rm simput-2.6.1_BETA.tar.gz
+    cd simput
+    cmake -S . -B build -DCMAKE_INSTALL_PREFIX=$SIMPUT && \
+    cmake --build build && \
+    cmake --install build
+    cd /src
+    wget https://www.sternwarte.uni-erlangen.de/~sixte/downloads/sixte/sixte-3.0.2_BETA.tar.gz && \
+    tar xfz sixte-3.0.2_BETA.tar.gz && rm sixte-3.0.2_BETA.tar.gz
+    cd sixte-3.0.2
+    cmake -S . -B build -DCMAKE_INSTALL_PREFIX=$SIXTE && \
+    cmake --build build && \
+    cmake --install build
+
+    rm -rf src/
+
+%environment
+    export SIMPUT=/simput
+    export SIXTE=$SIMPUT
+
+# %test
+#     . $SIXTE/bin/sixte-install.sh

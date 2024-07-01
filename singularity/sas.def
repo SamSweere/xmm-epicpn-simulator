@@ -1,0 +1,31 @@
+Bootstrap: localimage
+From: /home/todorkov/projects/xmm-epicpn-simulator/singularity/heasoft.sif
+
+%files
+    ../downloads/sas /sas
+    ../downloads/ccf /ccf
+
+%post
+    export SAS_ROOT=/sas
+    export SAS_DIR=$SAS_ROOT/xmmsas_20230412_1735
+    export SAS_PERL=/usr/bin/perl
+    export SAS_PYTHON=$PYTHON
+    export SAS_CCFPATH=/ccf
+    export SAS_CCF=/ccf/ccf.cif
+
+    cd /sas
+    ./install.sh
+
+    cd /ccf
+    . $HEADAS/headas-init.sh
+    . $SAS_DIR/setsas.sh
+    cifbuild withobservationdate=yes
+
+%environment
+    export SAS_ROOT=/sas
+    export SAS_DIR=$SAS_ROOT/xmmsas_20230412_1735
+    export SAS_PYTHON=$PYTHON
+    export SAS_CCFPATH=/ccf
+    export SAS_CCF=/ccf/ccf.cif
+    export PATH=/usr/bin/perl:$PATH
+    export PYTHONPATH=$SAS_DIR/lib/python:$PYTHONPATH

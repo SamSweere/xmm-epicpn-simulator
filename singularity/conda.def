@@ -1,0 +1,20 @@
+Bootstrap: localimage
+From: /home/todorkov/projects/xmm-epicpn-simulator/singularity/sixte.sif
+
+%files
+    ../downloads/miniconda.sh /miniconda.sh
+    ../downloads/xmm.yaml /xmm.yaml
+    ../downloads/share/* /simput/share/
+
+%post
+    export MINICONDA=/miniconda
+
+    chmod 777 /miniconda.sh
+    /miniconda.sh -b -p $MINICONDA
+    $MINICONDA/bin/conda env create --file /xmm.yaml --prefix /envs/xmm
+    rm /miniconda.sh /xmm.yaml
+
+%environment
+    export MINICONDA=/miniconda
+    export PYTHON=/envs/xmm/bin/python
+    export PATH=$MINICONDA/bin:$PATH

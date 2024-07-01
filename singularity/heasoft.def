@@ -1,0 +1,26 @@
+Bootstrap: localimage
+From: /home/todorkov/projects/xmm-epicpn-simulator/singularity/conda.sif
+
+%files
+    ../downloads/heasoft-6.33.2 /src/heasoft-6.33.2
+
+%post
+    export CC=/usr/bin/gcc
+    export CXX=/usr/bin/g++
+    export FC=/usr/bin/gfortran
+    export PERL=/usr/bin/perl
+    export HEADAS=/heasoft
+
+    cd /src/heasoft-6.33.2/BUILD_DIR
+    ./configure --prefix=$HEADAS
+    make
+    make install
+    /bin/bash -c 'cd /heasoft; for loop in x86_64*/*; do ln -sf $loop; done'
+    rm -rf /src
+
+%environment
+    export HEADAS=/heasoft
+    export HEADASPROMPT=/dev/null
+    export HEADASNOQUERY=""
+    export LD_LIBRARY_PATH=$PYTHON/lib:$LD_LIBRARY_PATH
+    export PYTHONPATH=$HEADAS/lib/python:$PYTHONPATH

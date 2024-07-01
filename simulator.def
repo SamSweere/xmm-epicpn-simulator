@@ -1,0 +1,14 @@
+Bootstrap: library
+From: ubuntu:22.04
+
+%files
+
+%post
+
+    # cd $SAS_CCFPATH
+    # . $HEADAS/headas-init.sh && . $SAS_DIR/setsas.sh && . $SIXTE/bin/sixte-install.sh && cifbuild withobservationdate=yes
+
+%environment
+    export LD_LIBRARY_PATH=$PYTHON:$LD_LIBRARY_PATH
+    export PYTHONPATH=$SAS_DIR/lib/python:$HEADAS/lib/python:$PYTHONPATH
+    export LC_ALL=C
