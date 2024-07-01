@@ -1,22 +1,25 @@
 import os
 import pathlib
 import shutil
+import tarfile
 import tomllib
 from argparse import ArgumentParser
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import partial
+from itertools import repeat
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal
 
 from loguru import logger
 
-from src.config import EnergySettings, EnvironmentCfg, SimulationCfg
+from src.config import EnergyCfg, EnvironmentCfg, SimulationCfg
 from src.sixte.simulator import run_xmm_simulation
-from src.xmm.utils import create_mask, create_psf_file, create_vinget_file, create_xml_files
-from src.xmm_utils.file_utils import compress_targz, decompress_targz
-from src.xmm_utils.multiprocessing import mp_run
-from src.xmm_utils.run_utils import configure_logger, load_satellites
+from src.tools.files import compress_gzip, decompress_targz
+from src.tools.multiprocessing import mp_run
+from src.tools.run_utils import configure_logger, load_satellites
+from src.xmm.tools import create_mask, create_psf_file, create_vinget_file, create_xml_files
 
 logger.remove()
 
@@ -44,28 +47,62 @@ def _simulate_mode(
             if amount != -1 and i >= amount:
                 break
     else:
-        simputs = [next(mode_dir.rglob(f"*{instrument_name}.simput.gz"))] * amount
+        simputs = repeat(next(mode_dir.rglob(f"*{instrument_name}.simput.gz")), amount)
 
-    to_run = partial(
-        run_xmm_simulation,
-        instrument_name=instrument_name,
-        xml_dir=xml_dir.resolve(),
-        mode=f"{mode}",
-        tmp_dir=sim_dir.resolve(),
-        out_dir=xmm_filter_dir.resolve(),
-        max_event_pattern=max_event_pattern,
-        exposure=sim_cfg.max_exposure,
-        xmm_filter=xmm_filter,
-        sim_separate_ccds=sim_separate_ccds,
-        consume_data=env_cfg.consume_data,
-    )
-    kwds = (
-        {"simput_file": simput.resolve(), "res_mult": res_mult, "emask": emasks[instrument_name][res_mult]}
-        for res_mult in sim_cfg.res_mults
-        for simput in simputs
-    )
-    _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
-    logger.success(f"DONE\tSimulating {instrument_name} for {mode.upper()}. Duration: {duration}")
+    with ProcessPoolExecutor(max_workers=sim_cfg.num_processes, max_tasks_per_child=100) as simulator:
+        # to_run = partial(
+        #     run_xmm_simulation,
+        #     instrument_name=instrument_name,
+        #     xml_dir=xml_dir.resolve(),
+        #     mode=f"{mode}",
+        #     tmp_dir=sim_dir.resolve(),
+        #     out_dir=xmm_filter_dir.resolve(),
+        #     max_event_pattern=max_event_pattern,
+        #     exposure=sim_cfg.max_exposure,
+        #     xmm_filter=xmm_filter,
+        #     sim_separate_ccds=sim_separate_ccds,
+        #     consume_data=env_cfg.consume_data,
+        # )
+        # kwds = (
+        #     {"simput_file": simput.resolve(), "res_mult": res_mult, "emask": emasks[instrument_name][res_mult]}
+        #     for res_mult in sim_cfg.res_mults
+        #     for simput in simputs
+        # )
+        fs = [
+            simulator.submit(
+                run_xmm_simulation,
+                instrument_name,
+                xml_dir,
+                simput,
+                mode,
+                sim_dir,
+                xmm_filter_dir,
+                res_mult,
+                max_event_pattern,
+                sim_cfg.max_exposure,
+                xmm_filter,
+                sim_separate_ccds,
+                env_cfg.consume_data,
+                emasks[instrument_name][res_mult],
+            )
+            for res_mult in sim_cfg.res_mults
+            for simput in simputs
+        ]
+
+        if env_cfg.working_dir != env_cfg.output_dir:
+            with tarfile.open(sim_dir / f"{mode}.tar", "a") as tarball:
+                old_cwd = os.getcwd()
+                root_dir = 4 if mode == "img" else 3
+                for future in as_completed(fs):
+                    created_files: list[Path] = future.result()
+                    for file in created_files:
+                        os.chdir(file.parents[root_dir])
+                        tarball.add(file.relative_to(file.parents[root_dir]))
+                        file.unlink()
+                os.chdir(old_cwd)
+
+    # _, duration = mp_run(to_run, kwds, sim_cfg.num_processes, env_cfg.debug)
+    # logger.success(f"DONE\tSimulating {instrument_name} for {mode.upper()}. Duration: {duration}")
 
     if env_cfg.working_dir != env_cfg.output_dir:
         mode_compressed = env_cfg.output_dir / "xmm_sim_dataset" / instrument_name / xmm_filter / f"{mode}.tar.gz"
@@ -76,12 +113,12 @@ def _simulate_mode(
             "Existing file will be overwritten."
         )
 
-        compress_targz(
-            in_path=xmm_filter_dir / f"{mode}",
-            out_file_path=sim_dir / f"{mode}.tar.gz",
-            remove_files=True,
-        )
-        shutil.move(src=sim_dir / f"{mode}.tar.gz", dst=mode_compressed)
+        # compress_targz(
+        #     in_path=xmm_filter_dir / f"{mode}",
+        #     out_file_path=sim_dir / f"{mode}.tar.gz",
+        #     remove_files=True,
+        # )
+        compress_gzip(sim_dir / f"{mode}.tar", mode_compressed, remove_file=True)
 
         for xmm_mode_dir in xmm_filter_dir.rglob(f"{mode}{os.sep}"):
             shutil.rmtree(xmm_mode_dir)
@@ -100,7 +137,7 @@ def run(path_to_cfg: Path) -> None:
         simput_dir=env_cfg.working_dir / "simput",
         out_dir=env_cfg.working_dir / "xmm_sim_dataset",
     )
-    energies = EnergySettings(**cfg.pop("energy"))
+    energies = EnergyCfg(**cfg.pop("energy"))
 
     satellites = load_satellites(cfg.pop("instruments"))
 
