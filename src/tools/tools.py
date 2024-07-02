@@ -353,7 +353,7 @@ def generate_simput(
                         fs = executor.submit(
                             get_spectrum_file,
                             instrument_name=name,
-                            spectrum_dir=Path.cwd() / "res" / "spectrums",
+                            spectrum_dir=env_cfg.working_dir / "spectrums",
                             filter_abbr=filter_abbrv,
                         )
                         spectrum_fs[fs] = name

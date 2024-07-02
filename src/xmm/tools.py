@@ -266,6 +266,8 @@ def get_spectrum_file(instrument_name: str, spectrum_dir: Path, filter_abbr: str
     if out_file.exists():
         return out_file
 
+    spectrum_dir.mkdir(exist_ok=True, parents=True)
+
     if not blank_sky_events.exists():
         retries = 3
         while retries > 0:
@@ -291,7 +293,6 @@ def get_spectrum_file(instrument_name: str, spectrum_dir: Path, filter_abbr: str
             "specchannelmax=20479",
             "withspectrumset=yes",
         ],
-        os.devnull,
     ).run()
 
     blank_sky_events.unlink()
