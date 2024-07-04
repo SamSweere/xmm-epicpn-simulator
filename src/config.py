@@ -183,7 +183,6 @@ class EnvironmentCfg(BaseModel):
 
 
 class SimulationCfg(BaseModel):
-    num_processes: NonNegativeInt
     res_mults: list[PositiveInt]
     max_exposure: PositiveInt
     modes: _SimulationModes

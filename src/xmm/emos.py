@@ -224,9 +224,6 @@ def create_mask(
                 "withdetcoords=true",
             ]
             sas("eexpmap", args, os.devnull).run()
-            # Create emask
-            emask = f"{inst}_emask_{res_mult}x.fits"
-            sas("emask", [f"expimageset={expimgset}", f"detmaskset={emask}"], os.devnull).run()
 
             # Move to out_dir
             if mask_level == "expmap":
@@ -235,6 +232,9 @@ def create_mask(
                     f[0].data[f[0].data > 0] = 1
 
             if mask_level == "emask":
+                # Create emask
+                emask = f"{inst}_emask_{res_mult}x.fits"
+                sas("emask", [f"expimageset={expimgset}", f"detmaskset={emask}"], os.devnull).run()
                 mask_path = Path(out_dir) / "emask" / emask
 
             mask_path.parent.mkdir(parents=True, exist_ok=True)
@@ -253,7 +253,7 @@ def create_xml(
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
     wait_time: float = 23.04e-6,  # Setting this to 0.0 eliminates out of time events
-) -> list[Path]:
+) -> Path:
     # Change units from mm to m
     # See: http://www.sternwarte.uni-erlangen.de/~sixte/data/simulator_manual.pdf
     # in chap. "C: XML Instrument Configuration"
@@ -376,5 +376,7 @@ def get_xml(
 
     if not xml_path:
         raise FileNotFoundError(f"Couldn't find {glob_pattern} for EMOS{emos_num} in {root.resolve()}!")
+
+    assert xml_path.exists()
 
     return xml_path

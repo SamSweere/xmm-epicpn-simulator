@@ -145,6 +145,8 @@ def simput_image(
             image_file=img_path,
         )
 
+        img_path.unlink()
+
         # Add specifics to the simput file
         with fits.open(output_file.resolve(), mode="update") as hdu:
             primary_header = hdu["PRIMARY"].header

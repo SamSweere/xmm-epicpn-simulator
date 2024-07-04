@@ -2,7 +2,7 @@ import shutil
 import tarfile
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from functools import partial
-from itertools import islice
+from itertools import islice, repeat
 from pathlib import Path
 from tempfile import TemporaryDirectory, mkdtemp
 
@@ -11,7 +11,7 @@ import requests
 from loguru import logger
 from tqdm import tqdm
 
-from src.config import DownloadCfg, EnergyCfg, EnvironmentCfg, MultiprocessingCfg, SimputCfg
+from src.config import DownloadCfg, EnergyCfg, EnvironmentCfg, MultiprocessingCfg, SimputCfg, SimulationCfg
 from src.illustris_tng.fits import cutout_to_xray_fits
 from src.illustris_tng.web_api import (
     get_available_simulations,
@@ -19,8 +19,9 @@ from src.illustris_tng.web_api import (
     get_subhalos,
 )
 from src.simput.tools import get_spectrumfile
+from src.sixte.simulator import run_xmm_simulation
 from src.tools.files import compress_gzip, decompress_targz
-from src.xmm.tools import get_spectrum_file
+from src.xmm.tools import create_mask, create_psf_file, create_vinget_file, create_xml_files, get_spectrum_file
 
 
 def download_cloudy_emissivity(environment: EnvironmentCfg):
@@ -465,3 +466,151 @@ def generate_simput(
                             out_file_path=env_cfg.output_dir / "simput" / "agn.tar.gz",
                             remove_file=True,
                         )
+
+
+def run_simulations(
+    sim_cfg: SimulationCfg,
+    energies: EnergyCfg,
+    env_cfg: EnvironmentCfg,
+    mp_cfg: MultiprocessingCfg,
+    satellites: list,
+    delete_product: bool,
+) -> None:
+    with TemporaryDirectory(prefix="xml_") as xml_dir, TemporaryDirectory(prefix="sim_") as sim_dir:
+        xml_dir = Path(xml_dir)
+        sim_dir = Path(sim_dir)
+
+        # Create all needed directories
+        for sat in satellites:
+            for name, instrument in sat:
+                if not instrument.use:
+                    continue
+                filter_dir: Path = xml_dir / name / instrument.filter
+                for res_mult in sim_cfg.res_mults:
+                    (filter_dir / f"{res_mult}x").mkdir(exist_ok=True, parents=True)
+
+        with ProcessPoolExecutor(max_workers=mp_cfg.num_cores) as executor:
+            # Decompress SIMPUT files if needed
+            if env_cfg.working_dir != env_cfg.output_dir:
+                for mode, amount in sim_cfg.modes:
+                    if amount == 0:
+                        logger.debug(f"Skipping {mode} since simulation amount is set to 0.")
+                        continue
+
+                    simput_dir = env_cfg.output_dir / "simput" / mode
+
+                    simput_compressed_files = [next(simput_dir.rglob("*.tar.gz"))]
+
+                    for simput_compressed in simput_compressed_files:
+                        if simput_compressed.exists():
+                            logger.info(f"START\tDecompressing SIMPUT files in {simput_compressed.resolve()}.")
+                            executor.submit(
+                                decompress_targz,
+                                in_file_path=simput_compressed,
+                                out_file_dir=sim_cfg.simput_dir / mode,
+                                tar_options="--strip-components=1",
+                            )
+            emask_fs = []
+            logger.info("START\tCreating all the needed files.")
+            for sat in satellites:
+                for name, instrument in sat:
+                    if instrument.use:
+                        # Vignetting files
+                        executor.submit(
+                            create_vinget_file,
+                            instrument_name=name,
+                            xml_dir=xml_dir,
+                        )
+                        # EMASKS
+                        fs = executor.submit(
+                            create_mask,
+                            instrument_name=name,
+                            observation_id="0935190401",
+                            mask_level=instrument.mask_level,
+                            energies=energies,
+                            res_mults=sim_cfg.res_mults,
+                        )
+                        emask_fs.append(fs)
+                        for res_mult in sim_cfg.res_mults:
+                            # PSF files
+                            executor.submit(
+                                create_psf_file,
+                                instrument_name=name,
+                                xml_dir=xml_dir,
+                                res_mult=res_mult,
+                            )
+                            # XML files
+                            executor.submit(
+                                create_xml_files,
+                                instrument_name=name,
+                                xml_dir=xml_dir,
+                                res_mult=res_mult,
+                                xmm_filter=instrument.filter,
+                                sim_separate_ccds=instrument.sim_separate_ccds,
+                                wait_time=sim_cfg.wait_time,
+                            )
+
+        emasks = {}
+        for fs in emask_fs:
+            for key, value in fs.result().items():
+                emasks[key] = value
+
+        for sat in satellites:
+            for name, instrument in sat:
+                if instrument.use:
+                    max_workers = mp_cfg.ram_gb // 8 if name == "epn" else mp_cfg.num_cores
+                    xmm_filter_dir = sim_cfg.out_dir / name / instrument.filter
+                    xmm_filter_dir.mkdir(exist_ok=True, parents=True)
+                    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                        for mode, amount in sim_cfg.modes:
+                            if amount == 0:
+                                logger.info(f"Skipping {mode.upper()} simulation since amount is 0.")
+                                continue
+                            mode_fs = {}
+                            logger.info(f"START\tSimulating {name} for {mode.upper()}.")
+
+                            # Find the simput files
+                            mode_dir = sim_cfg.simput_dir / mode
+                            if mode != "bkg":
+                                mode_glob = mode_dir.rglob("*.simput.gz")
+                                simputs = mode_glob if amount == -1 else islice(mode_glob, amount)
+                            else:
+                                simputs = repeat(next(mode_dir.rglob(f"*{name}.simput.gz")), amount)
+
+                            for simput in simputs:
+                                for res_mult in sim_cfg.res_mults:
+                                    fs = executor.submit(
+                                        run_xmm_simulation,
+                                        instrument_name=name,
+                                        xml_dir=xml_dir,
+                                        simput_file=simput,
+                                        mode=mode,
+                                        tmp_dir=sim_dir,
+                                        out_dir=xmm_filter_dir,
+                                        res_mult=res_mult,
+                                        max_event_pattern=instrument.max_event_pattern,
+                                        exposure=sim_cfg.max_exposure,
+                                        xmm_filter=instrument.filter,
+                                        sim_separate_ccds=instrument.sim_separate_ccds,
+                                        consume_data=env_cfg.consume_data,
+                                        emask=emasks[name][res_mult],
+                                    )
+                                    mode_fs[fs] = {"simput": simput, "res_mult": res_mult}
+
+                            with tqdm(total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}") as pbar:
+                                for future in as_completed(mode_fs):
+                                    # out_files = future.result()
+                                    simput = mode_fs[future]["simput"]
+                                    res_mult = mode_fs[future]["res_mult"]
+                                    logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
+                                    # if "fits" in tars:
+                                    #     tar, tar_path = tars["fits"]
+                                    #     for fits in future.result():
+                                    #         tar.add(fits, fits.relative_to(download_cfg.fits_path))
+                                    #         logger.success(f"Added {fits} to {tar_path}.")
+                                    #         if delete_product:
+                                    #             fits.unlink()
+                                    #             logger.success(f"Deleted {fits}.")
+                                    pbar.update()
+                                elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
+                            logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: {elapsed_time}")
