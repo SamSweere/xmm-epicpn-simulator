@@ -435,7 +435,7 @@ def generate_simput(
                             emin=energies.emin,
                             emax=energies.emax,
                             fov=get_fov("epn"),
-                            run_dir=Path(mkdtemp(dir=tmp_dir, prefix="bkg_")),
+                            run_dir=Path(mkdtemp(dir=tmp_dir, prefix="agn_")),
                             output_dir=agn_path,
                             xspec_file=spectrum_file,
                         )
