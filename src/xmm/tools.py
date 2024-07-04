@@ -4,9 +4,11 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-import requests
 from astropy.io import fits
 from pysas.wrapper import Wrapper as sas
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 from src.config import EnergyCfg
 from src.xmm.ccf import get_xrt_xareaef
@@ -269,17 +271,14 @@ def get_spectrum_file(instrument_name: str, spectrum_dir: Path, filter_abbr: str
     spectrum_dir.mkdir(exist_ok=True, parents=True)
 
     if not blank_sky_events.exists():
-        retries = 3
-        while retries > 0:
-            try:
-                with requests.get(url, stream=True) as r:
-                    r.raise_for_status()
-                    with open(blank_sky_events, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=int(1e6)):
-                            f.write(chunk)
-                retries = 0
-            except:  # noqa
-                retries = retries - 1
+        retry_strategy = Retry(total=10, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504])
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session = Session()
+        session.mount("https://", adapter)
+
+        with session.get(url, stream=True) as response, open(blank_sky_events, "wb") as f:
+            for chunk in response.iter_content(chunk_size=int(1e6)):
+                f.write(chunk)
 
     assert blank_sky_events.exists()
 

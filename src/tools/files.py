@@ -9,6 +9,7 @@ from src.tools.external_run import run_command
 
 
 def compress_gzip(in_file_path: Path, out_file_path: Path, compresslevel=6, remove_file: bool = False):
+    out_file_path.parent.mkdir(exist_ok=True, parents=True)
     run_command(f"gzip -{compresslevel} -c {in_file_path.resolve()} > {out_file_path.resolve()}")
     if remove_file:
         in_file_path.unlink()

@@ -1,10 +1,8 @@
-import os
 import shutil
 import tarfile
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
-from contextlib import contextmanager
 from functools import partial
-from operator import countOf
+from itertools import islice
 from pathlib import Path
 from tempfile import TemporaryDirectory, mkdtemp
 
@@ -23,17 +21,6 @@ from src.illustris_tng.web_api import (
 from src.simput.tools import get_spectrumfile
 from src.tools.files import compress_gzip, decompress_targz
 from src.xmm.tools import get_spectrum_file
-
-
-@contextmanager
-def _tmp_chdir(path: Path):
-    old_dir = os.getcwd()
-    os.chdir(path)
-
-    try:
-        yield
-    finally:
-        os.chdir(old_dir)
 
 
 def download_cloudy_emissivity(environment: EnvironmentCfg):
@@ -95,7 +82,7 @@ def download_data(
         environment=env_cfg,
     )
 
-    with ProcessPoolExecutor(max_workers=mp_cfg.num_cores, max_tasks_per_child=100) as executor:
+    with ProcessPoolExecutor(max_workers=mp_cfg.num_cores) as executor:
         if download_cfg.cutouts_compressed.exists():
             logger.info(f"Found compressed cutouts in {download_cfg.cutouts_compressed}. Decompressing...")
             decompress_fs["cutouts"] = executor.submit(
@@ -227,13 +214,14 @@ def generate_simput(
     agn_counts_file: Path | None,
     delete_product: bool,
 ) -> None:
-    generator_fs = {}
     with TemporaryDirectory(prefix="simput_") as tmp_dir:
         tmp_dir = Path(tmp_dir)
 
-        with ProcessPoolExecutor(max_workers=mp_cfg.num_cores, max_tasks_per_child=100) as executor:
+        with ProcessPoolExecutor(max_workers=mp_cfg.num_cores) as executor:
             if simput_cfg.img.n_gen != 0:
                 from src.simput.image import simput_image
+
+                img_fs = {}
 
                 logger.info("START\tGenerating SIMPUT for mode 'img'...")
                 img_path = simput_cfg.simput_dir / "img"
@@ -258,32 +246,29 @@ def generate_simput(
                     )
 
                 amount_img = simput_cfg.img.n_gen
-                for in_file in simput_cfg.fits_dir.rglob("*.fits"):
-                    if amount_img > 0:
-                        amount_img = amount_img - 1
-
+                fits_glob = simput_cfg.fits_dir.rglob("*.fits")
+                in_files = fits_glob if amount_img == -1 else islice(fits_glob, amount_img)
+                for in_file in in_files:
                     tng_set, snapshot_num = in_file.parts[-3], in_file.parts[-2]
                     # Check how many files have already been generated and how many are left to generate
-                    sample_num = simput_cfg.num_img_sample
-                    for _ in (img_path / tng_set / snapshot_num).glob(f"{in_file.stem}*"):
-                        sample_num = sample_num - 1
-                        if sample_num == 0:
-                            break
+                    simput_glob = (img_path / tng_set / snapshot_num).glob(f"{in_file.stem}*")
+                    already_created = len(list(islice(simput_glob, simput_cfg.num_img_sample)))
+                    missing = simput_cfg.num_img_sample - already_created
 
                     # None are left to be generated => Skip
-                    if sample_num == 0:
+                    if missing == 0:
                         logger.debug(f"Won't generate any images for {in_file.name}.")
                         if env_cfg.consume_data:
                             in_file.unlink()
                         continue
 
-                    logger.info(f"Will generate {sample_num} images for {in_file.name}.")
+                    logger.info(f"Will generate {missing} images for {in_file.name}.")
 
                     zoom = np.round(
                         rng.uniform(
                             simput_cfg.zoom_range[0],
                             simput_cfg.zoom_range[1],
-                            sample_num,
+                            missing,
                         ),
                         2,
                     )
@@ -291,7 +276,7 @@ def generate_simput(
                         rng.uniform(
                             simput_cfg.sigma_b_range[0],
                             simput_cfg.sigma_b_range[1],
-                            sample_num,
+                            missing,
                         ),
                         2,
                     )
@@ -300,7 +285,7 @@ def generate_simput(
                         rng.normal(
                             -simput_cfg.offset_std,
                             simput_cfg.offset_std,
-                            sample_num,
+                            missing,
                         ),
                         2,
                     )
@@ -308,7 +293,7 @@ def generate_simput(
                         rng.normal(
                             -simput_cfg.offset_std,
                             simput_cfg.offset_std,
-                            sample_num,
+                            missing,
                         ),
                         2,
                     )
@@ -323,13 +308,38 @@ def generate_simput(
                         output_dir=img_path / tng_set / snapshot_num,
                     )
 
-                    generator_fs[fs] = "img"
+                    img_fs[fs] = in_file
 
-                    if amount_img == 0:
-                        break
+                img_tar = tarfile.open(simput_cfg.img_tar, "a") if env_cfg.tar_and_compress else None
+
+                with tqdm(total=len(img_fs), desc="Creating SIMPUTs for IMG") as pbar:
+                    for future in as_completed(img_fs):
+                        out_files = future.result()
+                        in_file = img_fs[future]
+                        logger.success(f"Created {len(out_files)} SIMPUTs for {in_file}.")
+                        if img_tar is not None:
+                            for out_file in out_files:
+                                img_tar.add(out_file, out_file.relative_to(simput_cfg.simput_dir))
+                                if delete_product:
+                                    out_file.unlink()
+                        pbar.update()
+                    elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
+                logger.success(f"DONE\tGenerating SIMPUT for mode IMG. Duration: {elapsed_time}")
+
+                if img_tar is not None:
+                    img_tar.close()
+                    shutil.rmtree(img_path)
+                    executor.submit(
+                        compress_gzip,
+                        in_file_path=simput_cfg.img_tar,
+                        out_file_path=env_cfg.output_dir / "simput" / "img.tar.gz",
+                        remove_file=True,
+                    )
 
             if simput_cfg.bkg.n_gen:
                 from src.simput.background import create_background
+
+                bkg_fs = {}
 
                 logger.info("START\tGenerating SIMPUT for mode BKG...")
                 bkg_path = simput_cfg.simput_dir / "bkg"
@@ -361,17 +371,43 @@ def generate_simput(
                 logger.info("START\tGetting spectrum files.")
                 with tqdm(total=len(spectrum_fs), desc="Getting spectrum files") as pbar:
                     for future in as_completed(spectrum_fs):
-                        name = spectrum_fs[future]
                         spectrum_file = future.result()
+                        name = spectrum_fs[future]
                         fs = executor.submit(
                             _background,
                             spectrum_file=spectrum_file,
                             instrument_name=name,
                         )
-                        generator_fs[fs] = "bkg"
+                        bkg_fs[fs] = name
                         pbar.update()
                     elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
                 logger.success(f"DONE\tGetting spectrum files. Duration: {elapsed_time}")
+
+                bkg_tar = tarfile.open(simput_cfg.bkg_tar, "a") if env_cfg.tar_and_compress else None
+
+                with tqdm(total=len(bkg_fs), desc="Creating SIMPUTs for BKG") as pbar:
+                    for future in as_completed(bkg_fs):
+                        out_files = future.result()
+                        name = bkg_fs[future]
+                        logger.success(f"Created BKG SIMPUT for {name}.")
+                        if bkg_tar is not None:
+                            for out_file in out_files:
+                                bkg_tar.add(out_file, out_file.relative_to(simput_cfg.simput_dir))
+                                if delete_product:
+                                    out_file.unlink()
+                        pbar.update()
+                    elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
+                logger.success(f"DONE\tGenerating SIMPUT for mode BKG. Duration: {elapsed_time}")
+
+                if bkg_tar is not None:
+                    bkg_tar.close()
+                    shutil.rmtree(bkg_path)
+                    executor.submit(
+                        compress_gzip,
+                        in_file_path=simput_cfg.bkg_tar,
+                        out_file_path=env_cfg.output_dir / "simput" / "bkg.tar.gz",
+                        remove_file=True,
+                    )
 
             if simput_cfg.agn.n_gen > 0:
                 skip_agn = agn_counts_file is None or (agn_counts_file.exists() and agn_counts_file.is_dir())
@@ -380,6 +416,8 @@ def generate_simput(
                 else:
                     from src.simput.agn import create_agn
                     from src.xmm.tools import get_fov
+
+                    agn_fs = []
 
                     logger.info("START\tGenerating SIMPUT for mode 'agn'...")
                     agn_path = simput_cfg.simput_dir / "agn"
@@ -401,56 +439,29 @@ def generate_simput(
                             xspec_file=spectrum_file,
                         )
 
-                        generator_fs[fs] = "agn"
+                        agn_fs.append(fs)
 
-            img_total = countOf(generator_fs.values(), "img")
-            bkg_total = countOf(generator_fs.values(), "bkg")
-            agn_total = countOf(generator_fs.values(), "agn")
+                    agn_tar = tarfile.open(simput_cfg.agn_tar, "a") if env_cfg.tar_and_compress else None
 
-            pbars = {}
-            tars = {}
-            if img_total:
-                pbars["img"] = tqdm(total=img_total, desc="Creating SIMPUTs for IMG")
-                if env_cfg.tar_and_compress:
-                    tars["img"] = (tarfile.open(simput_cfg.img_tar, "a"), simput_cfg.img_tar)
+                    with tqdm(total=len(agn_fs), desc="Creating SIMPUTs for AGN") as pbar:
+                        for future in as_completed(agn_fs):
+                            out_files = future.result()
+                            for out_file in out_files:
+                                logger.success(f"Created AGN SIMPUT {out_file}.")
+                                if agn_tar is not None:
+                                    agn_tar.add(out_file, out_file.relative_to(simput_cfg.simput_dir))
+                                    if delete_product:
+                                        out_file.unlink()
+                            pbar.update()
+                        elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
+                    logger.success(f"DONE\tGenerating SIMPUT for mode AGN. Duration: {elapsed_time}")
 
-            if bkg_total:
-                pbars["bkg"] = tqdm(total=bkg_total, desc="Creating SIMPUTs for BKG")
-                if env_cfg.tar_and_compress:
-                    tars["bkg"] = (tarfile.open(simput_cfg.bkg_tar, "a"), simput_cfg.bkg_tar)
-
-            if agn_total:
-                pbars["agn"] = tqdm(total=agn_total, desc="Creating SIMPUTs for AGN")
-                if env_cfg.tar_and_compress:
-                    tars["agn"] = (tarfile.open(simput_cfg.agn_tar, "a"), simput_cfg.agn_tar)
-
-            for future in as_completed(generator_fs):
-                mode = generator_fs[future]
-                pbar: tqdm = pbars[mode]
-
-                if mode in tars:
-                    tar, tar_path = tars[mode]
-                    for file in future.result():
-                        logger.success(f"Created SIMPUT {file} for mode {mode.upper()}.")
-                        tar.add(file, file.relative_to(simput_cfg.simput_dir))
-                        logger.success(f"Added {file} to {tar_path}.")
-                        if delete_product:
-                            file.unlink()
-                            logger.success(f"Deleted {file}")
-
-                pbar.update()
-                if pbar.format_dict["n"] == pbar.format_dict["total"]:
-                    elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
-                    logger.info(f"DONE\tGenerating SIMPUT for mode {mode.upper()}. Duration: {elapsed_time}")
-                    pbar.close()
-                    shutil.rmtree(simput_cfg.simput_dir / mode)
-                    if mode in tars:
-                        tar, _ = tars[mode]
-                        tar.close()
-
-            for mode, tar in tars.items():
-                tar, tar_path = tar
-                compressed = env_cfg.output_dir / "simput" / f"{mode}.tar.gz"
-                compressed.parent.mkdir(parents=True, exist_ok=True)
-                compressed.unlink(missing_ok=True)
-                compress_gzip(tar_path, compressed, remove_file=True)
+                    if agn_tar is not None:
+                        agn_tar.close()
+                        shutil.rmtree(bkg_path)
+                        executor.submit(
+                            compress_gzip,
+                            in_file_path=simput_cfg.agn_tar,
+                            out_file_path=env_cfg.output_dir / "simput" / "agn.tar.gz",
+                            remove_file=True,
+                        )
