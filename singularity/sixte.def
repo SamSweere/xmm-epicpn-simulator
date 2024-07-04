@@ -1,5 +1,5 @@
 Bootstrap: localimage
-From: /home/todorkov/projects/xmm-epicpn-simulator/singularity/ubuntu.sif
+From: ubuntu.sif
 
 %post
     export SIMPUT=/simput
@@ -27,6 +27,3 @@ From: /home/todorkov/projects/xmm-epicpn-simulator/singularity/ubuntu.sif
 %environment
     export SIMPUT=/simput
     export SIXTE=$SIMPUT
-
-# %test
-#     . $SIXTE/bin/sixte-install.sh

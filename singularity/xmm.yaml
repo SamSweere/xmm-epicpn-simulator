@@ -1,0 +1,21 @@
+name: xmm
+channels:
+  - defaults
+dependencies:
+  - astropy
+  - astroquery
+  - beautifultable
+  - h5py
+  - loguru
+  - lxml
+  - matplotlib
+  - notebook
+  - numpy
+  - pydantic
+  - pypdf
+  - python-dotenv
+  - python=3.11
+  - requests
+  - scipy
+  - yt
+prefix: /envs/xmm

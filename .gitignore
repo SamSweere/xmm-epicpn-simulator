@@ -5,6 +5,7 @@
 .vscode/
 .python-version
 data/
+*.sif
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

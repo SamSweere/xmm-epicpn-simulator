@@ -1,5 +1,5 @@
 Bootstrap: localimage
-From: /home/todorkov/projects/xmm-epicpn-simulator/singularity/conda.sif
+From: conda.sif
 
 %files
     ../downloads/heasoft-6.33.2 /src/heasoft-6.33.2
