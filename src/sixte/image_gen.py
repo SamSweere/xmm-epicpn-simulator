@@ -34,6 +34,7 @@ def merge_ccd_eventlists(infiles: list[Path], out_dir: Path, consume_data: bool)
 def split_eventlist(run_dir: Path, eventlist_path: Path, consume_data: bool, multiples: int = 10000):
     # This function splits an eventlist in multiples of multiples and saves them.
     # It returns the split files
+    logger.debug(f"Splitting {eventlist_path}")
     with fits.open(eventlist_path, mode="readonly") as hdu:
         exposure = int(hdu["EVENTS"].header["EXPOSURE"])
         split_exposure_evt_files = []

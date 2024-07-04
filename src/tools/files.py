@@ -35,7 +35,10 @@ def decompress_targz(in_file_path: Path, out_file_dir: Path, tar_options: str = 
 def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path | None:
     if max_event_pattern == -1 or max_event_pattern == 12:
         # Use all event patterns
+        logger.debug(f"There is nothing to filter for {eventlist_path}.")
         return eventlist_path
+
+    logger.debug(f"Filtering {eventlist_path} for pattern <= {max_event_pattern}.")
 
     # Load the eventlist
     with fits.open(eventlist_path) as hdu:
@@ -48,6 +51,7 @@ def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path |
 
         if filtered_events_data.size == 0:
             # No events left after filtering
+            logger.debug(f"No events left for {eventlist_path}.")
             return None
 
         # Since we filtered the events, set the patterns to 0
@@ -67,5 +71,5 @@ def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path |
 
         # Overwrite the old eventlist
         hdu.writeto(eventlist_path, overwrite=True, checksum=True)
-
+    logger.success(f"Filtered {eventlist_path} for pattern <= {max_event_pattern}.")
     return eventlist_path

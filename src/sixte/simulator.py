@@ -44,8 +44,8 @@ def run_simulation(
         )
 
     commands.sixtesim(
-        output_path=run_dir.resolve(),
-        xml_file=xml_file.resolve(),
+        output_path=run_dir,
+        xml_file=xml_file,
         ra=ra,
         dec=dec,
         rollangle=rollangle,
@@ -55,6 +55,8 @@ def run_simulation(
 
     for raw_filepath in run_dir.glob("*_raw.fits"):
         raw_filepath.unlink()
+
+    logger.debug("All *_raw.fits have been deleted")
 
     evt_filepaths = []
     for evt_filepath in run_dir.glob("*_none"):
@@ -81,8 +83,13 @@ def run_simulation(
     cdelt1, cdelt2 = get_cdelt(instrument_name=instrument_name, res_mult=res_mult)
     crpix1, crpix2 = get_crpix12(instrument_name, res_mult)
 
+    logger.debug(
+        f"NAXIS1: {naxis1}\tNAXIS2: {naxis2}\tCDELT1: {cdelt1}\tCDELT2: {cdelt2}\tCRPIX1: {crpix1}\tCRPIX2: {crpix2}"
+    )
+
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
     if emask is not None:
+        logger.info("A mask will be applied")
         with fits.open(emask, mode="readonly") as f:
             emask = f["mask"].data if "mask" in f else f[0].data
             if instrument_name == "emos1":
@@ -97,8 +104,7 @@ def run_simulation(
         total_splits = split_dict["total_splits"]
         split_exposure = split_dict["exposure"]
 
-        final_img_name = f"{img_name}_{split_name}.fits"
-        final_img_path = run_dir / final_img_name
+        final_img_path = run_dir / f"{img_name}_{split_name}.fits"
 
         commands.imgev(
             evt_file=split_evt_file,
@@ -184,6 +190,7 @@ def run_xmm_simulation(
 
         res = []
         if tmp_split_img_paths_exps is None:
+            logger.warning(f"Something went wrong with {simput_file}")
             return res
 
         for p in tmp_split_img_paths_exps:
@@ -212,7 +219,6 @@ def run_xmm_simulation(
                 file_path.rename(new_bg_path)
                 file_path = new_bg_path
             final_compressed_file_path = final_img_directory / f"{file_path.name}.gz"
-            compress_gzip(in_file_path=file_path, out_file_path=final_compressed_file_path)
-            file_path.unlink()
+            compress_gzip(in_file_path=file_path, out_file_path=final_compressed_file_path, remove_file=True)
             res.append(final_compressed_file_path)
-        return res
+    return res
