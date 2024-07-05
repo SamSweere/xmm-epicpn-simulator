@@ -492,7 +492,11 @@ def run_simulations(
     satellites: list,
     delete_product: bool,
 ) -> None:
-    with TemporaryDirectory(prefix="xml_") as xml_dir, TemporaryDirectory(prefix="sim_") as sim_dir:
+    root_dir = env_cfg.working_dir
+    with (
+        TemporaryDirectory(prefix="xml_", dir=root_dir) as xml_dir,
+        TemporaryDirectory(prefix="sim_", dir=root_dir) as sim_dir,
+    ):
         xml_dir = Path(xml_dir)
         sim_dir = Path(sim_dir)
 
@@ -544,6 +548,7 @@ def run_simulations(
                             observation_id="0935190401",
                             mask_level=instrument.mask_level,
                             energies=energies,
+                            out_dir=sim_dir,
                             res_mults=sim_cfg.res_mults,
                         )
                         emask_fs.append(fs)

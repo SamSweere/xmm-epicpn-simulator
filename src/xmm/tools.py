@@ -304,6 +304,7 @@ def create_mask(
     observation_id: str,
     mask_level: str | None,
     energies: EnergyCfg,
+    out_dir: Path,
     res_mults: list[int] = None,
 ) -> dict[str, dict[int, Path]] | None:
     if res_mults is None:
@@ -312,7 +313,6 @@ def create_mask(
     if mask_level is None:
         return {instrument_name: {res_mult: None for res_mult in res_mults}}
 
-    out_dir = Path("res").resolve()
     if instrument_name == "epn":
         from src.xmm.epn import create_mask
 
