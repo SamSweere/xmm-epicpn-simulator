@@ -184,7 +184,7 @@ def create_mask(
                 break
         assert gti is not None
 
-        filter_exp = "((FLAG == 0) || ((FLAG & 0x10000) ! = 0)) && (PI>300) && (PATTERN <= 12)"
+        filter_exp = "((FLAG == 0) || ((FLAG & 0x10000) != 0)) && (PI>300) && (PATTERN <= 12)"
         filtered = xsa.filter_events_gti(
             evl, gti, files, output_name=f"{observation_id}_cleaned.fits", w_dir=obs_dir, filter_expression=filter_exp
         )
