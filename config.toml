@@ -29,7 +29,6 @@ proj = ["x", "y", "z"]
 slice = []
 
 [simput]
-num_processes = 12
 zoom_range = [ 1, 2 ]
 sigma_b_range = [ 5, 50 ]
 offset_std = 0.05

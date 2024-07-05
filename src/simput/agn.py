@@ -60,23 +60,18 @@ def get_fluxes(file_path: Path) -> np.ndarray:
 
 
 def create_agn(
-    agn_counts_file: Path,
+    fluxes,
+    offsets,
     emin: float,
     emax: float,
-    fov: float,
     run_dir: Path,
     output_dir: Path,
     xspec_file: Path,
 ) -> list[Path]:
-    rng = np.random.default_rng()
     unique_id = uuid4().int
     final_name = f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput.gz"
     out_file = output_dir / final_name
     simput_files: list[Path] = []
-
-    # Get the fluxes from the agn distribution
-    fluxes = get_fluxes(agn_counts_file)
-    offsets = rng.uniform(low=-fov / 2.0, high=fov / 2.0, size=(fluxes.shape[0], 2))
 
     for i, (flux, offset) in enumerate(zip(fluxes, offsets, strict=False)):
         logger.debug(f"Creating AGN with flux={flux}")

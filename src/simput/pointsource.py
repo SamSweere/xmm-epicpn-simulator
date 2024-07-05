@@ -29,7 +29,7 @@ def create_pointsource(
 
     rng = np.random.default_rng()
     # TODO these values are only based on the tutorial values, no thought if they are realistic
-    if src_flux == "random":
+    if isinstance(src_flux, str) and src_flux == "random":
         src_flux = rng.uniform(low=1.0e-13, high=1.0e-10)
 
     # Randomly position the point source within the fov

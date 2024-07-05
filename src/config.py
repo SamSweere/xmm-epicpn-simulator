@@ -126,7 +126,6 @@ class _SimputBkg(BaseModel):
 
 
 class SimputCfg(BaseModel):
-    num_processes: NonNegativeInt
     zoom_range: tuple[PositiveInt, PositiveInt]
     sigma_b_range: tuple[PositiveInt, PositiveInt]
     img: _SimputImg

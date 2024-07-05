@@ -415,7 +415,7 @@ def generate_simput(
                 if skip_agn:
                     logger.warning(f"{agn_counts_file} does not exist! Won't create any AGN SIMPUTs.")
                 else:
-                    from src.simput.agn import create_agn
+                    from src.simput.agn import create_agn, get_s_n_from_file
                     from src.xmm.tools import get_fov
 
                     agn_fs = []
@@ -425,16 +425,32 @@ def generate_simput(
                     agn_path.mkdir(parents=True, exist_ok=True)
 
                     logger.info(f"Will generate {simput_cfg.agn.n_gen} AGNs")
+                    rng = np.random.default_rng()
                     # Get the spectrum file
                     spectrum_file = get_spectrumfile(run_dir=tmp_dir, norm=0.001)
+                    s, n = get_s_n_from_file(agn_counts_file)
+                    n = n * np.pi * 0.25**2
+                    d = np.flip(np.ediff1d(np.flip(n)))
+                    d_sum = np.sum(d)
+                    p = d / d_sum
 
-                    for _ in range(simput_cfg.agn.n_gen):
+                    star_counts = np.round(d_sum + rng.uniform(-1, 1, simput_cfg.agn.n_gen) * np.sqrt(d_sum)).astype(
+                        int
+                    )
+                    fov = get_fov("epn")
+
+                    for star_count in star_counts:
+                        counts = np.bincount(rng.choice(range(len(p)), size=star_count, p=p), minlength=len(p))
+                        indices = np.flatnonzero(counts)
+                        fluxes = [rng.uniform(low=s[i], high=s[i + 1], size=counts[i]) for i in indices]
+                        fluxes = np.concatenate(fluxes)
+                        offsets = rng.uniform(low=-fov / 2.0, high=fov / 2.0, size=(fluxes.shape[0], 2))
                         fs = executor.submit(
                             create_agn,
-                            agn_counts_file=agn_counts_file,
+                            fluxes=fluxes,
+                            offsets=offsets,
                             emin=energies.emin,
                             emax=energies.emax,
-                            fov=get_fov("epn"),
                             run_dir=Path(mkdtemp(dir=tmp_dir, prefix="agn_")),
                             output_dir=agn_path,
                             xspec_file=spectrum_file,
