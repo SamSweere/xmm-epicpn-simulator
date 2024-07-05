@@ -361,9 +361,9 @@ def make_detxy_image(
         output_name = w_dir / output_name
 
     if "EMOS" in inst:
-        expr = f"PI in [{low_energy}:{high_energy}] &&  ((FLAG == 0) || ((FLAG & 0x10000) != 0)) && PATTERN in [0:12]"
+        expr = f"PI in [{low_energy}:{high_energy}] &&  (FLAG & 0x766ba000)==0 && PATTERN in [0:12]"
     else:
-        expr = f"PI in [{low_energy}:{high_energy}] && ((FLAG == 0) || ((FLAG & 0x10000) != 0)) && PATTERN in [0:4]"
+        expr = f"PI in [{low_energy}:{high_energy}] && (FLAG == 0) && PATTERN in [0:4]"
 
     args = [
         f"table={event_list}",
