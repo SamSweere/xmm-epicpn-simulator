@@ -67,7 +67,6 @@ if __name__ == "__main__":
         mp_cfg=mp_cfg,
         satellites=satellites,
         agn_counts_file=args.agn_counts_file,
-        delete_product=True,
     )
     endtime = datetime.now()
     logger.info(f"Duration: {endtime - starttime}")

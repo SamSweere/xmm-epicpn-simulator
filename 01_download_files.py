@@ -75,7 +75,6 @@ if __name__ == "__main__":
         env_cfg=env_cfg,
         mp_cfg=mp_cfg,
         api_key=args.api_key,
-        delete_product=True,
     )
     endtime = datetime.now()
     logger.info(f"Duration: {endtime - starttime}")

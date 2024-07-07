@@ -54,7 +54,6 @@ def download_data(
     env_cfg: EnvironmentCfg,
     mp_cfg: MultiprocessingCfg,
     api_key: str,
-    delete_product: bool,
 ) -> None:
     decompress_fs: dict[str, Future] = {}
     _get_cutouts = partial(
@@ -181,16 +180,15 @@ def download_data(
         logger.info("START\tGenerating FITS from cutouts.")
         with tqdm(total=len(cutouts_fits_fs), desc="Creating FITS from cutouts") as pbar:
             for future in as_completed(cutouts_fits_fs):
-                cutout = cutouts_fits_fs[future]
+                cutout: Path = cutouts_fits_fs[future]
                 logger.success(f"Converted {cutout} to X-ray FITS.")
                 if "fits" in tars:
                     tar, tar_path = tars["fits"]
                     for fits in future.result():
                         tar.add(fits, fits.relative_to(download_cfg.fits_path))
                         logger.success(f"Added {fits} to {tar_path}.")
-                        if delete_product:
-                            fits.unlink()
-                            logger.success(f"Deleted {fits}.")
+                        fits.unlink()
+                        path.unlink(missing_ok=True)
                 pbar.update()
             elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
         logger.success(f"DONE\tCreated FITS from cutouts. Duration: {elapsed_time}")
@@ -213,7 +211,6 @@ def generate_simput(
     mp_cfg: MultiprocessingCfg,
     satellites: list,
     agn_counts_file: Path | None,
-    delete_product: bool,
 ) -> None:
     with TemporaryDirectory(prefix="simput_") as tmp_dir:
         tmp_dir = Path(tmp_dir)
@@ -321,8 +318,7 @@ def generate_simput(
                         if img_tar is not None:
                             for out_file in out_files:
                                 img_tar.add(out_file, out_file.relative_to(simput_cfg.simput_dir))
-                                if delete_product:
-                                    out_file.unlink()
+                                out_file.unlink()
                         pbar.update()
                     elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
                 logger.success(f"DONE\tGenerating SIMPUT for mode IMG. Duration: {elapsed_time}")
@@ -394,8 +390,7 @@ def generate_simput(
                         if bkg_tar is not None:
                             for out_file in out_files:
                                 bkg_tar.add(out_file, out_file.relative_to(simput_cfg.simput_dir))
-                                if delete_product:
-                                    out_file.unlink()
+                                out_file.unlink()
                         pbar.update()
                     elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
                 logger.success(f"DONE\tGenerating SIMPUT for mode BKG. Duration: {elapsed_time}")
@@ -467,8 +462,7 @@ def generate_simput(
                                 logger.success(f"Created AGN SIMPUT {out_file}.")
                                 if agn_tar is not None:
                                     agn_tar.add(out_file, out_file.relative_to(simput_cfg.simput_dir))
-                                    if delete_product:
-                                        out_file.unlink()
+                                    out_file.unlink()
                             pbar.update()
                         elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
                     logger.success(f"DONE\tGenerating SIMPUT for mode AGN. Duration: {elapsed_time}")
@@ -490,7 +484,6 @@ def run_simulations(
     env_cfg: EnvironmentCfg,
     mp_cfg: MultiprocessingCfg,
     satellites: list,
-    delete_product: bool,
 ) -> None:
     root_dir = env_cfg.working_dir
     with (
@@ -618,20 +611,35 @@ def run_simulations(
                                     )
                                     mode_fs[fs] = {"simput": simput, "res_mult": res_mult}
 
+                            mode_tar = None
+                            if env_cfg.tar_and_compress:
+                                mode_tar = tarfile.open(xmm_filter_dir / f"{mode}.tar", "a")
+
                             with tqdm(total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}") as pbar:
                                 for future in as_completed(mode_fs):
-                                    # out_files = future.result()
+                                    out_files = future.result()
                                     simput = mode_fs[future]["simput"]
                                     res_mult = mode_fs[future]["res_mult"]
                                     logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
-                                    # if "fits" in tars:
-                                    #     tar, tar_path = tars["fits"]
-                                    #     for fits in future.result():
-                                    #         tar.add(fits, fits.relative_to(download_cfg.fits_path))
-                                    #         logger.success(f"Added {fits} to {tar_path}.")
-                                    #         if delete_product:
-                                    #             fits.unlink()
-                                    #             logger.success(f"Deleted {fits}.")
+                                    if mode_tar is not None:
+                                        for out_file in out_files:
+                                            mode_tar.add(out_file, out_file.relative_to(xmm_filter_dir / mode))
+                                            logger.success(f"Added {out_file} to {mode_tar}.")
+                                            out_file.unlink()
                                     pbar.update()
                                 elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
                             logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: {elapsed_time}")
+
+                            if mode_tar is not None:
+                                mode_tar.close()
+                                shutil.rmtree(xmm_filter_dir / mode)
+                                mode_compressed = (
+                                    env_cfg.output_dir / "xmm_sim_dataset" / name / instrument.filter / f"{mode}.tar.gz"
+                                )
+                                mode_compressed.parent.mkdir(parents=True, exist_ok=True)
+                                executor.submit(
+                                    compress_gzip,
+                                    in_file_path=xmm_filter_dir / f"{mode}.tar",
+                                    out_file_path=mode_compressed,
+                                    remove_file=True,
+                                )

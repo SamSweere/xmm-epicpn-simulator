@@ -52,5 +52,9 @@ if __name__ == "__main__":
     )
 
     run_simulations(
-        sim_cfg=sim_cfg, energies=energies, env_cfg=env_cfg, mp_cfg=mp_cfg, satellites=satellites, delete_product=True
+        sim_cfg=sim_cfg,
+        energies=energies,
+        env_cfg=env_cfg,
+        mp_cfg=mp_cfg,
+        satellites=satellites,
     )
