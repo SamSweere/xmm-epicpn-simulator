@@ -1,5 +1,4 @@
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import heasoftpy as hsp
 from astropy.io import fits
@@ -19,10 +18,10 @@ def merge_ccd_eventlists(infiles: list[Path], out_dir: Path, consume_data: bool)
         "clobber": "yes",
     }
 
-    with TemporaryDirectory(prefix="hsp_") as tmp_dir, hsp.utils.local_pfiles_context(tmp_dir):
+    with hsp.utils.local_pfiles_context():
         hsp.ftmerge(params)
 
-    logger.info(f"Successfully ran 'ftmerge' with params: {params}")
+    logger.success(f"Successfully ran 'ftmerge' with params: {params}")
 
     if consume_data:
         for infile in infiles:
@@ -31,59 +30,88 @@ def merge_ccd_eventlists(infiles: list[Path], out_dir: Path, consume_data: bool)
     return outfile
 
 
-def split_eventlist(run_dir: Path, eventlist_path: Path, consume_data: bool, multiples: int = 10000):
+def split_eventlist(run_dir: Path, eventlist_path: Path, consume_data: bool, multiples: int = 10000) -> list[Path]:
     # This function splits an eventlist in multiples of multiples and saves them.
     # It returns the split files
     logger.debug(f"Splitting {eventlist_path}")
-    with fits.open(eventlist_path, mode="readonly") as hdu:
-        exposure = int(hdu["EVENTS"].header["EXPOSURE"])
-        split_exposure_evt_files = []
+    exposure = int(fits.getheader(eventlist_path, "EVENTS")["EXPOSURE"])
+    split_exps = []
 
-        events_data = hdu["EVENTS"].data.copy()
-
-        for split_exp in range(multiples, exposure + multiples, multiples):
-            num = int(exposure / split_exp)
-            # print(f"{num} x split exposure {split_exp} s")
-
+    with hsp.utils.local_pfiles_context():
+        for split in range(multiples, exposure + multiples, multiples):
+            num = int(exposure / split)
             for i in range(num):
-                t_start = i * split_exp
-                t_stop = (i + 1) * split_exp
+                t_start = i * split
+                t_stop = (i + 1) * split
 
-                # Filter the data
-                mask = events_data["TIME"] >= t_start
-                mask = mask == (events_data["TIME"] < t_stop)
-                hdu["EVENTS"].data = events_data[mask]
+                outfile = run_dir / f"{round(split / 1000)}ks_p_{i}-{num - 1}_evt.fits"
 
-                # Update the header
-                hdu["PRIMARY"].header["TSTART"] = t_start
-                hdu["PRIMARY"].header["TSTOP"] = t_stop
-
-                hdu["EVENTS"].header["TSTART"] = t_start
-                hdu["EVENTS"].header["TSTOP"] = t_stop
-                hdu["EVENTS"].header["EXPOSURE"] = split_exp
-
-                hdu["STDGTI"].header["TSTART"] = t_start
-                hdu["STDGTI"].header["TSTOP"] = t_stop
-
-                hdu["STDGTI"].data[0] = (float(t_start), float(t_stop))
-
-                base_name = f"{round(split_exp / 1000)}ks_p_{i}-{num - 1}"
-                outfile = run_dir / f"{base_name}_evt.fits"
-                split_exposure_evt_files.append(
-                    {
-                        "outfile": outfile.resolve(),
-                        "base_name": base_name,
-                        "t_start": t_start,
-                        "t_stop": t_stop,
-                        "split_num": i,
-                        "total_splits": num,
-                        "exposure": split_exp,
-                    }
+                hsp.ftcopy(
+                    infile=f"{eventlist_path}[EVENTS][TIME >= {t_start} && TIME < {t_stop}]",
+                    outfile=f"{outfile}",
+                    clobber="yes",
+                    copyall="yes",
                 )
 
-                hdu.writeto(outfile)
+                assert outfile.exists()
+
+                hsp.fthedit(
+                    infile=f"{outfile}[PRIMARY]",
+                    keyword="TSTART",
+                    operation="add",
+                    value=t_start,
+                )
+                hsp.fthedit(
+                    infile=f"{outfile}[PRIMARY]",
+                    keyword="TSTOP",
+                    operation="add",
+                    value=t_stop,
+                )
+                hsp.fthedit(
+                    infile=f"{outfile}[EVENTS]",
+                    keyword="TSTART",
+                    operation="add",
+                    value=t_start,
+                )
+                hsp.fthedit(
+                    infile=f"{outfile}[EVENTS]",
+                    keyword="TSTOP",
+                    operation="add",
+                    value=t_stop,
+                )
+                hsp.fthedit(
+                    infile=f"{outfile}[EVENTS]",
+                    keyword="EXPOSURE",
+                    operation="add",
+                    value=split,
+                )
+                hsp.fthedit(
+                    infile=f"{outfile}[STDGTI]",
+                    keyword="TSTART",
+                    operation="add",
+                    value=t_start,
+                )
+                hsp.fthedit(
+                    infile=f"{outfile}[STDGTI]",
+                    keyword="TSTOP",
+                    operation="add",
+                    value=t_stop,
+                )
+                hsp.ftedit(
+                    infile=f"{outfile}[STDGTI]",
+                    column="START",
+                    row=1,
+                    value=t_start,
+                )
+                hsp.ftedit(
+                    infile=f"{outfile}[STDGTI]",
+                    column="STOP",
+                    row=1,
+                    value=t_stop,
+                )
+                split_exps.append(outfile)
 
     if consume_data:
         eventlist_path.unlink()
 
-    return split_exposure_evt_files
+    return split_exps

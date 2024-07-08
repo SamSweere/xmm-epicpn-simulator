@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-import numpy as np
+import heasoftpy as hsp
 from astropy.io import fits
 from loguru import logger
 
@@ -40,36 +40,37 @@ def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path |
 
     logger.debug(f"Filtering {eventlist_path} for pattern <= {max_event_pattern}.")
 
-    # Load the eventlist
-    with fits.open(eventlist_path) as hdu:
-        # Load the event header and data
-        events_header = hdu["EVENTS"].header
-        events_data = np.array(hdu["EVENTS"].data)
+    outfile = eventlist_path.parent / f"{eventlist_path.stem}_filtered.fits"
 
-        # Filter the events data, remove every event with pattern type > max pattern type
-        filtered_events_data = events_data[events_data["TYPE"] <= max_event_pattern]
+    with hsp.utils.local_pfiles_context():
+        # Filter events
+        hsp.ftcopy(
+            infile=f"{eventlist_path}[EVENTS][TYPE <= {max_event_pattern}]",
+            outfile=f"{outfile}",
+        )
 
-        if filtered_events_data.size == 0:
+        assert outfile.exists()
+
+        eventlist_path.unlink()
+
+        infile = f"{outfile}[EVENTS]"
+        for i in range(max_event_pattern + 1, 13):
+            hsp.fthedit(infile=infile, keyword=f"NGRAD{i}", operation="add", value=0)
+            hsp.fthedit(infile=infile, keyword=f"NPGRA{i}", operation="add", value=0)
+
+        data = fits.getdata(outfile, "EVENTS")
+
+        if data.size == 0:
             # No events left after filtering
-            logger.debug(f"No events left for {eventlist_path}.")
+            outfile.unlink()
             return None
 
-        # Since we filtered the events, set the patterns to 0
-        for i in range(max_event_pattern + 1, 13):
-            events_header.set(f"NGRAD{i}", 0)
-            events_header.set(f"NPGRA{i}", 0)
+        hsp.fthedit(infile=infile, keyword="NAXIS2", operation="add", value=data.shape[0])
+        hsp.fthedit(
+            infile=f"{outfile}['PRIMARY']",
+            keyword="HISTORY",
+            operation="add",
+            value=f"Removed all events with pattern type > {max_event_pattern}",
+        )
 
-        events_header.set("NAXIS2", len(filtered_events_data))
-
-        # Create new binary table from the filtered events
-        filtered_events = fits.BinTableHDU(data=filtered_events_data, header=events_header)
-
-        # Update the events with the new binary table
-        hdu["EVENTS"] = filtered_events
-        # Update history
-        hdu["PRIMARY"].header["HISTORY"] = f"Removed all events with pattern type > {max_event_pattern}"
-
-        # Overwrite the old eventlist
-        hdu.writeto(eventlist_path, overwrite=True, checksum=True)
-    logger.success(f"Filtered {eventlist_path} for pattern <= {max_event_pattern}.")
-    return eventlist_path
+    return outfile

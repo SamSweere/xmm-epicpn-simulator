@@ -1,4 +1,3 @@
-from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal
@@ -38,11 +37,6 @@ def run_simulation(
         sim_separate_ccds=sim_separate_ccds,
     )
 
-    if not xml_file:
-        raise FileNotFoundError(
-            f"It looks like you have not created the corresponding XML file for instrument " f"'{instrument_name}'"
-        )
-
     commands.sixtesim(
         output_path=run_dir,
         xml_file=xml_file,
@@ -71,7 +65,7 @@ def run_simulation(
     merged = merge_ccd_eventlists(evt_filepaths, run_dir, consume_data)
 
     # split the eventlist
-    split_exposure_evt_files = split_eventlist(
+    split_events = split_eventlist(
         run_dir=run_dir,
         eventlist_path=merged,
         consume_data=consume_data,
@@ -90,24 +84,20 @@ def run_simulation(
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
     if emask is not None:
         logger.info("A mask will be applied")
+
         with fits.open(emask, mode="readonly") as f:
             emask = f["mask"].data if "mask" in f else f[0].data
-            if instrument_name == "emos1":
-                emask = np.rot90(emask)
-    split_img_paths_exps = []
-    for split_dict in split_exposure_evt_files:
-        split_evt_file: Path = split_dict["outfile"]
-        split_name = split_dict["base_name"]
-        t_start = split_dict["t_start"]
-        t_stop = split_dict["t_stop"]
-        split_num = split_dict["split_num"]
-        total_splits = split_dict["total_splits"]
-        split_exposure = split_dict["exposure"]
 
-        final_img_path = run_dir / f"{img_name}_{split_name}.fits"
+        if instrument_name == "emos1":
+            emask = np.rot90(emask)
+
+    split_img_paths_exps = []
+    for split_event in split_events:
+        exposure = fits.getheader(split_event, "EVENTS")["EXPOSURE"]
+        final_img_path = run_dir / f"{img_name}_{split_event.stem}.fits"
 
         commands.imgev(
-            evt_file=split_evt_file,
+            evt_file=split_event,
             image=final_img_path,
             coordinate_system=0,
             cunit1="deg",
@@ -123,28 +113,13 @@ def run_simulation(
         )
 
         if consume_data:
-            split_evt_file.unlink()
+            split_event.unlink()
 
-        split_img_paths_exps.append((final_img_path, split_exposure))
+        split_img_paths_exps.append((final_img_path, exposure))
 
         # Add specifics to the simput file and apply emask if requested
-        with fits.open(final_img_path, mode="update") as hdu:
-            header = hdu["PRIMARY"].header
-            header["EXPOSURE"] = (split_exposure, "Exposure in seconds")
-            header["ORIG_EXP"] = (exposure, "Original exposure before split in seconds")
-            header["SPLIT_N"] = (split_num, "Split number (starts at 0)")
-            header["SPLITS"] = (total_splits, "Total number of splits")
-            header["TSTART"] = (t_start, "Start-time of split exposure")
-            header["TSTOP"] = (t_stop, "Stop-time of split exposure")
-            header["SIMPUT"] = (simput_path.name, "Simput used as input")
-            header["RESMULT"] = (res_mult, "Resolution multiplier relative to real XMM")
-
-            header["COMMENT"] = (
-                f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at "
-                f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
-            )
-
-            if emask is not None:
+        if emask is not None:
+            with fits.open(final_img_path, mode="update") as hdu:
                 hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
 
     return split_img_paths_exps

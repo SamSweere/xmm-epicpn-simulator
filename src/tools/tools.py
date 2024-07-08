@@ -510,7 +510,7 @@ def run_simulations(
                         logger.debug(f"Skipping {mode} since simulation amount is set to 0.")
                         continue
 
-                    simput_dir = env_cfg.output_dir / "simput" / mode
+                    simput_dir = env_cfg.output_dir / "simput"
 
                     simput_compressed_files = [next(simput_dir.rglob("*.tar.gz"))]
 
@@ -580,6 +580,7 @@ def run_simulations(
                             if amount == 0:
                                 logger.info(f"Skipping {mode.upper()} simulation since amount is 0.")
                                 continue
+                            tar_path = xmm_filter_dir / f"{mode}.tar" if env_cfg.tar_and_compress else None
                             mode_fs = {}
                             logger.info(f"START\tSimulating {name} for {mode.upper()}.")
 
@@ -593,7 +594,7 @@ def run_simulations(
 
                             for simput in simputs:
                                 for res_mult in sim_cfg.res_mults:
-                                    fs = executor.submit(
+                                    fs: Future = executor.submit(
                                         run_xmm_simulation,
                                         instrument_name=name,
                                         xml_dir=xml_dir,
@@ -611,27 +612,22 @@ def run_simulations(
                                     )
                                     mode_fs[fs] = {"simput": simput, "res_mult": res_mult}
 
-                            mode_tar = None
-                            if env_cfg.tar_and_compress:
-                                mode_tar = tarfile.open(xmm_filter_dir / f"{mode}.tar", "a")
-
-                            with tqdm(total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}") as pbar:
-                                for future in as_completed(mode_fs):
+                            for future in tqdm(
+                                as_completed(mode_fs), total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}"
+                            ):
+                                simput = mode_fs[future]["simput"]
+                                res_mult = mode_fs[future]["res_mult"]
+                                logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
+                                if tar_path is not None:
                                     out_files = future.result()
-                                    simput = mode_fs[future]["simput"]
-                                    res_mult = mode_fs[future]["res_mult"]
-                                    logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
-                                    if mode_tar is not None:
+                                    with tarfile.open(tar_path, "a") as tar:
                                         for out_file in out_files:
-                                            mode_tar.add(out_file, out_file.relative_to(xmm_filter_dir / mode))
-                                            logger.success(f"Added {out_file} to {mode_tar}.")
+                                            tar.add(out_file, out_file.relative_to(xmm_filter_dir / mode))
+                                            logger.success(f"Added {out_file} to {tar_path}.")
                                             out_file.unlink()
-                                    pbar.update()
-                                elapsed_time = pbar.format_interval(pbar.format_dict["elapsed"])
-                            logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: {elapsed_time}")
+                            logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: elapsed_time")
 
-                            if mode_tar is not None:
-                                mode_tar.close()
+                            if tar_path is not None:
                                 shutil.rmtree(xmm_filter_dir / mode)
                                 mode_compressed = (
                                     env_cfg.output_dir / "xmm_sim_dataset" / name / instrument.filter / f"{mode}.tar.gz"
