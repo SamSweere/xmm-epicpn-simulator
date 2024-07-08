@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 import heasoftpy as hsp
@@ -24,6 +25,8 @@ def compress_targz(in_path: Path, out_file_path: Path, remove_files: bool = Fals
         f"cd {in_path.parent.resolve()} && "
         + f"tar -czf {out_file_path.resolve()} {in_path.name}{os.sep} --overwrite{suffix}"
     )
+    if remove_files:
+        shutil.rmtree(in_path)
 
 
 def decompress_targz(in_file_path: Path, out_file_dir: Path, tar_options: str = ""):

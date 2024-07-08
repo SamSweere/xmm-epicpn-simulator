@@ -20,7 +20,7 @@ from src.illustris_tng.web_api import (
 )
 from src.simput.tools import get_spectrumfile
 from src.sixte.simulator import run_xmm_simulation
-from src.tools.files import compress_gzip, decompress_targz
+from src.tools.files import compress_gzip, compress_targz, decompress_targz
 from src.xmm.tools import create_mask, create_psf_file, create_vinget_file, create_xml_files, get_spectrum_file
 
 
@@ -580,7 +580,6 @@ def run_simulations(
                             if amount == 0:
                                 logger.info(f"Skipping {mode.upper()} simulation since amount is 0.")
                                 continue
-                            tar_path = xmm_filter_dir / f"{mode}.tar" if env_cfg.tar_and_compress else None
                             mode_fs = {}
                             logger.info(f"START\tSimulating {name} for {mode.upper()}.")
 
@@ -616,27 +615,21 @@ def run_simulations(
                                 as_completed(mode_fs), total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}"
                             ):
                                 # Since this feature should be done, add a small timeout
-                                out_files = future.result(10)
+                                outfiles = future.result(10)
                                 simput = mode_fs[future]["simput"]
                                 res_mult = mode_fs[future]["res_mult"]
                                 logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
-                                if tar_path is not None:
-                                    with tarfile.open(tar_path, "a") as tar:
-                                        for out_file in out_files:
-                                            tar.add(out_file, out_file.relative_to(xmm_filter_dir / mode))
-                                            logger.success(f"Added {out_file} to {tar_path}.")
-                                            out_file.unlink()
+                                logger.info(f"Created {len(outfiles)} images")
                             logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: elapsed_time")
 
-                            if tar_path is not None:
-                                shutil.rmtree(xmm_filter_dir / mode)
+                            if env_cfg.tar_and_compress:
                                 mode_compressed = (
                                     env_cfg.output_dir / "xmm_sim_dataset" / name / instrument.filter / f"{mode}.tar.gz"
                                 )
                                 mode_compressed.parent.mkdir(parents=True, exist_ok=True)
                                 executor.submit(
-                                    compress_gzip,
-                                    in_file_path=xmm_filter_dir / f"{mode}.tar",
+                                    compress_targz,
+                                    in_path=xmm_filter_dir / mode,
                                     out_file_path=mode_compressed,
-                                    remove_file=True,
+                                    remove_files=True,
                                 )
