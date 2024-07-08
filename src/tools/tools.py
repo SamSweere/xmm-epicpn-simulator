@@ -615,11 +615,12 @@ def run_simulations(
                             for future in tqdm(
                                 as_completed(mode_fs), total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}"
                             ):
+                                # Since this feature should be done, add a small timeout
+                                out_files = future.result(10)
                                 simput = mode_fs[future]["simput"]
                                 res_mult = mode_fs[future]["res_mult"]
                                 logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
                                 if tar_path is not None:
-                                    out_files = future.result()
                                     with tarfile.open(tar_path, "a") as tar:
                                         for out_file in out_files:
                                             tar.add(out_file, out_file.relative_to(xmm_filter_dir / mode))

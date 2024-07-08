@@ -47,6 +47,7 @@ def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path |
         hsp.ftcopy(
             infile=f"{eventlist_path}[EVENTS][TYPE <= {max_event_pattern}]",
             outfile=f"{outfile}",
+            history="yes",
         )
 
         assert outfile.exists()
@@ -59,18 +60,12 @@ def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path |
             hsp.fthedit(infile=infile, keyword=f"NPGRA{i}", operation="add", value=0)
 
         data = fits.getdata(outfile, "EVENTS")
+        size = data.size
+        del data
 
-        if data.size == 0:
+        if size == 0:
             # No events left after filtering
             outfile.unlink()
             return None
-
-        hsp.fthedit(infile=infile, keyword="NAXIS2", operation="add", value=data.shape[0])
-        hsp.fthedit(
-            infile=f"{outfile}['PRIMARY']",
-            keyword="HISTORY",
-            operation="add",
-            value=f"Removed all events with pattern type > {max_event_pattern}",
-        )
 
     return outfile

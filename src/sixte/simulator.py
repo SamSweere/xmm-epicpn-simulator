@@ -37,6 +37,8 @@ def run_simulation(
         sim_separate_ccds=sim_separate_ccds,
     )
 
+    logger.debug(f"Got XML file: {xml_file}")
+
     commands.sixtesim(
         output_path=run_dir,
         xml_file=xml_file,
@@ -46,6 +48,8 @@ def run_simulation(
         simput=simput_path,
         exposure=exposure,
     )
+
+    logger.debug("Successfully run sixtesim.")
 
     for raw_filepath in run_dir.glob("*_raw.fits"):
         raw_filepath.unlink()
@@ -84,10 +88,7 @@ def run_simulation(
     img_name = f"{simput_path.name.replace('.simput.gz', '')}_mult_{res_mult}"
     if emask is not None:
         logger.info("A mask will be applied")
-
-        with fits.open(emask, mode="readonly") as f:
-            emask = f["mask"].data if "mask" in f else f[0].data
-
+        emask = fits.getdata(emask)
         if instrument_name == "emos1":
             emask = np.rot90(emask)
 
@@ -112,6 +113,8 @@ def run_simulation(
             cdelt2=cdelt2,
         )
 
+        logger.debug(f"Created image {final_img_path} with exposure {exposure}")
+
         if consume_data:
             split_event.unlink()
 
@@ -119,9 +122,16 @@ def run_simulation(
 
         # Add specifics to the simput file and apply emask if requested
         if emask is not None:
-            with fits.open(final_img_path, mode="update") as hdu:
-                hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
+            logger.debug("A mask will be applied")
 
+            image, header = fits.getdata(final_img_path, "PRIMARY", header=True)
+            image = image * emask
+            fits.PrimaryHDU(data=image, header=header).writeto(final_img_path, overwrite=True)
+
+            logger.debug("Successfully applied mask")
+            del image, header
+
+    del emask
     return split_img_paths_exps
 
 

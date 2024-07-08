@@ -21,7 +21,7 @@ def merge_ccd_eventlists(infiles: list[Path], out_dir: Path, consume_data: bool)
     with hsp.utils.local_pfiles_context():
         hsp.ftmerge(params)
 
-    logger.success(f"Successfully ran 'ftmerge' with params: {params}")
+    logger.debug(f"Successfully merged: {' '.join(all_ccds)}")
 
     if consume_data:
         for infile in infiles:
