@@ -512,17 +512,16 @@ def run_simulations(
 
                     simput_dir = env_cfg.output_dir / "simput"
 
-                    simput_compressed_files = [next(simput_dir.rglob("*.tar.gz"))]
+                    simput_compressed = next(simput_dir.rglob(f"{mode}.tar.gz"))
 
-                    for simput_compressed in simput_compressed_files:
-                        if simput_compressed.exists():
-                            logger.info(f"START\tDecompressing SIMPUT files in {simput_compressed.resolve()}.")
-                            executor.submit(
-                                decompress_targz,
-                                in_file_path=simput_compressed,
-                                out_file_dir=sim_cfg.simput_dir / mode,
-                                tar_options="--strip-components=1",
-                            )
+                    if simput_compressed.exists():
+                        logger.info(f"START\tDecompressing SIMPUT files in {simput_compressed.resolve()}.")
+                        executor.submit(
+                            decompress_targz,
+                            in_file_path=simput_compressed,
+                            out_file_dir=sim_cfg.simput_dir / mode,
+                            tar_options="--strip-components=1",
+                        )
             emask_fs = []
             logger.info("START\tCreating all the needed files.")
             for sat in satellites:
