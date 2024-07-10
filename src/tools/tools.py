@@ -571,7 +571,7 @@ def run_simulations(
         for sat in satellites:
             for name, instrument in sat:
                 if instrument.use:
-                    max_workers = mp_cfg.ram_gb // 8 if name == "epn" else mp_cfg.num_cores
+                    max_workers = mp_cfg.ram_gb // 8 if name == "epn" else mp_cfg.ram_gb // 2
                     xmm_filter_dir = sim_cfg.out_dir / name / instrument.filter
                     xmm_filter_dir.mkdir(exist_ok=True, parents=True)
                     with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -588,7 +588,10 @@ def run_simulations(
                                 mode_glob = mode_dir.rglob("*.simput.gz")
                                 simputs = mode_glob if amount == -1 else islice(mode_glob, amount)
                             else:
-                                simputs = repeat(next(mode_dir.rglob(f"*{name}.simput.gz")), amount)
+                                simputs = repeat(
+                                    next(mode_dir.rglob(f"*_{name}_{energies.emin}keV_{energies.emax}keV.simput.gz")),
+                                    amount,
+                                )
 
                             for simput in simputs:
                                 for res_mult in sim_cfg.res_mults:
@@ -619,6 +622,8 @@ def run_simulations(
                                 res_mult = mode_fs[future]["res_mult"]
                                 logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
                                 logger.info(f"Created {len(outfiles)} images")
+                                if env_cfg.consume_data and mode != "bkg":
+                                    simput.unlink(missing_ok=True)
                             logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: elapsed_time")
 
                             if env_cfg.tar_and_compress:
