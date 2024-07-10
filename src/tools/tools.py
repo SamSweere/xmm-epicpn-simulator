@@ -568,72 +568,76 @@ def run_simulations(
             for key, value in fs.result().items():
                 emasks[key] = value
 
-        for sat in satellites:
-            for name, instrument in sat:
-                if instrument.use:
+        for mode, amount in sim_cfg.modes:
+            if amount == 0:
+                logger.info(f"Skipping {mode.upper()} simulation since amount is 0.")
+                continue
+
+            mode_dir = sim_cfg.simput_dir / mode
+            pattern = "*.simput.gz" if mode != "bkg" else f"*_{{0}}_{energies.emin}keV_{energies.emax}keV.simput.gz"
+
+            for sat in satellites:
+                for name, instrument in sat:
+                    if not instrument.use:
+                        logger.info(f"Skipping {name} simulation for {mode.upper()} since 'use' is False")
+                        continue
+
+                    if mode != "bkg":
+                        mode_glob = mode_dir.rglob(pattern)
+                        simputs = mode_glob if amount == -1 else islice(mode_glob, amount)
+                    else:
+                        simputs = repeat(next(mode_dir.rglob(pattern.format(name))), amount)
+
+                    mode_fs = {}
+                    logger.info(f"START\tSimulating {name} for {mode.upper()}.")
                     max_workers = mp_cfg.ram_gb // 8 if name == "epn" else mp_cfg.ram_gb // 2
+
+                    logger.debug(f"Will use {max_workers} processes.")
+
                     xmm_filter_dir = sim_cfg.out_dir / name / instrument.filter
                     xmm_filter_dir.mkdir(exist_ok=True, parents=True)
                     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                        for mode, amount in sim_cfg.modes:
-                            if amount == 0:
-                                logger.info(f"Skipping {mode.upper()} simulation since amount is 0.")
-                                continue
-                            mode_fs = {}
-                            logger.info(f"START\tSimulating {name} for {mode.upper()}.")
-
-                            # Find the simput files
-                            mode_dir = sim_cfg.simput_dir / mode
-                            if mode != "bkg":
-                                mode_glob = mode_dir.rglob("*.simput.gz")
-                                simputs = mode_glob if amount == -1 else islice(mode_glob, amount)
-                            else:
-                                simputs = repeat(
-                                    next(mode_dir.rglob(f"*_{name}_{energies.emin}keV_{energies.emax}keV.simput.gz")),
-                                    amount,
+                        for simput in simputs:
+                            for res_mult in sim_cfg.res_mults:
+                                fs: Future = executor.submit(
+                                    run_xmm_simulation,
+                                    instrument_name=name,
+                                    xml_dir=xml_dir,
+                                    simput_file=simput,
+                                    mode=mode,
+                                    tmp_dir=sim_dir,
+                                    out_dir=xmm_filter_dir,
+                                    res_mult=res_mult,
+                                    max_event_pattern=instrument.max_event_pattern,
+                                    exposure=sim_cfg.max_exposure,
+                                    xmm_filter=instrument.filter,
+                                    sim_separate_ccds=instrument.sim_separate_ccds,
+                                    consume_data=env_cfg.consume_data,
+                                    emask=emasks[name][res_mult],
                                 )
+                                mode_fs[fs] = {"simput": simput, "res_mult": res_mult}
 
-                            for simput in simputs:
-                                for res_mult in sim_cfg.res_mults:
-                                    fs: Future = executor.submit(
-                                        run_xmm_simulation,
-                                        instrument_name=name,
-                                        xml_dir=xml_dir,
-                                        simput_file=simput,
-                                        mode=mode,
-                                        tmp_dir=sim_dir,
-                                        out_dir=xmm_filter_dir,
-                                        res_mult=res_mult,
-                                        max_event_pattern=instrument.max_event_pattern,
-                                        exposure=sim_cfg.max_exposure,
-                                        xmm_filter=instrument.filter,
-                                        sim_separate_ccds=instrument.sim_separate_ccds,
-                                        consume_data=env_cfg.consume_data,
-                                        emask=emasks[name][res_mult],
-                                    )
-                                    mode_fs[fs] = {"simput": simput, "res_mult": res_mult}
+                        for future in tqdm(
+                            as_completed(mode_fs), total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}"
+                        ):
+                            # Since this feature should be done, add a small timeout
+                            outfiles = future.result(10)
+                            simput = mode_fs[future]["simput"]
+                            res_mult = mode_fs[future]["res_mult"]
+                            logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
+                            logger.info(f"Created {len(outfiles)} images")
+                        logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: elapsed_time")
 
-                            for future in tqdm(
-                                as_completed(mode_fs), total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}"
-                            ):
-                                # Since this feature should be done, add a small timeout
-                                outfiles = future.result(10)
-                                simput = mode_fs[future]["simput"]
-                                res_mult = mode_fs[future]["res_mult"]
-                                logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
-                                logger.info(f"Created {len(outfiles)} images")
-                                if env_cfg.consume_data and mode != "bkg":
-                                    simput.unlink(missing_ok=True)
-                            logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: elapsed_time")
+                    del mode_fs
 
-                            if env_cfg.tar_and_compress:
-                                mode_compressed = (
-                                    env_cfg.output_dir / "xmm_sim_dataset" / name / instrument.filter / f"{mode}.tar.gz"
-                                )
-                                mode_compressed.parent.mkdir(parents=True, exist_ok=True)
-                                executor.submit(
-                                    compress_targz,
-                                    in_path=xmm_filter_dir / mode,
-                                    out_file_path=mode_compressed,
-                                    remove_files=True,
-                                )
+                    if env_cfg.tar_and_compress:
+                        mode_compressed = (
+                            env_cfg.output_dir / "xmm_sim_dataset" / name / instrument.filter / f"{mode}.tar.gz"
+                        )
+                        mode_compressed.parent.mkdir(parents=True, exist_ok=True)
+                        executor.submit(
+                            compress_targz,
+                            in_path=xmm_filter_dir / mode,
+                            out_file_path=mode_compressed,
+                            remove_files=True,
+                        )
