@@ -628,16 +628,16 @@ def run_simulations(
                             logger.info(f"Created {len(outfiles)} images")
                         logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: elapsed_time")
 
-                    del mode_fs
+                        del mode_fs
 
-                    if env_cfg.tar_and_compress:
-                        mode_compressed = (
-                            env_cfg.output_dir / "xmm_sim_dataset" / name / instrument.filter / f"{mode}.tar.gz"
-                        )
-                        mode_compressed.parent.mkdir(parents=True, exist_ok=True)
-                        executor.submit(
-                            compress_targz,
-                            in_path=xmm_filter_dir / mode,
-                            out_file_path=mode_compressed,
-                            remove_files=True,
-                        )
+                        if env_cfg.tar_and_compress:
+                            mode_compressed = (
+                                env_cfg.output_dir / "xmm_sim_dataset" / name / instrument.filter / f"{mode}.tar.gz"
+                            )
+                            mode_compressed.parent.mkdir(parents=True, exist_ok=True)
+                            executor.submit(
+                                compress_targz,
+                                in_path=xmm_filter_dir / mode,
+                                out_file_path=mode_compressed,
+                                remove_files=True,
+                            )
