@@ -21,40 +21,39 @@ def make_ds9_region_file(hdul):
     
     img_hdu = hdul[0]
     agn_hdu = hdul[1]
-    
-    # idx = agn_hdu["SRC_ID"]
-    # image_ID = agn_hdu["image_ID"]
-    
+     
     ra_locs = agn_hdu.data["RA"]
     dec_locs = agn_hdu.data["DEC"]
     
     deblending_indices = agn_hdu.data["DEBLENDING INDICES"]
+    SRC_IDs = agn_hdu.data["SRC_ID"] -1  # Subtracting one since deblending indices start at 0 and souce_IDs at 1
     
     center_ra = ra_locs[0:1]
     center_dec = dec_locs[0:1]
     
     # Find the single sources 
-    single_idx = np.where(np.arange(len(ra_locs))== np.array(deblending_indices))[0][1:]
-    blended_idx = np.where(np.arange(len(ra_locs))!= np.array(deblending_indices))[0]
-    
+    single_idx = np.where(SRC_IDs== np.array(deblending_indices))[0][1:]
+    blended_idx = np.where(SRC_IDs!= np.array(deblending_indices))[0]
+    test = SRC_IDs[blended_idx]
     types = [
+  
     {
-        "x_positions": ra_locs[single_idx],  # X coordinates for the first type
-        "y_positions": dec_locs[single_idx],  # Y coordinates for the first type
-        "color": "black",  # Color for the first type
-        "text_template": "non-blended sources"  # Text template for the first type
+        "x_positions": ra_locs[blended_idx],  
+        "y_positions": dec_locs[blended_idx],  
+        "color": "blue", 
+        "text_template": "blended sources" 
     },
     {
-        "x_positions": ra_locs[blended_idx],  # X coordinates for the second type
-        "y_positions": dec_locs[blended_idx],  # Y coordinates for the second type
-        "color": "blue",  # Color for the second type
-        "text_template": "blended sources"  # Text template for the second type
+        "x_positions": center_ra,  
+        "y_positions": center_dec,  
+        "color": "red",  
+        "text_template": "center_source" 
     },
-    {
-        "x_positions": center_ra,  # X coordinates for the second type
-        "y_positions": center_dec,  # Y coordinates for the second type
-        "color": "red",  # Color for the second type
-        "text_template": "center_source"  # Text template for the second type
+      {
+        "x_positions": ra_locs[single_idx],  
+        "y_positions": dec_locs[single_idx],  
+        "color": "green", 
+        "text_template": "non-blended sources"  
     },
     
     ]
@@ -100,7 +99,7 @@ def make_ds9_region_file(hdul):
         tar.add(extracted_folder+'/agn', arcname = '')
         
     # Delete the uncompressed folder
-    shutil.rmtree(extracted_folder)
+    # shutil.rmtree(extracted_folder)
     
 
 

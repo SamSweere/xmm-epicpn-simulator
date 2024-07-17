@@ -12,6 +12,11 @@ from astropy.table import Table
 
 from src.sixte import commands
 
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+from astropy.wcs import WCS
+
+
 
 def get_spectrumfile(run_dir: Path, norm=0.01) -> Path:
     spectrum_file = run_dir / "spectrum.xcm"
@@ -93,3 +98,78 @@ def make_deblending_img_settings(i, n_blended, img_settings):
         img_settings.update({"deblending":True})
         
     return img_settings
+
+
+# def filter_agns_to_img_size(source_data, source_header, img_header, image_width, image_height):
+   
+#     # Obtain AGN positions in degrees in fk5
+#     ra_list = source_data["ra"]  
+#     dec_list = source_data["dec"] 
+    
+#     wcs = WCS(img_header)
+    
+#     # Convert AGN fk5 coordinates to pixel coordinates
+#     agn_coords = SkyCoord(ra=ra_list*u.degree, dec=dec_list*u.degree, frame='fk5')
+#     pixel_coords = agn_coords.to_pixel(wcs)
+    
+#     valid_indices = []
+#     for i, (x, y) in enumerate(zip(pixel_coords[0], pixel_coords[1])):
+#         if 0 <= x < image_width and 0 <= y < image_height:
+#             valid_indices.append(i)
+    
+#     # Create a new source_data with only the valid AGNs
+#     filtered_source_data = source_data[valid_indices]
+    
+#     # Update the source header 
+#      # Update the header's NAXIS2 keyword to reflect the new number of rows
+#     # source_header['NAXIS2'] = len(filtered_source_data)
+    
+#     return source_data, source_header
+                    
+                    
+def filter_agns_to_img_size(source_data, source_header, img_header, image_width, image_height):
+    """
+    Filter AGNs based on their positions within the image boundaries.
+    
+    Parameters:
+    - source_data (numpy structured array or similar): Original data containing AGN positions.
+    - source_header (FITS header): Header associated with source_data.
+    - img_header (FITS header): Header of the image containing WCS information.
+    - image_width (int): Width of the image in pixels.
+    - image_height (int): Height of the image in pixels.
+    
+    Returns:
+    - filtered_source_data (numpy structured array or similar): Filtered data containing AGNs within the image boundaries.
+    - updated_header (FITS header): Updated header with any necessary changes.
+    """
+    # Obtain AGN positions in degrees in fk5
+    # test = source_data.columns.names
+    ra_list = source_data["RA"]  
+    dec_list = source_data["DEC"] 
+    
+
+    wcs = WCS(img_header)
+    
+    # Convert AGN fk5 coordinates to pixel coordinates
+    agn_coords = SkyCoord(ra=ra_list*u.degree, dec=dec_list*u.degree, frame='fk5')
+    pixel_coords = agn_coords.to_pixel(wcs)
+    
+    valid_indices = []
+    for i, (x, y) in enumerate(zip(pixel_coords[0], pixel_coords[1])):
+        if 0 <= x < image_width and 0 <= y < image_height:
+            valid_indices.append(i)
+    
+    # Create a new source_data with only the valid AGNs
+    filtered_source_data = np.array(source_data[valid_indices])
+    # filtered_source_data = source_data
+    
+    # Update the source header if necessary
+    # Example: Update NAXIS2 to reflect the new number of rows
+    if 'NAXIS2' in source_header:
+        source_header['NAXIS2'] = len(filtered_source_data)
+        
+        
+    # Return filtered data and updated header
+    return filtered_source_data, source_header
+    
+    

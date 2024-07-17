@@ -12,6 +12,7 @@ from src.sixte import commands
 from src.sixte.image_gen import merge_ccd_eventlists, split_eventlist
 from src.xmm.utils import get_cdelt, get_crpix12, get_naxis12, get_xml_file
 from src.xmm_utils.file_utils import compress_gzip, filter_event_pattern
+from src.simput.utils import filter_agns_to_img_size
 import numpy as np 
 
 
@@ -132,7 +133,13 @@ def run_simulation(
             source_hdu = hdul[1]
             source_data = source_hdu.data
             source_header = source_hdu.header.copy()
-           
+            
+            deblending_indices = source_data["DEBLENDING INDICES"]
+            
+            single_idx = np.where(np.arange(len(deblending_indices))== np.array(deblending_indices))[0][1:]
+            blended_idx = np.where(np.arange(len(deblending_indices))!= np.array(deblending_indices))[0]
+            
+          
 
         # Add specifics to the simput file and apply emask if requested
         with fits.open(final_img_path, mode="update") as hdu:
@@ -152,15 +159,27 @@ def run_simulation(
                 f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
             )
             
+            
             if emask is not None:
                 hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
-                  
+                 
+            # Remove AGNs from AGN list that are not contained in smaller image dimensions
+            filtered_source_data, filtered_source_header = filter_agns_to_img_size(source_data, source_header, header, naxis1, naxis2 )
+            
             # Create a new BinTableHDU for the source catalog
-            new_hdu = fits.BinTableHDU(data=source_data, header=source_header)
+            new_hdu = fits.BinTableHDU(data=filtered_source_data, header=filtered_source_header)
 
             # Append the new HDU to the target FITS file
             hdu.append(new_hdu)
             hdu.flush()
+            
+        with fits.open(final_img_path, mode="update") as hdu:
+            
+            deblending_indices = hdu[1].data["DEBLENDING INDICES"]
+            single_idx = np.where(np.arange(len(deblending_indices))== np.array(deblending_indices))[0][1:]
+            blended_idx = np.where(np.arange(len(deblending_indices))!= np.array(deblending_indices))[0]
+            
+            
             
     return split_img_paths_exps
 
