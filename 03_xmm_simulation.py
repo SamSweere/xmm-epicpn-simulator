@@ -1,7 +1,6 @@
 import pathlib
 import tomllib
 from argparse import ArgumentParser
-from datetime import timedelta
 from pathlib import Path
 
 from loguru import logger
@@ -47,8 +46,6 @@ if __name__ == "__main__":
         enqueue=True,
         debug=env_cfg.debug,
         verbose=env_cfg.verbose,
-        rotation=timedelta(hours=1),
-        retention=2,
     )
 
     run_simulations(

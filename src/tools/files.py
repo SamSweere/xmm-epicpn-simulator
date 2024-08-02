@@ -1,17 +1,19 @@
+import gzip
 import os
 import shutil
 from pathlib import Path
 
-import heasoftpy as hsp
-from astropy.io import fits
 from loguru import logger
 
-from src.tools.external_run import run_command
+from src.heasoft import heasoft as hsp
+from src.tools.cli import run_command
 
 
 def compress_gzip(in_file_path: Path, out_file_path: Path, compresslevel=6, remove_file: bool = False):
     out_file_path.parent.mkdir(exist_ok=True, parents=True)
-    run_command(f"gzip -{compresslevel} -c {in_file_path.resolve()} > {out_file_path.resolve()}")
+    with open(in_file_path, "rb") as f_in, gzip.open(out_file_path, "wb", compresslevel=compresslevel) as f_out:
+        shutil.copyfileobj(f_in, f_out)
+
     if remove_file:
         in_file_path.unlink()
 
@@ -43,32 +45,25 @@ def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path |
 
     logger.debug(f"Filtering {eventlist_path} for pattern <= {max_event_pattern}.")
 
-    outfile = eventlist_path.parent / f"{eventlist_path.stem}_filtered.fits"
+    # Filter events
+    hsp.ftcopy(
+        infile=f"{eventlist_path}[EVENTS][TYPE <= {max_event_pattern}]",
+        outfile=eventlist_path,
+    )
 
-    with hsp.utils.local_pfiles_context():
-        # Filter events
-        hsp.ftcopy(
-            infile=f"{eventlist_path}[EVENTS][TYPE <= {max_event_pattern}]",
-            outfile=f"{outfile}",
-            history="yes",
+    infile = f"{eventlist_path}[EVENTS]"
+    for i in range(max_event_pattern + 1, 13):
+        hsp.fthedit(
+            infile=infile,
+            keyword=f"NGRAD{i}",
+            operation="add",
+            value="0",
+        )
+        hsp.fthedit(
+            infile=infile,
+            keyword=f"NPGRA{i}",
+            operation="add",
+            value="0",
         )
 
-        assert outfile.exists()
-
-        eventlist_path.unlink()
-
-        infile = f"{outfile}[EVENTS]"
-        for i in range(max_event_pattern + 1, 13):
-            hsp.fthedit(infile=infile, keyword=f"NGRAD{i}", operation="add", value=0)
-            hsp.fthedit(infile=infile, keyword=f"NPGRA{i}", operation="add", value=0)
-
-        data = fits.getdata(outfile, "EVENTS")
-        size = data.size
-        del data
-
-        if size == 0:
-            # No events left after filtering
-            outfile.unlink()
-            return None
-
-    return outfile
+    return eventlist_path

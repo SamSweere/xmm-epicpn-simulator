@@ -36,49 +36,41 @@ def get_ccd_width_height(res_mult: int = 1) -> tuple[int, int]:
 
 def get_cc12_txy() -> tuple[float, float]:
     epn_lincoord = get_epn_lincoord()
-    with fits.open(name=epn_lincoord, mode="readonly") as file:
-        header = file[1].header
-        cc12_tx = header["CC12_TX"]
-        cc12_ty = header["CC12_TY"]
+    cc12_tx = fits.getval(epn_lincoord, "CC12_TX", "LINCOORD")
+    cc12_ty = fits.getval(epn_lincoord, "CC12_TY", "LINCOORD")
+
     return cc12_tx, cc12_ty
 
 
 def get_plate_scale_xy() -> tuple[float, float]:
-    xmm_miscdata = get_xmm_miscdata()
-    with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        miscdata = file[1].data
-        epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
-        plate_scale_x = epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].item()
-        plate_scale_y = epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].item()
+    miscdata = fits.getdata(get_xmm_miscdata(), "MISCDATA")
+    epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
+    plate_scale_x = epn[epn["PARM_ID"] == "PLATE_SCALE_X"]["PARM_VAL"].item()
+    plate_scale_y = epn[epn["PARM_ID"] == "PLATE_SCALE_Y"]["PARM_VAL"].item()
+
     return plate_scale_x, plate_scale_y
 
 
 def get_xyrval() -> tuple[np.ndarray, np.ndarray]:
-    epn_lincoord = get_epn_lincoord()
-    with fits.open(name=epn_lincoord, mode="readonly") as file:
-        lincoord = file[1].data
-        # TODO This is a temporary fix.
-        # The two rows should be perfectly aligned on the x-axis,
-        # but for whatever reason they are not. XMM-Newton Helpdesk
-        # has been contacted. Answer is still pending.
-        # This is the "correct" version:
-        xrval = lincoord["X0"]
-        yrval = lincoord["Y0"]
-        # The following steps can be deleted when the issue is fixed
-        xrval[-6:] = -xrval[-6:]
+    lincoord = fits.getdata(get_epn_lincoord(), "LINCOORD")
+    # TODO This is a temporary fix.
+    # The two rows should be perfectly aligned on the x-axis,
+    # but for whatever reason they are not. XMM-Newton Helpdesk
+    # has been contacted. Answer is not satisfactory.
+    # This is the "correct" version:
+    xrval = lincoord["X0"]
+    yrval = lincoord["Y0"]
+    # The following steps can be deleted when the issue is fixed
+    xrval[-6:] = -xrval[-6:]
 
     return xrval, yrval
 
 
 def get_pixel_size(res_mult: int = 1) -> float:
-    xmm_miscdata = get_xmm_miscdata()
-
-    with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        # First entry is a PrimaryHDU, which is irrelevant for us
-        miscdata = file[1].data
-        epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
-        # Size of one pixel
-        p_delt = epn[epn["PARM_ID"] == "MM_PER_PIXEL_X"]["PARM_VAL"].item()
+    miscdata = fits.getdata(get_xmm_miscdata(), "MISCDATA")
+    epn = miscdata[miscdata["INSTRUMENT_ID"] == "EPN"]
+    # Size of one pixel
+    p_delt = epn[epn["PARM_ID"] == "MM_PER_PIXEL_X"]["PARM_VAL"].item()
 
     return round(p_delt / res_mult, 3)
 
@@ -113,28 +105,20 @@ def get_naxis12(res_mult: int = 1) -> tuple[int, int]:
 
 
 def get_focal_length() -> float:
-    xmm_miscdata = get_xmm_miscdata()
-
-    with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        # First entry is a PrimaryHDU, which is irrelevant for us
-        miscdata = file[1].data
-        telescope = get_telescope("epn")
-        xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
-        focallength = xrt[xrt["PARM_ID"] == "FOCAL_LENGTH"]["PARM_VAL"].item()
+    miscdata = fits.getdata(get_xmm_miscdata(), "MISCDATA")
+    telescope = get_telescope("epn")
+    xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
+    focallength = xrt[xrt["PARM_ID"] == "FOCAL_LENGTH"]["PARM_VAL"].item()
 
     return focallength
 
 
 def get_fov() -> float:
-    xmm_miscdata = get_xmm_miscdata()
-
-    with fits.open(name=xmm_miscdata, mode="readonly") as file:
-        # First entry is a PrimaryHDU, which is irrelevant for us
-        miscdata = file[1].data
-        telescope = get_telescope("epn")
-        xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
-        # Notice the 'RADIUS'
-        fov = xrt[xrt["PARM_ID"] == "FOV_RADIUS"]["PARM_VAL"].item() * 2
+    miscdata = fits.getdata(get_xmm_miscdata(), "MISCDATA")
+    telescope = get_telescope("epn")
+    xrt = miscdata[miscdata["INSTRUMENT_ID"] == telescope]
+    # Notice the 'RADIUS'
+    fov = xrt[xrt["PARM_ID"] == "FOV_RADIUS"]["PARM_VAL"].item() * 2
 
     return fov
 
@@ -250,7 +234,7 @@ def create_xml(
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
     wait_time: float = 23.04e-6,  # Setting this to 0.0 eliminates out of time events
-) -> Path:
+) -> list[Path]:
     # Change units from mm to m
     # See: http://www.sternwarte.uni-erlangen.de/~sixte/data/simulator_manual.pdf
     # in chap. "C: XML Instrument Configuration"
@@ -273,26 +257,30 @@ def create_xml(
     xrpix = round((max_x + 1) / 2.0, 6)
     yrpix = round((max_y + 1) / 2.0, 6)
 
-    instrument = Element("instrument", telescop="XMM", instrume="EPN")
+    psf_file = get_psf_file(xml_dir=out_dir, instrument_name="epn", res_mult=res_mult)
+    vignette_file = get_vignet_file(xml_dir=out_dir, instrument_name="epn")
 
-    telescope = SubElement(instrument, "telescope")
-    SubElement(telescope, "rmf", filename=f"pn-{xmm_filter}-10.rmf")
-    SubElement(telescope, "arf", filename=f"pn-{xmm_filter}-10.arf")
-    SubElement(telescope, "focallength", value=f"{focallength}")
-    SubElement(telescope, "fov", diameter=f"{fov}")
-    SubElement(
-        telescope,
-        "psf",
-        filename=f"{get_psf_file(xml_dir=out_dir, instrument_name='epn', res_mult=res_mult).name}",
-    )
-    SubElement(
-        telescope,
-        "vignetting",
-        filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name='epn').name}",
-    )
-
+    xml_paths = []
     for i in range(len(xrval)):
-        detector = SubElement(instrument, "detector", type="ccd", chip=f"{i}")
+        instrument = Element("instrument", telescop="XMM", instrume="EPN")
+
+        telescope = SubElement(instrument, "telescope")
+        SubElement(telescope, "rmf", filename=f"pn-{xmm_filter}-10.rmf")
+        SubElement(telescope, "arf", filename=f"pn-{xmm_filter}-10.arf")
+        SubElement(telescope, "focallength", value=f"{focallength}")
+        SubElement(telescope, "fov", diameter=f"{fov}")
+        SubElement(
+            telescope,
+            "psf",
+            filename=f"{psf_file.name}",
+        )
+        SubElement(
+            telescope,
+            "vignetting",
+            filename=f"{vignette_file.name}",
+        )
+
+        detector = SubElement(instrument, "detector", type="ccd")
         SubElement(detector, "dimensions", xwidth=f"{max_x}", ywidth=f"{max_y}")
         # See https://www.aanda.org/articles/aa/pdf/2019/10/aa35978-19.pdf Appendix A about the rota
         SubElement(
@@ -324,33 +312,14 @@ def create_xml(
 
         SubElement(readout, "newframe")
 
-    tree = ElementTree(instrument)
+        tree = ElementTree(instrument)
 
-    if sim_separate_ccds:
-        xml_path = out_dir / f"seperate_ccds_{xmm_filter}.xml"
-    else:
-        xml_path = out_dir / f"combined_ccd_{xmm_filter}.xml"
+        if sim_separate_ccds:
+            xml_path = out_dir / f"ccd_{i}_{xmm_filter}.xml"
+        else:
+            xml_path = out_dir / f"combined_ccd_{xmm_filter}.xml"
 
-    tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
+        tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
+        xml_paths.append(xml_path)
 
-    return xml_path
-
-
-def get_xml(
-    xml_dir: Path,
-    res_mult: int,
-    xmm_filter: Literal["thin", "med", "thick"],
-    sim_separate_ccds: bool,
-) -> Path:
-    instrument_path = xml_dir / "epn"
-    root = instrument_path / xmm_filter / f"{res_mult}x"
-
-    glob_pattern = f"seperate_ccds_{xmm_filter}.xml" if sim_separate_ccds else f"combined_ccd_{xmm_filter}.xml"
-    xml_path: Path = next(root.glob(glob_pattern))
-
-    if not xml_path:
-        raise FileNotFoundError(f"Couldn't find {glob_pattern} for EPN in {root.resolve()}!")
-
-    assert xml_path.exists()
-
-    return xml_path
+    return xml_paths

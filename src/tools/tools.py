@@ -7,9 +7,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory, mkdtemp
 
 import numpy as np
-import requests
 from loguru import logger
+from requests import Session
+from requests.adapters import HTTPAdapter
 from tqdm import tqdm
+from urllib3.util import Retry
 
 from src.config import DownloadCfg, EnergyCfg, EnvironmentCfg, MultiprocessingCfg, SimputCfg, SimulationCfg
 from src.illustris_tng.fits import cutout_to_xray_fits
@@ -19,33 +21,23 @@ from src.illustris_tng.web_api import (
     get_subhalos,
 )
 from src.simput.tools import get_spectrumfile
-from src.sixte.simulator import run_xmm_simulation
+from src.sixte.simulator import run_simulation
 from src.tools.files import compress_gzip, compress_targz, decompress_targz
 from src.xmm.tools import create_mask, create_psf_file, create_vinget_file, create_xml_files, get_spectrum_file
 
 
-def download_cloudy_emissivity(environment: EnvironmentCfg):
-    cloudy_emissivity = environment.working_dir / "cloudy_emissivity_v2.h5"
-    if not cloudy_emissivity.exists():
-        logger.info(f"Downloading cloudy_emissivity_v2.h5 to {cloudy_emissivity.resolve()}")
-        retries = 3
-        while retries > 0:
-            try:
-                with requests.get(
-                    "http://yt-project.org/data/cloudy_emissivity_v2.h5",
-                    stream=True,
-                ) as r:
-                    r.raise_for_status()
-                    with open(cloudy_emissivity, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=int(1e6)):
-                            f.write(chunk)
-                retries = 0
-            except:  # noqa
-                retries = retries - 1
+def download_file(url: str, out_path: Path) -> Path:
+    retry_strategy = Retry(total=10, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session = Session()
+    prefix = "https://" if url.startswith("https://") else "http://"
+    session.mount(prefix, adapter)
 
-        if not cloudy_emissivity.exists():
-            raise FileNotFoundError(f"Failed to load cloudy_emissivity_v2.h5 {cloudy_emissivity}!")
-    return cloudy_emissivity
+    with session.get(url, stream=True) as response, open(out_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=int(1e6)):
+            f.write(chunk)
+
+    return out_path
 
 
 def download_data(
@@ -71,7 +63,9 @@ def download_data(
             "order_by": "-mass_gas",
         },
     )
-    cloudy_emissivity = download_cloudy_emissivity(env_cfg)
+    cloudy_emissivity = env_cfg.working_dir / "cloudy_emissivity_v2.h5"
+    if not cloudy_emissivity.exists():
+        download_file("http://yt-project.org/data/cloudy_emissivity_v2.h5", cloudy_emissivity)
     _cutout_to_xray_fits = partial(
         cutout_to_xray_fits,
         output_dir=download_cfg.fits_path,
@@ -485,11 +479,7 @@ def run_simulations(
     mp_cfg: MultiprocessingCfg,
     satellites: list,
 ) -> None:
-    root_dir = env_cfg.working_dir
-    with (
-        TemporaryDirectory(prefix="xml_", dir=root_dir) as xml_dir,
-        TemporaryDirectory(prefix="sim_", dir=root_dir) as sim_dir,
-    ):
+    with TemporaryDirectory(prefix="xml_") as xml_dir, TemporaryDirectory(prefix="sim_") as sim_dir:
         xml_dir = Path(xml_dir)
         sim_dir = Path(sim_dir)
 
@@ -590,45 +580,51 @@ def run_simulations(
 
                     mode_fs = {}
                     logger.info(f"START\tSimulating {name} for {mode.upper()}.")
-                    max_workers = mp_cfg.ram_gb // 8 if name == "epn" else mp_cfg.ram_gb // 2
+                    ram_max = mp_cfg.ram_gb // 4 if name == "epn" else mp_cfg.ram_gb // 2
+                    max_workers = min(mp_cfg.num_cores, ram_max)
 
                     logger.debug(f"Will use {max_workers} processes.")
 
                     xmm_filter_dir = sim_cfg.out_dir / name / instrument.filter
                     xmm_filter_dir.mkdir(exist_ok=True, parents=True)
-                    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                    with ProcessPoolExecutor(max_workers=max_workers, max_tasks_per_child=1) as executor:
                         for simput in simputs:
-                            for res_mult in sim_cfg.res_mults:
-                                fs: Future = executor.submit(
-                                    run_xmm_simulation,
-                                    instrument_name=name,
-                                    xml_dir=xml_dir,
-                                    simput_file=simput,
-                                    mode=mode,
-                                    tmp_dir=sim_dir,
-                                    out_dir=xmm_filter_dir,
-                                    res_mult=res_mult,
-                                    max_event_pattern=instrument.max_event_pattern,
-                                    exposure=sim_cfg.max_exposure,
-                                    xmm_filter=instrument.filter,
-                                    sim_separate_ccds=instrument.sim_separate_ccds,
-                                    consume_data=env_cfg.consume_data,
-                                    emask=emasks[name][res_mult],
-                                )
-                                mode_fs[fs] = {"simput": simput, "res_mult": res_mult}
+                            fs: Future = executor.submit(
+                                run_simulation,
+                                tmp_dir=sim_dir,
+                                out_dir=xmm_filter_dir / mode,
+                                xml_dir=xml_dir,
+                                instrument_name=name,
+                                xmm_filter=instrument.filter,
+                                simput_path=simput,
+                                res_mults=sim_cfg.res_mults,
+                                exposure=sim_cfg.max_exposure,
+                                max_event_pattern=instrument.max_event_pattern,
+                                mode=mode,
+                                sim_separate_ccds=instrument.sim_separate_ccds,
+                                consume_data=env_cfg.consume_data,
+                                emasks=emasks[name],
+                            )
+                            mode_fs[fs] = {"simput": simput}
 
                         for future in tqdm(
                             as_completed(mode_fs), total=len(mode_fs), desc=f"Simulating {name} for {mode.upper()}"
                         ):
-                            # Since this feature should be done, add a small timeout
-                            outfiles = future.result(10)
+                            exception = future.exception()
+
+                            if exception:
+                                print(exception)
+                                logger.exception(exception)
+                                executor.shutdown(cancel_futures=True)
+                                raise exception
+
+                            outfiles = future.result()
                             simput = mode_fs[future]["simput"]
-                            res_mult = mode_fs[future]["res_mult"]
-                            logger.success(f"Simulated {name} for {simput} with res_mult {res_mult}.")
+                            logger.success(f"Simulated {name} for {simput}.")
                             logger.info(f"Created {len(outfiles)} images")
                         logger.success(f"DONE\tSimulating {name} for {mode.upper()}. Duration: elapsed_time")
 
-                        del mode_fs
+                        mode_fs.clear()
 
                         if env_cfg.tar_and_compress:
                             mode_compressed = (

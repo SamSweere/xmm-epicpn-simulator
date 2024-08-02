@@ -1,5 +1,4 @@
 import os
-from datetime import timedelta
 from pathlib import Path
 
 from loguru import logger
@@ -19,8 +18,6 @@ def configure_logger(
     enqueue: bool,
     debug: bool,
     verbose: bool,
-    retention: int,
-    rotation: timedelta,
 ):
     if debug:
         log_level = "DEBUG"
@@ -33,8 +30,6 @@ def configure_logger(
         f"{log_file.resolve()}",
         enqueue=enqueue,
         level=log_level,
-        rotation=rotation,
-        retention=retention,
         opener=_opener,
     )
 
