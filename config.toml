@@ -2,7 +2,7 @@
 working_dir = "/home/xmm_user/xmm-epicpn-simulator/data/tmp"
 output_dir = "/home/xmm_user/xmm-epicpn-simulator/data"
 log_dir = "/home/xmm_user/xmm-epicpn-simulator/data/logs"
-debug = true
+debug = false
 verbose = false
 fail_on_error = true
 overwrite = true
@@ -13,7 +13,7 @@ emin = 0.15
 emax = 15.0
 
 [download]
-num_processes = 4
+num_processes = 10
 top_n = 400
 resolutions = [2048]
 snapshots.98 = 0.01
@@ -28,7 +28,7 @@ proj = ["x", "y", "z"]
 slice = []
 
 [simput]
-num_processes = 1 #16
+num_processes = 16 #16
 filter = "thin"
 zoom_range = [ 1, 2 ]
 sigma_b_range = [ 5, 50 ]
@@ -39,19 +39,19 @@ num_img_sample = 5
 n_gen = 0 # -1 for all
 
 [simput.agn]
-n_gen = 1 #25000
+n_gen = 100 #25000
 deblending_n_gen = 1.0 # Fraction of n_gen
-deblending_n_flux = 0.5 # Fraction of all blended agns (must be <= 0.5)
-deblending_min_sep = 6.9 # in arcsec
-deblending_max_sep = 7.0 # in arcsec # TODO: determine this value
+deblending_n_flux = 0.15 # Fraction of all blended agns (must be <= 0.5)
+deblending_min_sep = 0 # in arcsec
+deblending_max_sep = 14 # in arcsec # TODO: determine this value
 deblending_max_flux_delta = 0.5 # the maximum difference between two sources in flux # TODO: determine this value
-put_source_in_center = 1
-
+put_source_in_center = 0
+# inner 10 arcmin 
 [simput.bkg]
 n_gen = 0 # 1
 
 [simulation]
-num_processes = 16
+num_processes = 10
 #instruments = ["epn"] # , "emos1", "emos2"]
 filter = "thin"
 res_mults = [1, 2]
@@ -63,7 +63,7 @@ wait_time = 0.00002304 # Correct separate wait_time = 0.00002304
 
 [simulation.modes]
 img = 0
-agn = 1
+agn = 100
 bkg = 0
 
 [instruments.xmm]
