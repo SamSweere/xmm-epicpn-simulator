@@ -51,10 +51,10 @@ def _simulate_mode(
         simputs = [next(mode_dir.rglob(f"*{instrument_name}.simput.gz"))] * amount
         
         
-    with fits.open(simputs[0]) as hdul:
-        bin_table_hdu = hdul[1]
-        data = bin_table_hdu.data
-        columns = bin_table_hdu.columns.names 
+    # with fits.open(simputs[0]) as hdul:
+    #     bin_table_hdu = hdul[1]
+    #     data = bin_table_hdu.data
+    #     columns = bin_table_hdu.columns.names 
    
 
     to_run = partial(
