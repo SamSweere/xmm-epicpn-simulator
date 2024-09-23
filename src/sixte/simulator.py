@@ -25,6 +25,7 @@ def run_simulation(
     res_mult: int,
     exposure: int,
     max_event_pattern: int,
+    mode: str,
     ra: float = 0.0,
     dec: float = 0.0,
     rollangle: float = 0.0,
@@ -32,6 +33,7 @@ def run_simulation(
     consume_data: bool = True,
     emask: Path = None,
 ) -> list[tuple[Path, int]] | None:
+    
     xml_file = get_xml_file(
         xml_dir=xml_dir,
         instrument_name=instrument_name,
@@ -128,19 +130,14 @@ def run_simulation(
         split_img_paths_exps.append((final_img_path, split_exposure))
         
         # Read the source catalogue from the simput file 
-        #TODO: make sure that this also works when simulating other things but AGNs
-        with fits.open(simput_path) as hdul:
-            source_hdu = hdul[1]
-            source_data = source_hdu.data
-            source_header = source_hdu.header.copy()
+        #TODO: handle exceptions when old agn simput files are used that do not contain information about where the agns are located 
+        if mode == 'agn':
+            with fits.open(simput_path) as hdul:
+                source_hdu = hdul[1]
+                source_data = source_hdu.data
+                source_header = source_hdu.header.copy()
+                
             
-            deblending_indices = source_data["DEBLENDING INDICES"]
-            
-            single_idx = np.where(np.arange(len(deblending_indices))== np.array(deblending_indices))[0][1:]
-            blended_idx = np.where(np.arange(len(deblending_indices))!= np.array(deblending_indices))[0]
-            
-          
-
         # Add specifics to the simput file and apply emask if requested
         with fits.open(final_img_path, mode="update") as hdu:
             
@@ -162,25 +159,19 @@ def run_simulation(
             
             if emask is not None:
                 hdu["PRIMARY"].data = hdu["PRIMARY"].data * emask
-                 
-            # Remove AGNs from AGN list that are not contained in smaller image dimensions
-            filtered_source_data, filtered_source_header = filter_agns_to_img_size(source_data, source_header, header, naxis1, naxis2 )
             
-            # Create a new BinTableHDU for the source catalog
-            new_hdu = fits.BinTableHDU(data=filtered_source_data, header=filtered_source_header)
+            if mode == 'agn':
+                # Remove AGNs from AGN list that are not contained in smaller image dimensions
+                filtered_source_data, filtered_source_header = filter_agns_to_img_size(source_data, source_header, header, naxis1, naxis2 )
+                
+                # Create a new BinTableHDU for the source catalog
+                new_hdu = fits.BinTableHDU(data=filtered_source_data, header=filtered_source_header)
 
-            # Append the new HDU to the target FITS file
-            hdu.append(new_hdu)
-            hdu.flush()
+                # Append the new HDU to the target FITS file
+                hdu.append(new_hdu)
+                hdu.flush()
             
-        with fits.open(final_img_path, mode="update") as hdu:
-            
-            deblending_indices = hdu[1].data["DEBLENDING INDICES"]
-            single_idx = np.where(np.arange(len(deblending_indices))== np.array(deblending_indices))[0][1:]
-            blended_idx = np.where(np.arange(len(deblending_indices))!= np.array(deblending_indices))[0]
-            
-            
-            
+      
     return split_img_paths_exps
 
 
@@ -216,6 +207,7 @@ def run_xmm_simulation(
             run_dir=run_dir,
             res_mult=res_mult,
             max_event_pattern=max_event_pattern,
+            mode = mode,
             exposure=exposure,
             sim_separate_ccds=sim_separate_ccds,
             consume_data=consume_data,

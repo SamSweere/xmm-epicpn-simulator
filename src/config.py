@@ -1,6 +1,7 @@
 from multiprocessing import cpu_count
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Union
+
 
 from pydantic import (
     BaseModel,
@@ -108,10 +109,9 @@ class _SimputImg(BaseModel):
 class _SimputAgn(BaseModel):
     n_gen: NonNegativeInt
     deblending_n_gen: NonNegativeFloat
-    deblending_n_flux:NonNegativeFloat
+    deblending_n_frac:NonNegativeFloat
     deblending_min_sep: NonNegativeFloat
     deblending_max_sep: NonNegativeFloat
-    deblending_max_flux_delta: NonNegativeFloat
     put_source_in_center: NonNegativeInt
 
 
@@ -130,7 +130,7 @@ class SimputCfg(BaseModel):
     # bkg: dict[str, int]
     offset_std: PositiveFloat
     num_img_sample: PositiveInt
-    simput_dir: CfgPath
+    simput_dir: Union[Path, bool]
     fits_dir: CfgPath
     fits_compressed: Path
 
@@ -144,6 +144,7 @@ class EnvironmentCfg(BaseModel):
     working_dir: CfgPath
     output_dir: CfgPath
     log_dir: CfgPath
+    simput_dir: Union[Path, bool]
     fail_on_error: bool = False
     debug: bool = False
     verbose: bool = True

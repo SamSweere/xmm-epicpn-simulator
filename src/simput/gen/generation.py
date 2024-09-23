@@ -89,19 +89,19 @@ def create_agn_simput(
     if deblending:
         
         # Determine fraction of blended fluxes 
-        frac_blended_sources = rng.normal(loc = simput_agn_settings.deblending_n_flux, scale = 0.1)
+        frac_blended_sources = rng.normal(loc = simput_agn_settings.deblending_n_frac, scale = 0.1)
         
         # Make sure that the value is in range [0,1]
         frac_blended_sources = np.clip(frac_blended_sources, 0, 0.5)
         
         # Compute absolute number of AGNs that should be blended 
-        abs_deblending_n_flux = int(frac_blended_sources*(num_fluxes))
+        abs_deblending_n_frac = int(frac_blended_sources*(num_fluxes))
         
         # Determine indices of blended sources, starting from index 1 because index 0 is supposed to be at the center and should not be blended (for now)
-        blended_idx = rng.choice(np.arange(int(simput_agn_settings.put_source_in_center), len(fluxes)), size = (abs_deblending_n_flux,2), replace = False)
+        blended_idx = rng.choice(np.arange(int(simput_agn_settings.put_source_in_center), len(fluxes)), size = (abs_deblending_n_frac,2), replace = False)
         
         # Compute the offsets of the blended sources, divding by 3600 to go from arcseconds to degrees
-        blended_dist = rng.uniform(low=simput_agn_settings.deblending_min_sep/3600, high=simput_agn_settings.deblending_max_sep/3600, size= (abs_deblending_n_flux, 2))
+        blended_dist = rng.uniform(low=simput_agn_settings.deblending_min_sep/3600, high=simput_agn_settings.deblending_max_sep/3600, size= (abs_deblending_n_frac, 2))
         # blended_dist = np.array([8/3600, 8/3600])
         blended_offset_vals = offset_vals[blended_idx[:,0]] + blended_dist
         

@@ -34,9 +34,10 @@ def _simulate_mode(
     xml_dir: Path,
 ) -> None:
     logger.info(f"START\tSimulating {instrument_name} for {mode.upper()}.")
+    
+    # Simput file directory 
+    mode_dir = (env_cfg.simput_dir if env_cfg.simput_dir else sim_cfg.simput_dir) / mode 
 
-    # Find the simput files
-    mode_dir = sim_cfg.simput_dir / mode
     if mode == "agn":
         mode_dir = mode_dir / instrument_name
 
@@ -51,11 +52,6 @@ def _simulate_mode(
         simputs = [next(mode_dir.rglob(f"*{instrument_name}.simput.gz"))] * amount
         
         
-    # with fits.open(simputs[0]) as hdul:
-    #     bin_table_hdu = hdul[1]
-    #     data = bin_table_hdu.data
-    #     columns = bin_table_hdu.columns.names 
-   
 
     to_run = partial(
         run_xmm_simulation,
@@ -106,6 +102,7 @@ def run(path_to_cfg: Path) -> None:
     global env_cfg, sim_cfg
 
     env_cfg = EnvironmentCfg(**cfg.pop("environment"))
+    
     sim_cfg = SimulationCfg(
         **cfg.pop("simulation"),
         simput_dir=env_cfg.working_dir / "simput",
