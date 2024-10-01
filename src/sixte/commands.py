@@ -89,47 +89,6 @@ def imgev(
     return image
 
 
-def runsixt_sixtesim(
-    output_path: Path,
-    xml_files: list[Path] | Path,
-    ra: float,
-    dec: float,
-    rollangle: float,
-    simput: Path,
-    exposure: int,
-    chatter: int = 1,
-    clobber: bool = True,
-    history: bool = True,
-) -> None:
-    exec_cmd = join(os.environ["SIXTE"], "bin", "runsixt")
-
-    assert exists(exec_cmd) and isfile(exec_cmd), f"{exec_cmd} does not exist"
-
-    if isinstance(xml_files, Path):
-        xml_files = [xml_files]
-
-    for xml_file in xml_files:
-        assert exists(xml_file) and isfile(xml_file), f"{xml_file} does not exist"
-    assert exists(simput) and isfile(simput), f"{simput} does not exist"
-
-    for i, xml_file in enumerate(xml_files):
-        cmd_params = [
-            f"Prefix={output_path}/",
-            f"XMLFile={xml_file}",
-            f"RA={ra}",
-            f"DEC={dec}",
-            f"EvtFile=chip{i}_none",
-            f"rollangle={rollangle}",
-            f"Simput={simput}",
-            f"Exposure={exposure}",
-            f"chatter={chatter}",
-            f"clobber={str(clobber).lower()}",
-            "Background=no",
-            f"history={str(history).lower()}",
-        ]
-        _run_cmd([exec_cmd, *cmd_params], exposure)
-
-
 def sixtesim(
     output_path: Path,
     xml_file: Path,

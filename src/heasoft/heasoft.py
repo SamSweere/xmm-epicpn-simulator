@@ -11,7 +11,8 @@ def _run_cmd(cmd: list[str], timeout: float = 3600) -> None:
     with TemporaryDirectory(
         prefix="heasoft_",
     ) as tmpdir:
-        cmd.extend(["history=yes", "chatter=1"])
+        if not cmd[0].endswith("fimgmerge"):
+            cmd.extend(["history=yes", "chatter=1"])
         env = os.environ.copy()
         env["PFILES"] = f"{tmpdir}:{os.environ['PFILES']}"
         proc = subprocess.run(
@@ -146,6 +147,54 @@ def ftimgcalc(
 
     cmd = [exec_cmd, *cmd_params]
     _run_cmd(cmd)
+
+    assert exists(outfile)
+
+    return outfile
+
+
+def fimgbin(
+    infile: Path,
+    outfile: Path,
+    xbinsize: int,
+) -> Path:
+    exec_cmd = join(os.environ["HEADAS"], "bin", "fimgbin")
+
+    assert exists(exec_cmd)
+    if isinstance(infile, Path):
+        assert exists(infile)
+
+    cmd_params = [f"infile={infile}", f"outfile={outfile}", f"xbinsize={xbinsize}", "clobber=yes"]
+    cmd = [exec_cmd, *cmd_params]
+    _run_cmd(cmd)
+
+    assert exists(outfile)
+
+    return outfile
+
+
+def fimgmerge(
+    infile: Path,
+    mergefiles: list[Path],
+    outfile: Path,
+    xoffsets: list[float],
+    yoffsets: list[float],
+) -> Path:
+    exec_cmd = join(os.environ["HEADAS"], "bin", "fimgmerge")
+
+    assert exists(exec_cmd)
+    if isinstance(infile, Path):
+        assert exists(infile)
+
+    cmd_params = [
+        f"{infile}",
+        f"{','.join([str(f) for f in mergefiles])}",
+        f"{outfile}",
+        f"{','.join([str(x) for x in xoffsets])}",
+        f"{','.join([str(y) for y in yoffsets])}",
+    ]
+    cmd = [exec_cmd, *cmd_params]
+    _run_cmd(cmd, test=True)
 
     assert exists(outfile)
 

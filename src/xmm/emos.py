@@ -232,8 +232,7 @@ def create_mask(
             # Move to out_dir
             if mask_level == "expmap":
                 mask_path = Path(out_dir) / "expmap" / expimgset
-                with hsp.utils.local_pfiles_context():
-                    hsp.ftimgcalc(outfile=expimgset, expr="a > 0 ? 1 : 0", a=expimgset, clobber="yes")
+                hsp.ftimgcalc(outfile=expimgset, expr="a > 0 ? 1 : 0", a=expimgset, clobber="yes")
 
             if mask_level == "emask":
                 # Create emask
@@ -257,7 +256,7 @@ def create_xml(
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
     wait_time: float = 23.04e-6,  # Setting this to 0.0 eliminates out of time events
-) -> list[Path]:
+) -> Path:
     # Change units from mm to m
     # See: http://www.sternwarte.uni-erlangen.de/~sixte/data/simulator_manual.pdf
     # in chap. "C: XML Instrument Configuration"
@@ -293,25 +292,29 @@ def create_xml(
     xrpix = round((width + 1) / 2.0, 6)
     yrpix = round((height + 1) / 2.0, 6)
 
-    psf_file = get_psf_file(xml_dir=out_dir, instrument_name=f"emos{emos_num}", res_mult=res_mult)
-    vignette_file = get_vignet_file(xml_dir=out_dir, instrument_name=f"emos{emos_num}")
+    instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
 
-    xml_paths = []
+    telescope = SubElement(instrument, "telescope")
+    SubElement(telescope, "rmf", filename=f"mos{emos_num}-{xmm_filter}-10.rmf")
+    SubElement(telescope, "arf", filename=f"mos{emos_num}-{xmm_filter}-10.arf")
+    SubElement(telescope, "focallength", value=f"{focallength}")
+    SubElement(telescope, "fov", diameter=f"{fov}")
+    SubElement(
+        telescope,
+        "psf",
+        filename=f"{get_psf_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}', res_mult=res_mult).name}",
+    )
+    SubElement(
+        telescope,
+        "vignetting",
+        filename=f"{get_vignet_file(xml_dir=out_dir, instrument_name=f'emos{emos_num}').name}",
+    )
+
     for i in range(len(rotas)):
         if (emos_num == 1) and (i == 2 or i == 5):
             # TODO Make the choice if CCD3 and CCD6 for EMOS1 should be used a config parameter
             continue
-
-        instrument = Element("instrument", telescop="XMM", instrume=f"EM{emos_num}")
-
-        telescope = SubElement(instrument, "telescope")
-        SubElement(telescope, "rmf", filename=f"mos{emos_num}-{xmm_filter}-10.rmf")
-        SubElement(telescope, "arf", filename=f"mos{emos_num}-{xmm_filter}-10.arf")
-        SubElement(telescope, "focallength", value=f"{focallength}")
-        SubElement(telescope, "fov", diameter=f"{fov}")
-        SubElement(telescope, "psf", filename=f"{psf_file.name}")
-        SubElement(telescope, "vignetting", filename=f"{vignette_file.name}")
-        detector = SubElement(instrument, "detector", type="ccd")
+        detector = SubElement(instrument, "detector", type="ccd", chip=f"{i}")
         SubElement(detector, "dimensions", xwidth=f"{width}", ywidth=f"{height}")
         SubElement(
             detector,
@@ -349,14 +352,34 @@ def create_xml(
 
         SubElement(readout, "newframe")
 
-        tree = ElementTree(instrument)
+    tree = ElementTree(instrument)
 
-        if sim_separate_ccds:
-            xml_path = out_dir / f"ccd_{i}_{xmm_filter}.xml"
-        else:
-            xml_path = out_dir / f"combined_ccd_{xmm_filter}.xml"
+    if sim_separate_ccds:
+        xml_path = out_dir / f"seperate_ccds_{xmm_filter}.xml"
+    else:
+        xml_path = out_dir / f"combined_ccd_{xmm_filter}.xml"
 
-        tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
-        xml_paths.append(xml_path)
+    tree.write(xml_path, encoding="UTF-8", xml_declaration=True, pretty_print=True)
 
-    return xml_paths
+    return xml_path
+
+
+def get_xml(
+    xml_dir: Path,
+    emos_num: Literal[1, 2],
+    res_mult: int,
+    xmm_filter: Literal["thin", "med", "thick"],
+    sim_separate_ccds: bool,
+) -> Path:
+    instrument_path = xml_dir / f"emos{emos_num}"
+    root = instrument_path / xmm_filter / f"{res_mult}x"
+
+    glob_pattern = f"seperate_ccds_{xmm_filter}.xml" if sim_separate_ccds else f"combined_ccd_{xmm_filter}.xml"
+    xml_path: Path = next(root.glob(glob_pattern))
+
+    if not xml_path:
+        raise FileNotFoundError(f"Couldn't find {glob_pattern} for EMOS{emos_num} in {root.resolve()}!")
+
+    assert xml_path.exists()
+
+    return xml_path

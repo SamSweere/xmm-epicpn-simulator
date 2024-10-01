@@ -238,7 +238,7 @@ def generate_simput(
                     )
 
                 amount_img = simput_cfg.img.n_gen
-                fits_glob = simput_cfg.fits_dir.rglob("*.fits")
+                fits_glob = simput_cfg.fits_dir.rglob("*.fits.gz")
                 in_files = fits_glob if amount_img == -1 else islice(fits_glob, amount_img)
                 for in_file in in_files:
                     tng_set, snapshot_num = in_file.parts[-3], in_file.parts[-2]
@@ -587,7 +587,7 @@ def run_simulations(
 
                     xmm_filter_dir = sim_cfg.out_dir / name / instrument.filter
                     xmm_filter_dir.mkdir(exist_ok=True, parents=True)
-                    with ProcessPoolExecutor(max_workers=max_workers, max_tasks_per_child=1) as executor:
+                    with ProcessPoolExecutor(max_workers=max_workers) as executor:
                         for simput in simputs:
                             fs: Future = executor.submit(
                                 run_simulation,
