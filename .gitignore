@@ -1,6 +1,8 @@
 # Added by me:
 .DS_Store
 *.fits
+.devcontainer/
+.env
 .idea/
 .vscode/
 .python-version
