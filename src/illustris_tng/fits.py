@@ -102,9 +102,6 @@ def cutout_to_xray_fits(
                             else:
                                 logger.warning(f"Failed to process {cutout.resolve()} with error:\n" f"{e}")
                         fits.append(compressed_path)
-    if environment.consume_data:
-        cutout.unlink()
-        logger.success(f"Deleted {cutout}.")
     end = datetime.now()
     logger.info(f"Processing of {cutout} took {end - start}.")
     return fits
