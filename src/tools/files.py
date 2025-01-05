@@ -5,7 +5,6 @@ from pathlib import Path
 
 from loguru import logger
 
-from src.heasoft import heasoft as hsp
 from src.tools.cli import run_command
 
 
@@ -35,35 +34,3 @@ def decompress_targz(in_file_path: Path, out_file_dir: Path, tar_options: str = 
     out_file_dir.mkdir(parents=True, exist_ok=True)
     run_command(f"tar -xzf {in_file_path.resolve()} -C {out_file_dir.resolve()} {tar_options}")
     logger.success(f"Decompressed {in_file_path} to {out_file_dir}")
-
-
-def filter_event_pattern(eventlist_path: Path, max_event_pattern: int) -> Path | None:
-    if max_event_pattern == -1 or max_event_pattern == 12:
-        # Use all event patterns
-        logger.debug(f"There is nothing to filter for {eventlist_path}.")
-        return eventlist_path
-
-    logger.debug(f"Filtering {eventlist_path} for pattern <= {max_event_pattern}.")
-
-    # Filter events
-    hsp.ftcopy(
-        infile=f"{eventlist_path}[EVENTS][TYPE <= {max_event_pattern}]",
-        outfile=eventlist_path,
-    )
-
-    infile = f"{eventlist_path}[EVENTS]"
-    for i in range(max_event_pattern + 1, 13):
-        hsp.fthedit(
-            infile=infile,
-            keyword=f"NGRAD{i}",
-            operation="add",
-            value="0",
-        )
-        hsp.fthedit(
-            infile=infile,
-            keyword=f"NPGRA{i}",
-            operation="add",
-            value="0",
-        )
-
-    return eventlist_path

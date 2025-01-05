@@ -3,7 +3,7 @@ from pathlib import Path
 from astropy.io import fits
 from loguru import logger
 
-from src.heasoft import heasoft as hsp
+import src.heasoft as hsp
 
 
 def split_eventlist(
@@ -26,17 +26,46 @@ def split_eventlist(
             outfile = hsp.ftcopy(
                 infile=f"{eventlist_path}[EVENTS][TIME >= {t_start} && TIME < {t_stop}]",
                 outfile=outfile,
+                clobber="yes",
             )
 
             assert outfile.exists()
 
             for ext in ["PRIMARY", "EVENTS", "STDGTI"]:
-                hsp.fthedit(f"{outfile}[{ext}]", "TSTART", "add", f"{t_start}", unit="s")
-                hsp.fthedit(f"{outfile}[{ext}]", "TSTOP", "add", f"{t_stop}", unit="s")
+                hsp.fthedit(
+                    infile=f"{outfile}[{ext}]",
+                    keyword="TSTART",
+                    operation="add",
+                    value=f"{t_start}",
+                    unit="s",
+                )
+                hsp.fthedit(
+                    infile=f"{outfile}[{ext}]",
+                    keyword="TSTOP",
+                    operation="add",
+                    value=f"{t_stop}",
+                    unit="s",
+                )
 
-            hsp.fthedit(f"{outfile}[EVENTS]", "EXPOSURE", "add", f"{split}", unit="s")
-            hsp.ftedit(f"{outfile}[STDGTI]", "START", 1, f"{t_start}")
-            hsp.ftedit(f"{outfile}[STDGTI]", "STOP", 1, f"{t_stop}")
+            hsp.fthedit(
+                infile=f"{outfile}[EVENTS]",
+                keyword="EXPOSURE",
+                operation="add",
+                value=f"{split}",
+                unit="s",
+            )
+            hsp.ftedit(
+                infile=f"{outfile}[STDGTI]",
+                column="START",
+                row=1,
+                value=f"{t_start}",
+            )
+            hsp.ftedit(
+                infile=f"{outfile}[STDGTI]",
+                column="STOP",
+                row=1,
+                value=f"{t_stop}",
+            )
 
             split_exps.append((outfile, split))
 

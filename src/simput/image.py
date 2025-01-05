@@ -1,17 +1,18 @@
-from datetime import datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from uuid import uuid4
 
 import numpy as np
 from astropy.io import fits
 
+import src.heasoft as hsp
+from src.config import EnergyCfg, SimputImgCfg
 from src.sixte import commands
-from src.tools.files import compress_gzip
 from src.xmm.tools import get_fov
 
 
 def _prepare_fits_image(
-    run_dir: Path,
+    tmp_file: Path,
     img_path: Path,
     zoom: float = 3,
     sigma_b: float = 10,
@@ -95,83 +96,105 @@ def _prepare_fits_image(
 
     hdu = fits.PrimaryHDU(data, header=header)
 
-    tmp_output_file = run_dir / f"{uuid4().int}.fits"
-    hdu.writeto(tmp_output_file, overwrite=True)
+    hdu.writeto(tmp_file, overwrite=True)
 
-    return tmp_output_file, flux
+    return flux
 
 
 def simput_image(
     img_path_in: Path,
-    emin: float,
-    emax: float,
-    zooms: np.ndarray,
-    sigmas_b: np.ndarray,
-    offsets_x: np.ndarray,
-    offsets_y: np.ndarray,
-    run_dir: Path,
+    energies: EnergyCfg,
+    amount: int,
+    cfg: SimputImgCfg,
     output_dir: Path,
     xspec_file: Path,
     consume_data: bool,
 ) -> list[Path]:
     output_files = []
     output_dir.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng()
 
-    for zoom, sigma_b, offset_x, offset_y in zip(zooms, sigmas_b, offsets_x, offsets_y, strict=False):
-        img_path, flux = _prepare_fits_image(
-            run_dir,
-            img_path_in,
-            zoom=zoom,
-            sigma_b=sigma_b,
-            offset_x=offset_x,
-            offset_y=offset_y,
-        )
+    zooms = np.round(
+        rng.uniform(
+            cfg.zoom_range[0],
+            cfg.zoom_range[1],
+            amount,
+        ),
+        2,
+    )
+    sigmas_b = np.round(
+        rng.uniform(
+            cfg.sigma_b_range[0],
+            cfg.sigma_b_range[1],
+            amount,
+        ),
+        2,
+    )
 
-        name = f"{img_path_in.stem}_p0_{emin}ev_p1_{emax}ev_sb_{sigma_b}_zoom_{zoom}_offx_{offset_x}_offy_{offset_y}"
-        name = name.replace(".", "_")
-        output_file_name = f"{name}.simput"
+    offsets_x = np.round(
+        rng.normal(
+            -cfg.offset_std,
+            cfg.offset_std,
+            amount,
+        ),
+        2,
+    )
+    offsets_y = np.round(
+        rng.normal(
+            -cfg.offset_std,
+            cfg.offset_std,
+            amount,
+        ),
+        2,
+    )
 
-        output_file = run_dir / output_file_name
-        compressed_path = output_dir / f"{output_file.name}.gz"
+    with TemporaryDirectory(prefix="simput_img_") as run_dir:
+        run_dir = Path(run_dir)
+        for zoom, sigma_b, offset_x, offset_y in zip(zooms, sigmas_b, offsets_x, offsets_y, strict=False):
+            out_path = output_dir / f"{img_path_in.stem}_{uuid4().int}.simput.gz"
 
-        commands.simputfile(
-            simput=output_file,
-            ra=0.0,
-            dec=0.0,
-            src_flux=flux,
-            emin=emin,
-            emax=emax,
-            xspec_file=xspec_file,
-            image_file=img_path,
-        )
+            with (
+                NamedTemporaryFile(mode="r", dir=run_dir, suffix=".fits") as image_file,
+                NamedTemporaryFile(mode="r", dir=run_dir, suffix=".simput") as local_out,
+                NamedTemporaryFile(mode="w", dir=run_dir) as tmp_file,
+            ):
+                flux = _prepare_fits_image(
+                    tmp_file=image_file.name,
+                    img_path=img_path_in,
+                    zoom=zoom,
+                    sigma_b=sigma_b,
+                    offset_x=offset_x,
+                    offset_y=offset_y,
+                )
 
-        img_path.unlink()
+                commands.simputfile(
+                    simput=local_out.name,
+                    ra=0.0,
+                    dec=0.0,
+                    src_flux=flux,
+                    emin=energies.emin,
+                    emax=energies.emax,
+                    xspec_file=xspec_file,
+                    image_file=image_file.name,
+                )
 
-        # Add specifics to the simput file
-        with fits.open(output_file.resolve(), mode="update") as hdu:
-            primary_header = hdu["PRIMARY"].header
-            primary_header["INPUT"] = (img_path_in.name, "The image file used as input")
-            primary_header["ZOOM"] = (zoom, "The amount the image is enlarged")
-            primary_header["SIMGMA_B"] = (
-                sigma_b,
-                "Brightness based on the std of 50ks background.",
-            )
-            primary_header["FLUX"] = (flux, "The flux of the whole image.")
-            primary_header["OFFSET_X"] = (offset_x, "Percentage offset of x")
-            primary_header["OFFSET_Y"] = (offset_y, "Percentage offset of y")
-            primary_header["P0"] = (emin, "Emin")
-            primary_header["P1"] = (emax, "Emax")
+                # Add specifics to the simput file
+                tmp_file.write(f"INPUT = {img_path_in.name} / The image file used as input\n")
+                tmp_file.write(f"ZOOM = {zoom} / The amount the image is enlarged\n")
+                tmp_file.write(f"SIGMA_B = {sigma_b} / Brightness based on the std of 50ks background\n")
+                tmp_file.write(f"FLUX = {flux} / The flux of the whole image\n")
+                tmp_file.write(f"OFFSET_X = {offset_x} / Percentage offset of x\n")
+                tmp_file.write(f"OFFSET_Y = {offset_y} / Percentage offset of y\n")
+                tmp_file.write(f"P0 = {energies.emin} / Emin\n")
+                tmp_file.write(f"P1 = {energies.emax} / Emax\n")
+                tmp_file.write("COMMENT = The image is used as a distribution map for this flux.\n")
+                tmp_file.write("COMMENT = All the calibration is done on 50ks.\n")
+                tmp_file.write("COMMENT = The image is used as a distribution map for this flux.")
+                tmp_file.seek(0)
 
-            primary_header["COMMENT"] = "The image is used as a distribution map for this flux."
-            primary_header["COMMENT"] = "All the calibration is done on 50ks."
-            primary_header["COMMENT"] = (
-                f"Created by Sam Sweere (samsweere@gmail.com) for ESAC at "
-                f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
-            )
-
-        compress_gzip(output_file, compressed_path, remove_file=True)
-
-        output_files.append(compressed_path.resolve())
+                hsp.fthedit(infile=f"{local_out.name}", keyword=f"@{tmp_file.name}")
+                hsp.ftcopy(infile=f"{local_out.name}", outfile=f"{out_path}")
+            output_files.append(out_path)
 
     if consume_data:
         img_path_in.unlink()

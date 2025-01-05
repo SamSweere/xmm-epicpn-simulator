@@ -1,4 +1,4 @@
-FROM bojobo/sas:21.0.0 AS base
+FROM bojobo/sas AS base
 
 USER 0
 
@@ -14,7 +14,7 @@ RUN uv pip install beautifultable h5py loguru lxml pydantic pypdf python-dotenv 
 FROM base
 
 # Add SIXTE
-COPY --from=bojobo/sixte:3.0 --chown=heasoft:heasoft /opt/simput /opt/simput
+COPY --from=bojobo/sixte --chown=heasoft:heasoft /opt/simput /opt/simput
 ENV SIMPUT=/opt/simput \
     SIXTE=/opt/simput \
     PATH=/opt/simput/bin:${PATH} \

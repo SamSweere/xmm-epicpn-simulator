@@ -5,10 +5,10 @@ from uuid import uuid4
 
 from loguru import logger
 
-from src.heasoft import heasoft as hsp
+import src.heasoft as hsp
 from src.sixte import commands
 from src.sixte.image_gen import split_eventlist
-from src.xmm.tools import get_cdelt, get_crpix12, get_naxis12, get_xml_files
+from src.xmm.tools import get_cdelt, get_crpix12, get_naxis12, get_xml_file
 
 
 def run_simulation(
@@ -34,7 +34,7 @@ def run_simulation(
     for res_mult in res_mults:
         with TemporaryDirectory(dir=tmp_dir) as tmp:
             run_dir = Path(tmp)
-            xml_files = get_xml_files(
+            xml_files = get_xml_file(
                 xml_dir=xml_dir,
                 instrument_name=instrument_name,
                 res_mult=res_mult,
@@ -58,13 +58,32 @@ def run_simulation(
 
             assert len(evt_filepaths) > 0
 
-            merged = hsp.ftmerge(evt_filepaths, run_dir / "merged_events.fits", consume_data)
+            merged = hsp.ftmerge(
+                infile=",".join(evt_filepaths),
+                outfile=run_dir / "merged_events.fits",
+                clobber="yes",
+            )
 
-            if max_event_pattern < 12:
-                merged = hsp.ftcopy(f"{merged}[EVENTS][TYPE <= {max_event_pattern}]", merged)
+            if max_event_pattern > -1 and max_event_pattern < 12:
+                merged = hsp.ftcopy(
+                    infile=f"{merged}[EVENTS][TYPE <= {max_event_pattern}]",
+                    outfile=merged,
+                    clobber="yes",
+                )
+
                 for i in range(max_event_pattern + 1, 13):
-                    hsp.fthedit(f"{merged}[EVENTS]", f"NGRAD{i}", "add", "0")
-                    hsp.fthedit(f"{merged}[EVENTS]", f"NPGRA{i}", "add", "0")
+                    hsp.fthedit(
+                        infile=f"{merged}[EVENTS]",
+                        keyword=f"NGRAD{i}",
+                        operation="add",
+                        value=0,
+                    )
+                    hsp.fthedit(
+                        infile=f"{merged}[EVENTS]",
+                        keyword=f"NPGRA{i}",
+                        operation="add",
+                        value=0,
+                    )
 
             # split the eventlist
             split_events = split_eventlist(
@@ -137,9 +156,19 @@ def run_simulation(
                 # Add specifics to the simput file and apply emask if requested
                 emask = emasks[res_mult]
                 if emask is not None:
-                    hsp.ftimgcalc(final_compressed_file_path, "A * B", a=final_img_path, b=emask)
+                    hsp.ftimgcalc(
+                        outfile=final_compressed_file_path,
+                        expr="A * B",
+                        a=final_img_path,
+                        b=emask,
+                        clobber="yes",
+                    )
                 else:
-                    hsp.ftcopy(final_img_path, final_compressed_file_path)
+                    hsp.ftcopy(
+                        infile=final_img_path,
+                        outfile=final_compressed_file_path,
+                        clobber="yes",
+                    )
                 final_img_path.unlink()
                 split_img_paths_exps.append(final_compressed_file_path)
     return split_img_paths_exps

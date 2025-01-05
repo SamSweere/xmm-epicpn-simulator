@@ -1,5 +1,4 @@
 import os
-import shutil
 from collections.abc import Iterable
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -8,8 +7,6 @@ import numpy as np
 from astropy.io import fits
 from loguru import logger
 from xspec import Model, Xset
-
-from src.sixte import commands
 
 
 def get_spectrumfile(run_dir: Path, norm=0.01) -> Path:
@@ -24,26 +21,14 @@ def get_spectrumfile(run_dir: Path, norm=0.01) -> Path:
     return spectrum_file
 
 
-def merge_simputs(simput_files: list[Path], output_file: Path) -> Path:
-    # Combine the simput point sources
-    if len(simput_files) == 1:
-        file = simput_files[0]
-        shutil.copy2(file, output_file)
-    else:
-        commands.simputmerge(infiles=simput_files, outfile=output_file, fetch_extension=True)
-
-    return output_file
-
-
 def ones_like_xmm(
     resolution: int | tuple[int, int],
     cdelt1: float,
     cdelt2: float,
     crpix1: float,
     crpix2: float,
-    run_dir: Path,
-    filename: str,
-) -> Path:
+    tmp_file: Path,
+) -> None:
     if isinstance(resolution, int):
         resolution = (resolution, resolution)
 
@@ -66,14 +51,11 @@ def ones_like_xmm(
     header = fits.Header(header)
     hdu = fits.PrimaryHDU(data=np.ones(resolution), header=header)
 
-    out_file = run_dir / filename
-    hdu.writeto(out_file, overwrite=True)
-
-    return out_file
+    hdu.writeto(tmp_file, overwrite=True)
 
 
 def generate_ascii_spectrum(
-    run_dir: Path,
+    ascii_spectrum_file: Path,
     energies: float | Iterable | np.ndarray,
     rates: float | Iterable | np.ndarray,
 ) -> Path:
@@ -90,13 +72,12 @@ def generate_ascii_spectrum(
         rates = rates if isinstance(rates, Iterable) else [rates for _ in energies]
         content = [f"{energy} {rate}" for energy, rate in zip(energies, rates, strict=False)]
 
-    content = f"{os.linesep}".join(content)
+    content = "\n".join(content)
     content = content.strip()
 
-    out_file = run_dir / "ascii_spectrum.txt"
-    with open(out_file, "w") as f:
+    with open(ascii_spectrum_file, "w") as f:
         f.write(content)
 
-    logger.info(f"Ascii spectrum generated and saved to: {out_file.resolve()}")
+    logger.info(f"Ascii spectrum generated and saved to: {ascii_spectrum_file}")
 
-    return out_file
+    return ascii_spectrum_file

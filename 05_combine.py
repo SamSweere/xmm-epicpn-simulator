@@ -47,9 +47,21 @@ def _do(
     with TemporaryDirectory(dir=tmp_root) as tmp_dir:
         tmp_dir = Path(tmp_dir)
 
-        epn_file = hsp.ftcopy(epn_file, tmp_dir / "epn.fits.gz")
-        emos1_file = hsp.ftcopy(emos1_file, tmp_dir / "emos1.fits.gz")
-        emos2_file = hsp.ftcopy(emos2_file, tmp_dir / "emos2.fits.gz")
+        epn_file = hsp.ftcopy(
+            infile=epn_file,
+            outfile=tmp_dir / "epn.fits.gz",
+            clobber="yes",
+        )
+        emos1_file = hsp.ftcopy(
+            infile=emos1_file,
+            outfile=tmp_dir / "emos1.fits.gz",
+            clobber="yes",
+        )
+        emos2_file = hsp.ftcopy(
+            infile=emos2_file,
+            outfile=tmp_dir / "emos2.fits.gz",
+            clobber="yes",
+        )
 
         # Merge images
         xoffset_emos1 = -99 + shift_x
@@ -58,17 +70,23 @@ def _do(
         yoffset_emos2 = -89.5 + shift_y
 
         outfile = hsp.fimgmerge(
-            epn_file,
-            [emos1_file, emos2_file],
-            tmp_dir / "out.fits.gz",
-            [xoffset_emos1, xoffset_emos2],
-            [yoffset_emos1, yoffset_emos2],
+            infile=epn_file,
+            list=",".join([emos1_file, emos2_file]),
+            outfile=tmp_dir / "out.fits.gz",
+            xoffset=",".join([xoffset_emos1, xoffset_emos2]),
+            yoffset=",".join([yoffset_emos1, yoffset_emos2]),
         )
         # logger.info(f"Added {emos1_file} and {emos2_file}")
 
         # Add detmask of epn and save image
         final_out.parent.mkdir(exist_ok=True, parents=True)
-        hsp.ftimgcalc(final_out, "A * B", a=outfile, b=mask)
+        hsp.ftimgcalc(
+            outfile=final_out,
+            expr="A * B",
+            a=outfile,
+            b=mask,
+            clobber="yes",
+        )
         # logger.info(f"Added detmask")
 
 

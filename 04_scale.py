@@ -19,12 +19,26 @@ def _do(infile: Path, outfile: Path, exposure: int, rebin: bool) -> None:
     outfile.parent.mkdir(exist_ok=True, parents=True)
     with TemporaryDirectory(prefix="pre_") as tmp_dir:
         tmp_dir = Path(tmp_dir)
-        infile = hsp.ftcopy(infile=infile, outfile=tmp_dir / f"in{''.join(infile.suffixes)}")
+        infile = hsp.ftcopy(
+            infile=infile,
+            outfile=tmp_dir / f"in{''.join(infile.suffixes)}",
+            clobber="yes",
+        )
 
         if rebin:
-            infile = hsp.fimgbin(infile=infile, outfile=infile, xbinsize=2)
+            infile = hsp.fimgbin(
+                infile=infile,
+                outfile=infile,
+                xbinsize=2,
+                clobber="yes",
+            )
 
-        hsp.ftimgcalc(outfile=outfile, expr=f"A / {exposure}", A=infile)
+        hsp.ftimgcalc(
+            outfile=outfile,
+            expr=f"A / {exposure}",
+            A=infile,
+            clobber="yes",
+        )
 
 
 def preprocess(

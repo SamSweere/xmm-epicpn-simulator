@@ -1,13 +1,14 @@
 from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from uuid import uuid4
 
-import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
 
+import src.heasoft as hsp
+from src.config import EnergyCfg
 from src.simput.pointsource import create_pointsource
-from src.simput.tools import merge_simputs
-from src.tools.files import compress_gzip
+from src.sixte import commands
 
 
 def get_s_n_from_file(file_path: Path) -> tuple[np.ndarray, np.ndarray]:
@@ -62,48 +63,33 @@ def get_fluxes(file_path: Path) -> np.ndarray:
 def create_agn(
     fluxes,
     offsets,
-    emin: float,
-    emax: float,
-    run_dir: Path,
+    energies: EnergyCfg,
     output_dir: Path,
     xspec_file: Path,
 ) -> list[Path]:
     unique_id = uuid4().int
-    final_name = f"agn_{unique_id}_p0_{emin}ev_p1_{emax}ev.simput.gz"
-    out_file = output_dir / final_name
-    simput_files: list[Path] = []
+    outfile = output_dir / f"agn_{unique_id}.simput.gz"
 
-    for i, (flux, offset) in enumerate(zip(fluxes, offsets, strict=False)):
-        logger.debug(f"Creating AGN with flux={flux}")
-        output_file = run_dir / f"ps_{unique_id}_{i}.simput"
-        compressed = output_file.with_suffix(".simput.gz")
-        output_file = create_pointsource(
-            emin=emin,
-            emax=emax,
-            output_file=output_file,
-            src_flux=flux,
-            xspec_file=xspec_file,
-            offset=offset,
-        )
-        compress_gzip(output_file, compressed, remove_file=True)
-        simput_files.append(compressed)
-    merged = merge_simputs(simput_files=simput_files, output_file=run_dir / f"merged_{unique_id}.simput")
-    compress_gzip(in_file_path=merged, out_file_path=out_file, remove_file=True)
+    with TemporaryDirectory(prefix="simput_agn_") as run_dir:
+        simput_files = [NamedTemporaryFile(mode="r", dir=run_dir, suffix=".simput") for _ in range(fluxes.shape[0])]
+        for flux, offset, simput_file in zip(fluxes, offsets, simput_files, strict=False):
+            logger.debug(f"Creating AGN with flux={flux}")
+            create_pointsource(
+                energies=energies,
+                output_file=simput_file.name,
+                src_flux=flux,
+                xspec_file=xspec_file,
+                offset=offset,
+            )
+        if len(simput_files) == 1:
+            merged = simput_files[0].name
+        else:
+            merged = Path(run_dir) / f"merged_{unique_id}.simput"
+            commands.simputmerge(infiles=[Path(f.name) for f in simput_files], outfile=merged, fetch_extension=True)
 
-    for file in simput_files:
-        file.unlink(missing_ok=True)
+        for simput_file in simput_files:
+            simput_file.close()
 
-    return [out_file]
+        hsp.ftcopy(infile=f"{merged}", outfile=f"{outfile}", clobber="yes")
 
-
-def plot(file_path: Path, out_dir: Path):
-    s, n = get_s_n_from_file(file_path)
-
-    plt.plot(s, n, "g", label="data")
-
-    plt.xlabel("S [erg / cm ** 2 / s]")
-    plt.ylabel("N( > S) [deg ** -2]")
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.legend()
-    plt.savefig(out_dir / "xray_agn_number_count.pdf")
+    return outfile

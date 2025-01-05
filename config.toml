@@ -1,7 +1,7 @@
 [environment]
-working_dir = "/home/xmm_user/xmm-epicpn-simulator/data/tmp"
-output_dir = "/home/xmm_user/xmm-epicpn-simulator/data"
-log_dir = "/home/xmm_user/xmm-epicpn-simulator/data/logs"
+working_dir = "/home/heasoft/data/tmp"
+output_dir = "/home/heasoft/data"
+log_dir = "/home/heasoft/data/logs"
 debug = false
 verbose = true
 fail_on_error = false
@@ -28,24 +28,22 @@ TNG300-1 = [[1, "Mpc"], [4, "Mpc"]]
 proj = ["x", "y", "z"]
 slice = []
 
-[simput]
+[simput.img]
+n = 0 # -1 for all
 zoom_range = [ 1, 2 ]
 sigma_b_range = [ 5, 50 ]
 offset_std = 0.05
-num_img_sample = 5
-
-[simput.img]
-n_gen = -1 # -1 for all
+num_samples = 5
 
 [simput.agn]
-n_gen = 10 #25000
+n = 10 #25000
 deblending_n_gen = 0.5 # Fraction of n_gen
 deblending_min_sep = 0.0 # in arcsec
 deblending_max_sep = 5.0 # in arcsec # TODO: determine this value
 deblending_max_flux_delta = 0.5 # the maximum difference between two sources in flux # TODO: determine this value
 
 [simput.bkg]
-n_gen = 1 # 0
+n = 0 # 0
 
 [simulation]
 num_processes = 2

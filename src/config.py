@@ -109,12 +109,16 @@ class _SimulationModes(BaseModel):
     bkg: NonNegativeInt
 
 
-class _SimputImg(BaseModel):
-    n_gen: Annotated[int, Field(ge=-1)]
+class SimputImgCfg(BaseModel):
+    n: Annotated[int, Field(ge=-1)]
+    zoom_range: tuple[PositiveInt, PositiveInt]
+    sigma_b_range: tuple[PositiveInt, PositiveInt]
+    offset_std: PositiveFloat
+    num_samples: PositiveInt
 
 
 class _SimputAgn(BaseModel):
-    n_gen: NonNegativeInt
+    n: NonNegativeInt
     deblending_n_gen: NonNegativeFloat
     deblending_min_sep: NonNegativeFloat
     deblending_max_sep: NonNegativeFloat
@@ -122,37 +126,65 @@ class _SimputAgn(BaseModel):
 
 
 class _SimputBkg(BaseModel):
-    n_gen: int = 0 | 1
+    n: int = 0 | 1
 
 
 class SimputCfg(BaseModel):
-    zoom_range: tuple[PositiveInt, PositiveInt]
-    sigma_b_range: tuple[PositiveInt, PositiveInt]
-    img: _SimputImg
+    img: SimputImgCfg
     agn: _SimputAgn
     bkg: _SimputBkg
-    # agn: dict[str, any]
-    # bkg: dict[str, int]
-    offset_std: PositiveFloat
-    num_img_sample: PositiveInt
-    simput_dir: CfgPath
-    fits_dir: CfgPath
-    fits_compressed: Path
+    working_dir: CfgPath
+    output_dir: CfgPath
+
+    @computed_field
+    @property
+    def simput_dir(self) -> Path:
+        out = self.working_dir / "simput"
+        out.mkdir(parents=True, exist_ok=True)
+        return out
+
+    @computed_field
+    @property
+    def fits_dir(self) -> Path:
+        out = self.working_dir / "fits"
+        out.mkdir(parents=True, exist_ok=True)
+        return out
+
+    @computed_field
+    @property
+    def fits_compressed(self) -> Path | None:
+        out = self.output_dir / "fits.tar.gz"
+        if out.exists():
+            return out
 
     @computed_field
     @property
     def img_tar(self) -> Path:
-        return self.simput_dir / "img.tar"
+        return self.output_dir / "img.tar"
+
+    @computed_field
+    @property
+    def bkg_dir(self) -> Path:
+        out = self.simput_dir / "bkg"
+        out.mkdir(parents=True, exist_ok=True)
+        return out
 
     @computed_field
     @property
     def bkg_tar(self) -> Path:
-        return self.simput_dir / "bkg.tar"
+        return self.output_dir / "bkg.tar"
+
+    @computed_field
+    @property
+    def agn_dir(self) -> Path:
+        out = self.simput_dir / "agn"
+        out.mkdir(parents=True, exist_ok=True)
+        return out
 
     @computed_field
     @property
     def agn_tar(self) -> Path:
-        return self.simput_dir / "agn.tar"
+        return self.output_dir / "agn.tar"
 
 
 class EnergyCfg(BaseModel):

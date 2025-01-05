@@ -1,8 +1,6 @@
 import os
 import shutil
-import tarfile
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Literal
 
 import numpy as np
@@ -10,8 +8,6 @@ from astropy.io import fits
 from pysas.wrapper import Wrapper as sas
 
 from src.config import EnergyCfg
-from src.heasoft import heasoft as hsp
-from src.tools import xsa
 from src.xmm.ccf import get_xrt_xareaef
 
 available_instruments = ["epn", "emos1", "emos2"]
@@ -30,21 +26,6 @@ def get_fov(instrument_name: str) -> float:
         return get_fov(int(instrument_name[-1]))
 
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
-
-# def get_fov_v2(detector: XMMDetector) -> float:
-#     assert isinstance(detector, XMMDetector), f"Unkown detector '{detector}'!"
-#     if isinstance(detector, EPN):
-#         from src.xmm.epn import get_fov
-#
-#         return get_fov()
-#
-#     if isinstance(detector, EMOS):
-#         from src.xmm.emos import get_fov
-#
-#         return get_fov(int(instrument_name[-1]))
-#
-#     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_cdelt(instrument_name: str, res_mult: int) -> tuple[float, float]:
@@ -95,9 +76,9 @@ def get_crpix12(instrument_name: str, res_mult: int):
     if instrument_name == "epn":
         from src.xmm.epn import get_shift_xy
 
-        shift_x, shift_y = get_shift_xy(res_mult=res_mult)
-        crpix1 = round(((naxis1 + 1) / 2.0) + shift_x, 6)
-        crpix2 = round(((naxis2 + 1) / 2.0) + shift_y, 6)
+        shift_y, shift_x = get_shift_xy(res_mult=res_mult)
+        crpix1 = round(((naxis1 + 1) / 2.0) - shift_y, 6)
+        crpix2 = round(((naxis2 + 1) / 2.0) + shift_x, 6)
     else:
         crpix1 = round(((naxis1 + 1) / 2.0), 6)
         crpix2 = round(((naxis2 + 1) / 2.0), 6)
@@ -266,50 +247,8 @@ def create_psf_file(instrument_name: str, xml_dir: Path, res_mult: int) -> None:
     if res_mult != 1:
         with fits.open(out, mode="update") as hdu_list:
             for primary_hdu in hdu_list:
-                if "CDELT1" in primary_hdu.header:
-                    primary_hdu.header["CDELT1"] = primary_hdu.header["CDELT1"] / res_mult
-                if "CDELT2" in primary_hdu.header:
-                    primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT2"] / res_mult
-
-
-def get_spectrum_file(instrument_name: str, spectrum_dir: Path, filter_abbr: str) -> Path:
-    from src.tools.tools import download_file
-
-    if instrument_name not in available_instruments:
-        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
-
-    base_url = (
-        "https://xmm-tools.cosmos.esa.int/external/xmm_calibration/background/bs_repository/{0}{1}ffg_events.fits"
-    )
-    url = base_url.format(f"{instrument_name[1]}{instrument_name[-1]}", filter_abbr)
-    blank_sky_events = spectrum_dir / url.split("/")[-1]
-    out_file = spectrum_dir / f"{url.split('/')[-1].split('_')[0]}_spectrum.fits"
-
-    if out_file.exists():
-        return out_file
-
-    spectrum_dir.mkdir(exist_ok=True, parents=True)
-
-    if not blank_sky_events.exists():
-        download_file(url, blank_sky_events)
-
-    assert blank_sky_events.exists()
-
-    sas(
-        "evselect",
-        [
-            f"table={blank_sky_events}",
-            "energycolumn=PI",
-            f"spectrumset={out_file}",
-            "specchannelmin=0",
-            "specchannelmax=20479",
-            "withspectrumset=yes",
-        ],
-    ).run()
-
-    blank_sky_events.unlink()
-
-    return out_file
+                primary_hdu.header["CDELT1"] = primary_hdu.header["CDELT1"] / res_mult
+                primary_hdu.header["CDELT2"] = primary_hdu.header["CDELT2"] / res_mult
 
 
 def create_mask(
@@ -317,7 +256,6 @@ def create_mask(
     observation_id: str,
     mask_level: str | None,
     energies: EnergyCfg,
-    out_dir: Path,
     res_mults: list[int] = None,
 ) -> dict[str, dict[int, Path]] | None:
     if res_mults is None:
@@ -326,109 +264,24 @@ def create_mask(
     if mask_level is None:
         return {instrument_name: {res_mult: None for res_mult in res_mults}}
 
-    inst = f"{instrument_name[1]}{instrument_name[-1]}".upper()
-    old_cwd = os.getcwd()
-    with TemporaryDirectory() as tmp_dir:
-        tmp_dir = Path(tmp_dir)
-        obs_dir = tmp_dir / observation_id
-        os.chdir(tmp_dir)
-        xsa.download_data(observation_id, "FTZ", observation_id)
-        with tarfile.open(f"{observation_id}.tar") as tar:
-            tar.extractall()
-        pps_dir = obs_dir / "pps"
-        files = xsa.check_pps_dir(pps_dir)
-        gtis = xsa.make_gti_pps(files, out_dir=tmp_dir, verbose=False)
+    out_dir = Path("res").resolve()
+    if instrument_name == "epn":
+        from src.xmm.epn import create_mask
 
-        assert len(gtis) > 0
+        return {
+            instrument_name: create_mask(energies.emin, energies.emax, observation_id, out_dir, mask_level, res_mults)
+        }
 
-        evl = None
-        for file in files["evl_files"]:
-            if inst in file.stem.upper():
-                evl = file
-                break
-        assert evl is not None
+    if instrument_name == "emos1" or instrument_name == "emos2":
+        from src.xmm.emos import create_mask
 
-        gti = None
-        for file in gtis:
-            if inst in file.stem.upper():
-                gti = file
-                break
-        assert gti is not None
-
-        pattern = 4 if instrument_name == "epn" else 12
-        filter_exp = f"(FLAG == 0) && (PI > 300) && (PATTERN <= {pattern})"
-
-        filtered = xsa.filter_events_gti(
-            evl, gti, files, output_name=f"{observation_id}_cleaned.fits", w_dir=obs_dir, filter_expression=filter_exp
-        )
-
-        assert filtered
-
-        # Create atthkset
-        odf_dir = obs_dir / "odf"
-        os.chdir(odf_dir)
-        shutil.unpack_archive(odf_dir / f"{observation_id}.tar.gz", odf_dir, format="gztar")
-        sas("odfingest", [f"odfdir={odf_dir}", "withodfdir=true"]).run()
-
-        sum_file = next(odf_dir.glob("*SUM.SAS"))
-        sas("atthkgen", ["-o", f"{sum_file}"]).run()
-
-        masks = {}
-        for res_mult in res_mults:
-            bin_size = 80 if instrument_name == "epn" else 20
-            bin_size = bin_size / res_mult
-
-            imageset = xsa.make_detxy_image(
-                filtered,
-                pps_dir=pps_dir,
-                pps_files=files,
-                bin_size=bin_size,
-                output_name=f"{observation_id}_detxy.fits",
-                w_dir=obs_dir,
-                radec_image=False,
+        return {
+            instrument_name: create_mask(
+                energies.emin, energies.emax, instrument_name[-1], observation_id, out_dir, mask_level, res_mults
             )
+        }
 
-            os.chdir(obs_dir)
-            # Create eexpmap
-            expimgset = f"{inst}_expmap_{res_mult}x.fits"
-            args = [
-                f"imageset={imageset.resolve()}",
-                f"attitudeset={odf_dir / 'atthk.dat'}",
-                f"eventset={filtered.resolve()}",
-                f"expimageset={expimgset}",
-                f"pimin={int(energies.emin * 1000)}",
-                f"pimax={int(energies.emax * 1000)}",
-                "withdetcoords=true",
-            ]
-            sas("eexpmap", args, os.devnull).run()
-
-            out_dir.mkdir(exist_ok=True, parents=True)
-            # Move to out_dir
-            if mask_level == "expmap":
-                mask_path = hsp.ftcopy(
-                    infile=f"{expimgset}[pix X>0?1:0]",
-                    outfile=out_dir / f"{expimgset}.gz",
-                )
-                ext = 0
-
-            if mask_level == "emask":
-                # Create emask
-                emask = f"{inst}_emask_{res_mult}x.fits"
-                sas("emask", [f"expimageset={expimgset}", f"detmaskset={emask}"], os.devnull).run()
-                mask_path = hsp.ftcopy(
-                    infile=f"{emask}[0]",
-                    outfile=out_dir / f"{emask}.gz",
-                )
-                ext = 1
-
-            mask_data, header = fits.getdata(mask_path, header=True, ext=ext)
-            if instrument_name == "emos1":
-                fits.update(mask_path, data=np.rot90(mask_data), header=header, ext=ext)
-
-            masks[res_mult] = mask_path
-
-    os.chdir(old_cwd)
-    return {instrument_name: masks}
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def create_xml_files(
@@ -493,32 +346,80 @@ def create_xml_files(
     raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
-def get_xml_files(
+def get_background_spectrum(instrument_name: str, spectrum_dir: Path, filter_abbr: str) -> Path:
+    from src.tools.tools import download_file
+
+    if instrument_name not in available_instruments:
+        raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
+
+    base_url = (
+        "https://xmm-tools.cosmos.esa.int/external/xmm_calibration/background/bs_repository/{0}{1}ffg_events.fits"
+    )
+    url = base_url.format(f"{instrument_name[1]}{instrument_name[-1]}", filter_abbr)
+    blank_sky_events = spectrum_dir / url.split("/")[-1]
+    out_file = spectrum_dir / f"{url.split('/')[-1].split('_')[0]}_spectrum.fits"
+
+    if out_file.exists():
+        return out_file
+
+    spectrum_dir.mkdir(exist_ok=True, parents=True)
+
+    if not blank_sky_events.exists():
+        download_file(url, blank_sky_events)
+
+    assert blank_sky_events.exists()
+
+    sas(
+        taskname="evselect",
+        inargs=[
+            f"table={blank_sky_events}",
+            "energycolumn=PI",
+            f"spectrumset={out_file}",
+            "specchannelmin=0",
+            "specchannelmax=20479",
+            "withspectrumset=yes",
+        ],
+    ).run()
+
+    blank_sky_events.unlink()
+
+    return out_file
+
+
+def get_xml_file(
     instrument_name: str,
     xml_dir: Path,
     res_mult: int,
     xmm_filter: Literal["thin", "med", "thick"],
     sim_separate_ccds: bool,
-) -> list[Path]:
+) -> Path:
     """
     Returns:
         List[Path]: A list containing paths to the corresponding CCDs. If sim_separate_ccds == True, then the list
             contains a single Path to /path/to/instrument/combined.xml
     """
-    instrument_path = xml_dir / instrument_name
-    root = instrument_path / xmm_filter / f"{res_mult}x"
+    if instrument_name == "epn":
+        from src.xmm.epn import get_xml
 
-    assert root.exists()
+        return get_xml(
+            xml_dir=xml_dir,
+            res_mult=res_mult,
+            xmm_filter=xmm_filter,
+            sim_separate_ccds=sim_separate_ccds,
+        )
 
-    glob_pattern = f"ccd_*_{xmm_filter}.xml" if sim_separate_ccds else f"combined_ccd_{xmm_filter}.xml"
-    xml_paths: list[Path] = list(root.glob(glob_pattern))
+    if instrument_name == "emos1" or instrument_name == "emos2":
+        from src.xmm.emos import get_xml
 
-    if not xml_paths:
-        raise FileNotFoundError(f"Couldn't find {glob_pattern} for EPN in {root.resolve()}!")
+        return get_xml(
+            xml_dir=xml_dir,
+            emos_num=int(instrument_name[-1]),
+            res_mult=res_mult,
+            xmm_filter=xmm_filter,
+            sim_separate_ccds=sim_separate_ccds,
+        )
 
-    assert xml_paths
-
-    return xml_paths
+    raise ValueError(f"Unknown instrument '{instrument_name}'! Available instruments: {available_instruments}.")
 
 
 def get_psf_file(

@@ -2,13 +2,13 @@ from pathlib import Path
 
 import numpy as np
 
+from src.config import EnergyCfg
 from src.sixte import commands
 from src.xmm.tools import get_fov
 
 
 def create_pointsource(
-    emin: float,
-    emax: float,
+    energies: EnergyCfg,
     output_file: Path,
     xspec_file: Path,
     center_point: tuple[float, float] = (0.0, 0.0),
@@ -48,7 +48,13 @@ def create_pointsource(
     #     dec = 90 + dec
 
     commands.simputfile(
-        simput=output_file, ra=ra, dec=dec, src_flux=src_flux, emin=emin, emax=emax, xspec_file=xspec_file
+        simput=output_file,
+        ra=ra,
+        dec=dec,
+        src_flux=src_flux,
+        emin=energies.emin,
+        emax=energies.emax,
+        xspec_file=xspec_file,
     )
 
-    return output_file.resolve()
+    return output_file

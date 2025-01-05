@@ -52,7 +52,7 @@ def cutout_to_xray_fits(
             for axis in axes:
                 for w in widths:
                     for r in resolutions:
-                        logger.debug(f"mode={mode}, axis={axis}, w={w}, r={r}")
+                        logger.debug(f"{mode=}, {axis=}, {w=}, {r=}")
                         axis_str = axis if isinstance(axis, str) else f"{axis[0]}_{axis[1]}_{axis[2]}"
                         fits_filename_suffix = f"_m_{mode}_r_{r}_w_{w[0]}{w[1]}_n_{axis_str}"
                         fits_filename = f"{fits_filename_prefix}{fits_filename_suffix}.fits"
